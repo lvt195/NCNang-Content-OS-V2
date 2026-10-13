@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, RotateCcw } from 'lucide-react';
 import { FilterState, Category } from '../types/product';
 import { SITE_CONFIG } from '../config/site';
@@ -29,6 +30,17 @@ export const ProductFilters: React.FC<ProductFiltersProps> = ({
     (filters.color && filters.color !== 'all') ||
     (filters.type && filters.type !== 'all') ||
     Boolean(filters.searchQuery);
+
+  useEffect(() => {
+    if (isMobileDrawerOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isMobileDrawerOpen]);
 
   const filterContent = (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
@@ -221,85 +233,118 @@ export const ProductFilters: React.FC<ProductFiltersProps> = ({
         </div>
       </aside>
 
-      {/* Mobile Bottom Sheet Drawer */}
-      {isMobileDrawerOpen && (
-        <>
-          <div className="drawer-backdrop" onClick={onCloseMobileDrawer} />
-          <div
-            className="drawer-content"
-            style={{
-              bottom: 0,
-              left: 0,
-              right: 0,
-              maxHeight: '85vh',
-              borderTopLeftRadius: '16px',
-              borderTopRightRadius: '16px',
-              boxShadow: '0 -10px 30px rgba(0, 0, 0, 0.2)',
-              display: 'flex',
-              flexDirection: 'column',
-              overflow: 'hidden',
-            }}
-          >
-            {/* Drawer Header */}
+      {/* Mobile Bottom Sheet Drawer rendered to document.body via Portal */}
+      {isMobileDrawerOpen &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <div className="mobile-drawer-portal-wrapper">
             <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '1rem 1.25rem',
-                borderBottom: '1px solid var(--border-subtle)',
-              }}
+              className="drawer-backdrop"
+              onClick={onCloseMobileDrawer}
+              aria-hidden="true"
+            />
+            <div
+              className="drawer-content mobile-bottom-sheet"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Bộ lọc sản phẩm"
             >
-              <h3 style={{ fontSize: '1.05rem', fontWeight: 600 }}>
-                Bộ lọc ({totalFilteredCount} sản phẩm)
-              </h3>
-              <button
-                type="button"
+              {/* Drag handle */}
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'center',
+                  paddingTop: '10px',
+                  paddingBottom: '4px',
+                  cursor: 'pointer',
+                }}
                 onClick={onCloseMobileDrawer}
-                style={{ padding: '0.25rem', color: 'var(--text-muted)' }}
-                aria-label="Đóng bộ lọc"
               >
-                <X size={20} />
-              </button>
-            </div>
+                <div
+                  style={{
+                    width: '40px',
+                    height: '4px',
+                    borderRadius: '2px',
+                    backgroundColor: 'var(--border-subtle)',
+                  }}
+                />
+              </div>
 
-            {/* Drawer Scrollable Body */}
-            <div style={{ padding: '1.25rem', overflowY: 'auto', flex: 1 }}>
-              {filterContent}
-            </div>
-
-            {/* Drawer Footer CTA */}
-            <div
-              style={{
-                padding: '1rem 1.25rem',
-                borderTop: '1px solid var(--border-subtle)',
-                backgroundColor: 'var(--bg-surface)',
-                display: 'flex',
-                gap: '0.75rem',
-              }}
-            >
-              {isAnyFilterActive && (
+              {/* Drawer Header */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '0.75rem 1.25rem',
+                  borderBottom: '1px solid var(--border-subtle)',
+                }}
+              >
+                <h3 style={{ fontSize: '1rem', fontWeight: 600, margin: 0 }}>
+                  Bộ lọc ({totalFilteredCount} sản phẩm)
+                </h3>
                 <button
                   type="button"
-                  className="btn btn-outline"
-                  style={{ flex: 1 }}
-                  onClick={onResetFilters}
+                  onClick={onCloseMobileDrawer}
+                  style={{
+                    padding: '0.35rem',
+                    color: 'var(--text-muted)',
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                  aria-label="Đóng bộ lọc"
                 >
-                  Xóa lọc
+                  <X size={20} />
                 </button>
-              )}
-              <button
-                type="button"
-                className="btn btn-primary"
-                style={{ flex: 2 }}
-                onClick={onCloseMobileDrawer}
+              </div>
+
+              {/* Drawer Scrollable Body */}
+              <div
+                style={{
+                  padding: '1.25rem',
+                  overflowY: 'auto',
+                  flex: 1,
+                  WebkitOverflowScrolling: 'touch',
+                }}
               >
-                Xem {totalFilteredCount} sản phẩm
-              </button>
+                {filterContent}
+              </div>
+
+              {/* Drawer Footer CTA */}
+              <div
+                style={{
+                  padding: '0.85rem 1.25rem',
+                  borderTop: '1px solid var(--border-subtle)',
+                  backgroundColor: 'var(--bg-surface)',
+                  display: 'flex',
+                  gap: '0.75rem',
+                }}
+              >
+                {isAnyFilterActive && (
+                  <button
+                    type="button"
+                    className="btn btn-outline"
+                    style={{ flex: 1 }}
+                    onClick={onResetFilters}
+                  >
+                    Xóa lọc
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  style={{ flex: 2 }}
+                  onClick={onCloseMobileDrawer}
+                >
+                  Xem {totalFilteredCount} sản phẩm
+                </button>
+              </div>
             </div>
-          </div>
-        </>
-      )}
+          </div>,
+          document.body
+        )}
 
       <style>{`
         .desktop-filters-sidebar {

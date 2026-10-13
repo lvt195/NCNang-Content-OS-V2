@@ -40,13 +40,13 @@ export const Header: React.FC<HeaderProps> = ({
       }}
     >
       <div
-        className="container"
+        className="container header-container"
         style={{
-          height: '64px',
+          height: '60px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          gap: '0.75rem',
+          gap: '0.5rem',
         }}
       >
         {/* Brand */}
@@ -55,16 +55,17 @@ export const Header: React.FC<HeaderProps> = ({
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '0.5rem',
+            gap: '0.45rem',
             textDecoration: 'none',
             minWidth: 0,
-            flexShrink: 1,
+            flex: '1 1 auto',
+            overflow: 'hidden',
           }}
         >
           <div
             style={{
-              width: '34px',
-              height: '34px',
+              width: '32px',
+              height: '32px',
               borderRadius: '50%',
               backgroundColor: 'var(--bg-muted)',
               border: '1px solid var(--border-subtle)',
@@ -73,22 +74,22 @@ export const Header: React.FC<HeaderProps> = ({
               justifyContent: 'center',
               color: 'var(--accent-brown)',
               fontWeight: 700,
-              fontSize: '0.95rem',
+              fontSize: '0.9rem',
               flexShrink: 0,
             }}
           >
             N
           </div>
-          <div style={{ minWidth: 0 }}>
+          <div style={{ minWidth: 0, overflow: 'hidden' }}>
             <span
               className="font-serif"
               style={{
-                fontSize: 'clamp(1rem, 3.8vw, 1.25rem)',
+                fontSize: 'clamp(0.95rem, 3.6vw, 1.25rem)',
                 fontWeight: 600,
                 color: 'var(--text-primary)',
                 letterSpacing: '0.01em',
                 display: 'block',
-                lineHeight: 1.1,
+                lineHeight: 1.15,
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
@@ -97,13 +98,15 @@ export const Header: React.FC<HeaderProps> = ({
               {SITE_CONFIG.name}
             </span>
             <span
+              className="header-brand-subtitle"
               style={{
-                fontSize: '0.65rem',
+                fontSize: '0.625rem',
                 color: 'var(--text-muted)',
                 letterSpacing: '0.04em',
                 textTransform: 'uppercase',
-                display: 'block',
                 whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
               }}
             >
               Linen & Đũi Tự Nhiên
@@ -163,8 +166,16 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         )}
 
-        {/* Right Actions: Mobile Search + Prominent Admin Button */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0 }}>
+        {/* Right Actions: Mobile Search + Guaranteed Visible Admin Button */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.35rem',
+            flexShrink: 0,
+            marginLeft: 'auto',
+          }}
+        >
           {/* Mobile search toggle */}
           {isCatalog && onSearchChange && (
             <button
@@ -172,49 +183,43 @@ export const Header: React.FC<HeaderProps> = ({
               onClick={() => setMobileSearchOpen(!mobileSearchOpen)}
               aria-label="Tìm kiếm sản phẩm"
               style={{
-                width: '36px',
-                height: '36px',
+                width: '34px',
+                height: '34px',
                 padding: 0,
                 borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
               }}
             >
-              <Search size={16} />
+              <Search size={15} />
             </button>
           )}
 
-          {/* Prominent Admin Button */}
-          {user && isAdmin ? (
-            <Link
-              to="/admin"
-              className="btn btn-primary btn-sm"
-              style={{
-                gap: '0.35rem',
-                padding: '0.35rem 0.65rem',
-                fontSize: '0.8rem',
-              }}
-              title="Vào bảng điều khiển Quản trị"
-            >
-              <ShieldCheck size={15} />
-              <span>Quản trị</span>
-            </Link>
-          ) : (
-            <Link
-              to="/admin/login"
-              className="btn btn-outline btn-sm"
-              style={{
-                gap: '0.35rem',
-                padding: '0.35rem 0.65rem',
-                fontSize: '0.8rem',
-                color: 'var(--text-primary)',
-                borderColor: 'var(--border-subtle)',
-                backgroundColor: 'var(--bg-muted)',
-              }}
-              title="Đăng nhập trang quản trị"
-            >
-              <Shield size={14} color="var(--accent-brown)" />
-              <span>Admin</span>
-            </Link>
-          )}
+          {/* Always prominent Quản trị button */}
+          <Link
+            to={user && isAdmin ? '/admin' : '/admin/login'}
+            className="btn btn-primary btn-sm"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.35rem',
+              padding: '0.38rem 0.65rem',
+              fontSize: '0.8rem',
+              fontWeight: 600,
+              backgroundColor: 'var(--accent-brown)',
+              color: '#ffffff',
+              borderRadius: 'var(--radius-sm)',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+              whiteSpace: 'nowrap',
+              flexShrink: 0,
+            }}
+            title="Khu vực Quản trị cửa hàng"
+          >
+            {user && isAdmin ? <ShieldCheck size={15} /> : <Shield size={15} />}
+            <span>Quản trị</span>
+          </Link>
         </div>
       </div>
 
@@ -273,6 +278,15 @@ export const Header: React.FC<HeaderProps> = ({
       )}
 
       <style>{`
+        @media (max-width: 520px) {
+          .header-brand-subtitle {
+            display: none !important;
+          }
+          .header-container {
+            padding-left: 0.75rem !important;
+            padding-right: 0.75rem !important;
+          }
+        }
         @media (min-width: 768px) {
           .desktop-search-container {
             display: block !important;

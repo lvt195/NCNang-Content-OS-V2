@@ -197,19 +197,24 @@ export const Footer: React.FC = () => {
               </div>
 
               {/* Clear Admin Access Link in Footer */}
-              <div style={{ paddingTop: '0.5rem', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+              <div style={{ paddingTop: '0.75rem', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
                 <Link
                   to="/admin/login"
+                  className="btn btn-outline btn-sm"
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
-                    gap: '0.4rem',
-                    color: '#c9c1b7',
+                    gap: '0.45rem',
+                    color: '#ffffff',
+                    borderColor: 'rgba(255,255,255,0.25)',
+                    backgroundColor: 'rgba(255,255,255,0.06)',
                     fontSize: '0.8rem',
-                    textDecoration: 'underline',
+                    padding: '0.4rem 0.8rem',
+                    borderRadius: 'var(--radius-sm)',
                   }}
+                  title="Đăng nhập trang quản trị"
                 >
-                  <Shield size={14} color="#a39482" />
+                  <Shield size={14} color="#e5ded5" />
                   <span>Khu vực Quản trị Admin</span>
                 </Link>
               </div>
