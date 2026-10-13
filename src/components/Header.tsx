@@ -1,21 +1,17 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Search, SlidersHorizontal, ShieldCheck, X } from 'lucide-react';
+import { Search, Shield, ShieldCheck, X } from 'lucide-react';
 import { SITE_CONFIG } from '../config/site';
 import { useAuth } from '../context/AuthContext';
 
 interface HeaderProps {
   searchQuery?: string;
   onSearchChange?: (val: string) => void;
-  onOpenMobileFilters?: () => void;
-  activeFilterCount?: number;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   searchQuery = '',
   onSearchChange,
-  onOpenMobileFilters,
-  activeFilterCount = 0,
 }) => {
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const { user, isAdmin } = useAuth();
@@ -39,15 +35,36 @@ export const Header: React.FC<HeaderProps> = ({
         position: 'sticky',
         top: 0,
         zIndex: 50,
+        width: '100%',
+        maxWidth: '100vw',
       }}
     >
-      <div className="container" style={{ height: 'var(--header-height)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
+      <div
+        className="container"
+        style={{
+          height: '64px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '0.75rem',
+        }}
+      >
         {/* Brand */}
-        <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', textDecoration: 'none' }}>
+        <Link
+          to="/"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            textDecoration: 'none',
+            minWidth: 0,
+            flexShrink: 1,
+          }}
+        >
           <div
             style={{
-              width: '38px',
-              height: '38px',
+              width: '34px',
+              height: '34px',
               borderRadius: '50%',
               backgroundColor: 'var(--bg-muted)',
               border: '1px solid var(--border-subtle)',
@@ -56,32 +73,37 @@ export const Header: React.FC<HeaderProps> = ({
               justifyContent: 'center',
               color: 'var(--accent-brown)',
               fontWeight: 700,
-              fontSize: '1rem',
-              letterSpacing: '-0.02em',
+              fontSize: '0.95rem',
+              flexShrink: 0,
             }}
           >
             N
           </div>
-          <div>
+          <div style={{ minWidth: 0 }}>
             <span
               className="font-serif"
               style={{
-                fontSize: '1.25rem',
+                fontSize: 'clamp(1rem, 3.8vw, 1.25rem)',
                 fontWeight: 600,
                 color: 'var(--text-primary)',
                 letterSpacing: '0.01em',
                 display: 'block',
                 lineHeight: 1.1,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
               }}
             >
               {SITE_CONFIG.name}
             </span>
             <span
               style={{
-                fontSize: '0.7rem',
+                fontSize: '0.65rem',
                 color: 'var(--text-muted)',
                 letterSpacing: '0.04em',
                 textTransform: 'uppercase',
+                display: 'block',
+                whiteSpace: 'nowrap',
               }}
             >
               Linen & Đũi Tự Nhiên
@@ -91,10 +113,13 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Desktop Search Bar (Catalog) */}
         {isCatalog && onSearchChange && (
-          <div style={{ flex: '1', maxWidth: '440px', display: 'none' }} className="desktop-search-container">
+          <div
+            style={{ flex: '1', maxWidth: '380px', display: 'none' }}
+            className="desktop-search-container"
+          >
             <div style={{ position: 'relative', width: '100%' }}>
               <Search
-                size={16}
+                size={15}
                 style={{
                   position: 'absolute',
                   left: '12px',
@@ -105,17 +130,17 @@ export const Header: React.FC<HeaderProps> = ({
               />
               <input
                 type="text"
-                placeholder="Tìm theo tên hoặc mã SP (ví dụ: GA001, be)..."
+                placeholder="Tìm mã SP (GA001) hoặc tên..."
                 value={searchQuery}
                 onChange={(e) => onSearchChange(e.target.value)}
                 style={{
                   width: '100%',
-                  padding: '0.55rem 2rem 0.55rem 2.25rem',
+                  padding: '0.45rem 2rem 0.45rem 2.25rem',
                   borderRadius: 'var(--radius-full)',
                   border: '1px solid var(--border-subtle)',
                   backgroundColor: 'var(--bg-primary)',
                   color: 'var(--text-primary)',
-                  fontSize: '0.875rem',
+                  fontSize: '0.85rem',
                 }}
               />
               {searchQuery && (
@@ -128,84 +153,66 @@ export const Header: React.FC<HeaderProps> = ({
                     top: '50%',
                     transform: 'translateY(-50%)',
                     color: 'var(--text-muted)',
-                    display: 'flex',
-                    alignItems: 'center',
                   }}
                   aria-label="Xóa từ khóa tìm kiếm"
                 >
-                  <X size={15} />
+                  <X size={14} />
                 </button>
               )}
             </div>
           </div>
         )}
 
-        {/* Right Actions */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        {/* Right Actions: Mobile Search + Prominent Admin Button */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0 }}>
           {/* Mobile search toggle */}
           {isCatalog && onSearchChange && (
             <button
               className="btn btn-outline btn-sm mobile-search-btn"
               onClick={() => setMobileSearchOpen(!mobileSearchOpen)}
               aria-label="Tìm kiếm sản phẩm"
+              style={{
+                width: '36px',
+                height: '36px',
+                padding: 0,
+                borderRadius: '50%',
+              }}
             >
               <Search size={16} />
             </button>
           )}
 
-          {/* Mobile filter toggle */}
-          {isCatalog && onOpenMobileFilters && (
-            <button
-              className="btn btn-outline btn-sm mobile-filter-btn"
-              onClick={onOpenMobileFilters}
-              style={{ position: 'relative' }}
-              aria-label="Mở bộ lọc"
-            >
-              <SlidersHorizontal size={16} />
-              <span>Bộ lọc</span>
-              {activeFilterCount > 0 && (
-                <span
-                  style={{
-                    width: '18px',
-                    height: '18px',
-                    borderRadius: '50%',
-                    backgroundColor: 'var(--accent-brown)',
-                    color: '#ffffff',
-                    fontSize: '0.7rem',
-                    fontWeight: 600,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  {activeFilterCount}
-                </span>
-              )}
-            </button>
-          )}
-
-          {/* Admin link / indicator */}
+          {/* Prominent Admin Button */}
           {user && isAdmin ? (
             <Link
               to="/admin"
               className="btn btn-primary btn-sm"
-              title="Khu vực quản trị"
+              style={{
+                gap: '0.35rem',
+                padding: '0.35rem 0.65rem',
+                fontSize: '0.8rem',
+              }}
+              title="Vào bảng điều khiển Quản trị"
             >
-              <ShieldCheck size={16} />
+              <ShieldCheck size={15} />
               <span>Quản trị</span>
             </Link>
           ) : (
             <Link
               to="/admin/login"
+              className="btn btn-outline btn-sm"
               style={{
+                gap: '0.35rem',
+                padding: '0.35rem 0.65rem',
                 fontSize: '0.8rem',
-                color: 'var(--text-muted)',
-                padding: '0.35rem 0.6rem',
-                borderRadius: '4px',
+                color: 'var(--text-primary)',
+                borderColor: 'var(--border-subtle)',
+                backgroundColor: 'var(--bg-muted)',
               }}
-              title="Đăng nhập quản trị"
+              title="Đăng nhập trang quản trị"
             >
-              Admin
+              <Shield size={14} color="var(--accent-brown)" />
+              <span>Admin</span>
             </Link>
           )}
         </div>
@@ -215,14 +222,14 @@ export const Header: React.FC<HeaderProps> = ({
       {mobileSearchOpen && isCatalog && onSearchChange && (
         <div
           style={{
-            padding: '0.75rem 1rem',
+            padding: '0.65rem 1rem',
             backgroundColor: 'var(--bg-muted)',
             borderTop: '1px solid var(--border-subtle)',
           }}
         >
           <form onSubmit={handleSearchSubmit} style={{ position: 'relative' }}>
             <Search
-              size={16}
+              size={15}
               style={{
                 position: 'absolute',
                 left: '12px',
@@ -234,15 +241,16 @@ export const Header: React.FC<HeaderProps> = ({
             <input
               type="text"
               autoFocus
-              placeholder="Nhập tên sản phẩm hoặc mã SP..."
+              placeholder="Nhập tên sản phẩm hoặc mã SP (ví dụ: GA001)..."
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
               style={{
                 width: '100%',
-                padding: '0.55rem 2rem 0.55rem 2.25rem',
+                padding: '0.5rem 2rem 0.5rem 2.25rem',
                 borderRadius: 'var(--radius-sm)',
                 border: '1px solid var(--border-subtle)',
                 backgroundColor: '#ffffff',
+                fontSize: '0.85rem',
               }}
             />
             {searchQuery && (
@@ -257,7 +265,7 @@ export const Header: React.FC<HeaderProps> = ({
                   color: 'var(--text-muted)',
                 }}
               >
-                <X size={16} />
+                <X size={15} />
               </button>
             )}
           </form>
@@ -270,9 +278,6 @@ export const Header: React.FC<HeaderProps> = ({
             display: block !important;
           }
           .mobile-search-btn {
-            display: none !important;
-          }
-          .mobile-filter-btn {
             display: none !important;
           }
         }

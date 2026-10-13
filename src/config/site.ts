@@ -8,18 +8,30 @@ export const SITE_CONFIG = {
   baseUrl: 'https://ncnang.pages.dev',
   contact: {
     zalo: {
-      url: 'https://zalo.me/0987654321', // Configurable placeholder URL
-      displayPhone: '0987.654.321',
+      url: 'https://zalo.me/0358412868',
+      displayPhone: '0358.412.868',
+      rawPhone: '0358412868',
       actionText: 'Tư vấn qua Zalo',
       note: 'Nhắn Zalo kèm Mã SP để tư vấn chọn kích thước, xem ảnh cận vải & nhận ship nhanh.',
     },
+    facebook: {
+      url: 'https://www.facebook.com/people/Nh%C3%A0-c%C3%B3-m%C3%B9i-n%E1%BA%AFng/61593124454635/',
+      name: 'Nhà có mùi nắng',
+    },
     messenger: {
-      url: 'https://m.me/nhacomuinang', // Configurable placeholder URL
-      handle: 'nhacomuinang',
+      url: 'https://m.me/61593124454635',
       actionText: 'Nhắn qua Messenger',
       note: 'Gửi tin nhắn Messenger để nhận báo giá chi tiết và tư vấn phối màu phòng ngủ.',
     },
-    phone: '0987.654.321',
+    instagram: {
+      url: 'https://www.instagram.com/nhacomuinang/',
+      handle: '@nhacomuinang',
+    },
+    threads: {
+      url: 'https://www.threads.net/@nhacomuinang',
+      handle: '@nhacomuinang',
+    },
+    phone: '0358.412.868',
     address: 'Hà Nội, Việt Nam (Bán online & giao hàng toàn quốc)',
     openHours: '8:30 – 21:30 hàng ngày',
   },
