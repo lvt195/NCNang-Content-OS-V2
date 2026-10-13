@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Folder,
@@ -9,8 +9,11 @@ import {
   RefreshCw,
   Search,
   CheckCircle,
+  Filter,
 } from 'lucide-react';
 import { mediaService, StorageItem } from '../services/mediaService';
+import { productService } from '../services/productService';
+import { Category } from '../types/product';
 
 interface MediaPickerModalProps {
   isOpen: boolean;
@@ -27,18 +30,40 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
 }) => {
   const [currentFolder, setCurrentFolder] = useState<string>(initialFolder);
   const [items, setItems] = useState<StorageItem[]>([]);
+  const [allFiles, setAllFiles] = useState<StorageItem[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [viewScope, setViewScope] = useState<'current_folder' | 'all_photos'>('all_photos');
+
   const [loading, setLoading] = useState<boolean>(true);
   const [errorMsg, setErrorMsg] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedUrls, setSelectedUrls] = useState<string[]>([]);
 
-  const loadFolder = async (folder: string) => {
+  // Load categories
+  useEffect(() => {
+    async function loadCats() {
+      try {
+        const cats = await productService.getCategories();
+        setCategories(cats);
+      } catch (err) {
+        console.warn('Error loading categories:', err);
+      }
+    }
+    loadCats();
+  }, []);
+
+  const loadData = async (folder: string) => {
     setLoading(true);
     setErrorMsg('');
     try {
-      const res = await mediaService.listItems(folder);
+      const [res, recursive] = await Promise.all([
+        mediaService.listItems(folder),
+        mediaService.listAllFilesRecursive(),
+      ]);
       const visible = res.items.filter((i) => !i.name.startsWith('.'));
       setItems(visible);
+      setAllFiles(recursive);
     } catch (err: unknown) {
       setErrorMsg(err instanceof Error ? err.message : 'Lỗi khi tải kho ảnh');
     } finally {
@@ -49,11 +74,9 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       setSelectedUrls([]);
-      loadFolder(currentFolder);
+      loadData(currentFolder);
     }
   }, [isOpen, currentFolder]);
-
-  if (!isOpen) return null;
 
   const handleToggleSelect = (url: string) => {
     setSelectedUrls((prev) =>
@@ -70,9 +93,30 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
 
   const breadcrumbs = currentFolder ? currentFolder.split('/') : [];
 
-  const filteredItems = items.filter((item) =>
-    item.name.toLowerCase().includes(searchQuery.toLowerCase().trim())
-  );
+  // Filter items
+  const displayedItems = useMemo(() => {
+    let list: StorageItem[] = [];
+
+    if (categoryFilter !== 'all' || viewScope === 'all_photos') {
+      list = allFiles;
+      if (categoryFilter === 'uncategorized') {
+        list = list.filter((i) => !i.fullPath.includes('/'));
+      } else if (categoryFilter !== 'all') {
+        list = list.filter((i) => i.fullPath.startsWith(`${categoryFilter}/`));
+      }
+    } else {
+      list = items;
+    }
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      list = list.filter((i) => i.name.toLowerCase().includes(q));
+    }
+
+    return list;
+  }, [categoryFilter, viewScope, allFiles, items, searchQuery]);
+
+  if (!isOpen) return null;
 
   return createPortal(
     <div
@@ -101,8 +145,8 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
       <div
         style={{
           position: 'relative',
-          width: '94%',
-          maxWidth: '880px',
+          width: '95%',
+          maxWidth: '920px',
           height: '85vh',
           backgroundColor: '#ffffff',
           borderRadius: '12px',
@@ -129,7 +173,7 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
               Chọn ảnh từ Kho Online (Supabase Cloud)
             </h3>
             <span style={{ fontSize: '0.775rem', color: '#685e54' }}>
-              Tích chọn một hoặc nhiều ảnh để thêm vào sản phẩm
+              Tích chọn một hoặc nhiều ảnh để thêm vào sản phẩm (Tổng cộng: {allFiles.length} ảnh)
             </span>
           </div>
           <button
@@ -139,6 +183,109 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
           >
             <X size={20} />
           </button>
+        </div>
+
+        {/* Categories Filter Toolbar */}
+        <div
+          style={{
+            padding: '0.65rem 1.25rem',
+            borderBottom: '1px solid #e8e1d5',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.4rem',
+            flexWrap: 'wrap',
+            backgroundColor: '#fdfbf7',
+          }}
+        >
+          <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#685e54', display: 'flex', alignItems: 'center', gap: '3px' }}>
+            <Filter size={12} /> Lọc:
+          </span>
+
+          <button
+            type="button"
+            onClick={() => {
+              setCategoryFilter('all');
+              setViewScope('all_photos');
+            }}
+            style={{
+              padding: '0.25rem 0.55rem',
+              borderRadius: '15px',
+              border: categoryFilter === 'all' && viewScope === 'all_photos' ? '1px solid #766352' : '1px solid #e8e1d5',
+              backgroundColor: categoryFilter === 'all' && viewScope === 'all_photos' ? '#766352' : '#ffffff',
+              color: categoryFilter === 'all' && viewScope === 'all_photos' ? '#ffffff' : '#2c2825',
+              fontSize: '0.75rem',
+              fontWeight: 500,
+              cursor: 'pointer',
+            }}
+          >
+            Tất cả ({allFiles.length})
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setCategoryFilter('all');
+              setViewScope('current_folder');
+            }}
+            style={{
+              padding: '0.25rem 0.55rem',
+              borderRadius: '15px',
+              border: categoryFilter === 'all' && viewScope === 'current_folder' ? '1px solid #766352' : '1px solid #e8e1d5',
+              backgroundColor: categoryFilter === 'all' && viewScope === 'current_folder' ? '#766352' : '#ffffff',
+              color: categoryFilter === 'all' && viewScope === 'current_folder' ? '#ffffff' : '#2c2825',
+              fontSize: '0.75rem',
+              fontWeight: 500,
+              cursor: 'pointer',
+            }}
+          >
+            📁 Thư mục
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setCategoryFilter('uncategorized');
+              setViewScope('all_photos');
+            }}
+            style={{
+              padding: '0.25rem 0.55rem',
+              borderRadius: '15px',
+              border: categoryFilter === 'uncategorized' ? '1px solid #766352' : '1px solid #e8e1d5',
+              backgroundColor: categoryFilter === 'uncategorized' ? '#766352' : '#ffffff',
+              color: categoryFilter === 'uncategorized' ? '#ffffff' : '#2c2825',
+              fontSize: '0.75rem',
+              fontWeight: 500,
+              cursor: 'pointer',
+            }}
+          >
+            Chưa phân loại
+          </button>
+
+          {categories.map((c) => {
+            const isSelected = categoryFilter === c.id;
+            return (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => {
+                  setCategoryFilter(c.id);
+                  setViewScope('all_photos');
+                }}
+                style={{
+                  padding: '0.25rem 0.55rem',
+                  borderRadius: '15px',
+                  border: isSelected ? '1px solid #766352' : '1px solid #e8e1d5',
+                  backgroundColor: isSelected ? '#766352' : '#ffffff',
+                  color: isSelected ? '#ffffff' : '#2c2825',
+                  fontSize: '0.75rem',
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                }}
+              >
+                {c.name}
+              </button>
+            );
+          })}
         </div>
 
         {/* Navigation & Search toolbar */}
@@ -153,65 +300,71 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
             flexWrap: 'wrap',
           }}
         >
-          {/* Breadcrumbs */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.8rem' }}>
-            {currentFolder && (
+          {/* Breadcrumbs (if folder view) */}
+          {viewScope === 'current_folder' ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.8rem' }}>
+              {currentFolder && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const parts = currentFolder.split('/');
+                    parts.pop();
+                    setCurrentFolder(parts.join('/'));
+                  }}
+                  className="btn btn-outline btn-sm"
+                  style={{ padding: '0.15rem 0.4rem', marginRight: '0.25rem' }}
+                >
+                  <ArrowLeft size={13} />
+                </button>
+              )}
+
               <button
                 type="button"
-                onClick={() => {
-                  const parts = currentFolder.split('/');
-                  parts.pop();
-                  setCurrentFolder(parts.join('/'));
+                onClick={() => setCurrentFolder('')}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontWeight: currentFolder ? 500 : 700,
+                  color: currentFolder ? '#766352' : '#2c2825',
                 }}
-                className="btn btn-outline btn-sm"
-                style={{ padding: '0.15rem 0.4rem', marginRight: '0.25rem' }}
               >
-                <ArrowLeft size={13} />
+                🏠 Gốc
               </button>
-            )}
 
-            <button
-              type="button"
-              onClick={() => setCurrentFolder('')}
-              style={{
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                fontWeight: currentFolder ? 500 : 700,
-                color: currentFolder ? '#766352' : '#2c2825',
-              }}
-            >
-              🏠 Gốc
-            </button>
-
-            {breadcrumbs.map((seg, idx) => {
-              const isLast = idx === breadcrumbs.length - 1;
-              return (
-                <React.Fragment key={idx}>
-                  <ChevronRight size={13} color="#9e9387" />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const target = breadcrumbs.slice(0, idx + 1).join('/');
-                      setCurrentFolder(target);
-                    }}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      cursor: isLast ? 'default' : 'pointer',
-                      fontWeight: isLast ? 700 : 500,
-                      color: isLast ? '#2c2825' : '#766352',
-                    }}
-                  >
-                    {seg}
-                  </button>
-                </React.Fragment>
-              );
-            })}
-          </div>
+              {breadcrumbs.map((seg, idx) => {
+                const isLast = idx === breadcrumbs.length - 1;
+                return (
+                  <React.Fragment key={idx}>
+                    <ChevronRight size={13} color="#9e9387" />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const target = breadcrumbs.slice(0, idx + 1).join('/');
+                        setCurrentFolder(target);
+                      }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        cursor: isLast ? 'default' : 'pointer',
+                        fontWeight: isLast ? 700 : 500,
+                        color: isLast ? '#2c2825' : '#766352',
+                      }}
+                    >
+                      {seg}
+                    </button>
+                  </React.Fragment>
+                );
+              })}
+            </div>
+          ) : (
+            <div style={{ fontSize: '0.8rem', color: '#685e54' }}>
+              Hiển thị: <strong>{displayedItems.length} ảnh</strong>
+            </div>
+          )}
 
           {/* Search */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginLeft: 'auto' }}>
             <div style={{ position: 'relative', width: '180px' }}>
               <Search
                 size={13}
@@ -225,7 +378,7 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
               />
               <input
                 type="text"
-                placeholder="Tìm ảnh..."
+                placeholder="Tìm tên ảnh..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="form-input"
@@ -234,9 +387,10 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
             </div>
             <button
               type="button"
-              onClick={() => loadFolder(currentFolder)}
+              onClick={() => loadData(currentFolder)}
               className="btn btn-outline btn-sm"
               style={{ padding: '0.2rem 0.5rem' }}
+              title="Tải lại danh sách"
             >
               <RefreshCw size={13} />
             </button>
@@ -256,9 +410,9 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
               <RefreshCw size={24} className="spin" />
               <p style={{ marginTop: '0.5rem', fontSize: '0.85rem' }}>Đang tải danh sách ảnh...</p>
             </div>
-          ) : filteredItems.length === 0 ? (
+          ) : displayedItems.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '3.5rem 1rem', color: '#8c8277' }}>
-              <p style={{ fontSize: '0.9rem', fontWeight: 500 }}>Thư mục này chưa có ảnh nào.</p>
+              <p style={{ fontSize: '0.9rem', fontWeight: 500 }}>Chưa có ảnh nào trong mục này.</p>
             </div>
           ) : (
             <div
@@ -268,7 +422,7 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
                 gap: '0.75rem',
               }}
             >
-              {filteredItems.map((item) => {
+              {displayedItems.map((item) => {
                 if (item.isFolder) {
                   return (
                     <div
@@ -276,6 +430,7 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
                       onClick={() => {
                         const next = currentFolder ? `${currentFolder}/${item.name}` : item.name;
                         setCurrentFolder(next);
+                        setViewScope('current_folder');
                       }}
                       style={{
                         border: '1px solid #e8e1d5',
@@ -305,13 +460,15 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
                 }
 
                 const isSelected = item.publicUrl ? selectedUrls.includes(item.publicUrl) : false;
+                const folderPrefix = item.fullPath.includes('/') ? item.fullPath.split('/')[0] : '';
+                const catObj = categories.find((c) => c.id === folderPrefix);
 
                 return (
                   <div
                     key={item.fullPath}
                     onClick={() => item.publicUrl && handleToggleSelect(item.publicUrl)}
                     style={{
-                      border: isSelected ? '2px solid #766352' : '1px solid #e8e1d5',
+                      border: isSelected ? '2.5px solid #766352' : '1px solid #e8e1d5',
                       borderRadius: '6px',
                       overflow: 'hidden',
                       position: 'relative',
@@ -334,14 +491,33 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
                         loading="lazy"
                       />
 
+                      {/* Category pill */}
+                      {catObj && (
+                        <span
+                          style={{
+                            position: 'absolute',
+                            bottom: '4px',
+                            left: '4px',
+                            backgroundColor: 'rgba(255,255,255,0.92)',
+                            padding: '1px 5px',
+                            borderRadius: '8px',
+                            fontSize: '0.625rem',
+                            fontWeight: 600,
+                            color: '#685e54',
+                          }}
+                        >
+                          {catObj.name}
+                        </span>
+                      )}
+
                       {/* Select check badge */}
                       <div
                         style={{
                           position: 'absolute',
                           top: '6px',
                           right: '6px',
-                          width: '20px',
-                          height: '20px',
+                          width: '22px',
+                          height: '22px',
                           borderRadius: '50%',
                           backgroundColor: isSelected ? '#766352' : 'rgba(255,255,255,0.85)',
                           border: isSelected ? 'none' : '1px solid #dcd3c5',
@@ -349,9 +525,10 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
                           alignItems: 'center',
                           justifyContent: 'center',
                           color: '#ffffff',
+                          boxShadow: '0 2px 4px rgba(0,0,0,0.15)',
                         }}
                       >
-                        {isSelected && <Check size={13} />}
+                        {isSelected && <Check size={14} />}
                       </div>
                     </div>
 

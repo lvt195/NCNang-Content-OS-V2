@@ -11,6 +11,11 @@ export interface StorageItem {
   updatedAt?: string | null;
 }
 
+export interface DuplicateGroup {
+  size: number;
+  items: StorageItem[];
+}
+
 const BUCKET_NAME = 'product-images';
 
 export const mediaService = {
@@ -180,5 +185,88 @@ export const mediaService = {
         throw new Error(`Lỗi xóa các file trong thư mục: ${removeError.message}`);
       }
     }
+  },
+
+  /**
+   * Move / Rename a file in bucket (e.g. change category)
+   */
+  async moveFile(fromPath: string, toPath: string): Promise<string> {
+    if (!isSupabaseConfigured || !supabase) {
+      throw new Error('Supabase chưa được cấu hình.');
+    }
+    const cleanFrom = fromPath.replace(/^\/+|\/+$/g, '');
+    const cleanTo = toPath.replace(/^\/+|\/+$/g, '');
+
+    const { error } = await supabase.storage.from(BUCKET_NAME).move(cleanFrom, cleanTo);
+    if (error) {
+      throw new Error(`Lỗi di chuyển file: ${error.message}`);
+    }
+
+    const { data: urlData } = supabase.storage.from(BUCKET_NAME).getPublicUrl(cleanTo);
+    return urlData.publicUrl;
+  },
+
+  /**
+   * List all files recursively across all folders
+   */
+  async listAllFilesRecursive(rootFolder = '', maxDepth = 4): Promise<StorageItem[]> {
+    if (!isSupabaseConfigured || !supabase) return [];
+    const results: StorageItem[] = [];
+
+    async function traverse(currentPath: string, depth: number) {
+      if (depth > maxDepth) return;
+      const { data, error } = await supabase!.storage.from(BUCKET_NAME).list(currentPath, {
+        limit: 500,
+        offset: 0,
+      });
+      if (error || !data) return;
+
+      for (const entry of data) {
+        if (entry.name.startsWith('.')) continue; // ignore markers
+        const isFolder = !entry.id || !entry.metadata;
+        const fullPath = currentPath ? `${currentPath}/${entry.name}` : entry.name;
+
+        if (isFolder) {
+          await traverse(fullPath, depth + 1);
+        } else {
+          const { data: urlData } = supabase!.storage.from(BUCKET_NAME).getPublicUrl(fullPath);
+          results.push({
+            id: entry.id,
+            name: entry.name,
+            isFolder: false,
+            fullPath,
+            publicUrl: urlData.publicUrl,
+            size: entry.metadata?.size,
+            createdAt: entry.created_at,
+            updatedAt: entry.updated_at,
+          });
+        }
+      }
+    }
+
+    await traverse(rootFolder.replace(/^\/+|\/+$/g, ''), 1);
+    return results;
+  },
+
+  /**
+   * Group duplicate files by exact size & name
+   */
+  findDuplicates(items: StorageItem[]): DuplicateGroup[] {
+    const sizeMap = new Map<number, StorageItem[]>();
+    for (const item of items) {
+      if (item.isFolder || !item.size || item.size <= 0) continue;
+      const group = sizeMap.get(item.size) || [];
+      group.push(item);
+      sizeMap.set(item.size, group);
+    }
+
+    const duplicateGroups: DuplicateGroup[] = [];
+    for (const [size, group] of sizeMap.entries()) {
+      if (group.length > 1) {
+        duplicateGroups.push({ size, items: group });
+      }
+    }
+
+    return duplicateGroups;
   },
 };

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Folder,
@@ -17,23 +17,53 @@ import {
   AlertCircle,
   CheckCircle,
   ExternalLink,
+  Filter,
+  Sparkles,
+  MoveRight,
+  CheckSquare,
 } from 'lucide-react';
-import { mediaService, StorageItem } from '../services/mediaService';
+import { mediaService, StorageItem, DuplicateGroup } from '../services/mediaService';
+import { productService } from '../services/productService';
+import { Category } from '../types/product';
 
 export const AdminMediaLibraryPage: React.FC = () => {
   const [currentFolder, setCurrentFolder] = useState<string>('');
   const [items, setItems] = useState<StorageItem[]>([]);
+  const [allFiles, setAllFiles] = useState<StorageItem[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [errorMsg, setErrorMsg] = useState<string>('');
   const [successMsg, setSuccessMsg] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [copiedUrl, setCopiedUrl] = useState<string>('');
 
+  // Category Filter: 'all' | 'uncategorized' | categoryId
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [viewScope, setViewScope] = useState<'current_folder' | 'all_photos'>('current_folder');
+
+  // Upload category selection (Optional: uncategorized or assign to a category)
+  const [uploadCategory, setUploadCategory] = useState<string>('');
+
   // Upload state
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [uploadProgress, setUploadProgress] = useState<string>('');
   const [isDraggingOver, setIsDraggingOver] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Duplicate Check Modal on Upload
+  const [pendingUploadFiles, setPendingUploadFiles] = useState<File[]>([]);
+  const [detectedDuplicates, setDetectedDuplicates] = useState<{ newFile: File; existingItem: StorageItem }[]>([]);
+  const [showDuplicateUploadModal, setShowDuplicateUploadModal] = useState<boolean>(false);
+
+  // Duplicate Scanner Tool Modal
+  const [showDuplicateScannerModal, setShowDuplicateScannerModal] = useState<boolean>(false);
+  const [isScanningDuplicates, setIsScanningDuplicates] = useState<boolean>(false);
+  const [duplicateGroups, setDuplicateGroups] = useState<DuplicateGroup[]>([]);
+
+  // Move category modal
+  const [itemToMove, setItemToMove] = useState<StorageItem | null>(null);
+  const [targetCategory, setTargetCategory] = useState<string>('');
+  const [isMoving, setIsMoving] = useState<boolean>(false);
 
   // New folder modal
   const [showNewFolderModal, setShowNewFolderModal] = useState<boolean>(false);
@@ -47,14 +77,30 @@ export const AdminMediaLibraryPage: React.FC = () => {
   const [itemToDelete, setItemToDelete] = useState<StorageItem | null>(null);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
 
+  // Load categories and data
+  useEffect(() => {
+    async function init() {
+      try {
+        const cats = await productService.getCategories();
+        setCategories(cats);
+      } catch (err) {
+        console.warn('Could not load categories:', err);
+      }
+    }
+    init();
+  }, []);
+
   const loadMedia = async (folder: string) => {
     setLoading(true);
     setErrorMsg('');
     try {
-      const res = await mediaService.listItems(folder);
-      // Filter out internal marker files like .folder_marker
+      const [res, recursive] = await Promise.all([
+        mediaService.listItems(folder),
+        mediaService.listAllFilesRecursive(),
+      ]);
       const visibleItems = res.items.filter((i) => !i.name.startsWith('.'));
       setItems(visibleItems);
+      setAllFiles(recursive);
     } catch (err: unknown) {
       setErrorMsg(err instanceof Error ? err.message : 'Lỗi khi tải kho ảnh');
     } finally {
@@ -70,6 +116,7 @@ export const AdminMediaLibraryPage: React.FC = () => {
   const handleOpenFolder = (folderName: string) => {
     const nextPath = currentFolder ? `${currentFolder}/${folderName}` : folderName;
     setCurrentFolder(nextPath);
+    setViewScope('current_folder');
   };
 
   const handleNavigateBreadcrumb = (index: number, segments: string[]) => {
@@ -79,6 +126,7 @@ export const AdminMediaLibraryPage: React.FC = () => {
       const targetPath = segments.slice(0, index + 1).join('/');
       setCurrentFolder(targetPath);
     }
+    setViewScope('current_folder');
   };
 
   const handleBackOneLevel = () => {
@@ -86,26 +134,59 @@ export const AdminMediaLibraryPage: React.FC = () => {
     const parts = currentFolder.split('/');
     parts.pop();
     setCurrentFolder(parts.join('/'));
+    setViewScope('current_folder');
   };
 
-  // Upload files
-  const handleUploadFiles = async (files: FileList | File[]) => {
+  // Upload files check for duplicates
+  const handlePreUploadFiles = async (files: FileList | File[]) => {
     const fileArray = Array.from(files).filter((f) => f.type.startsWith('image/'));
     if (fileArray.length === 0) {
       setErrorMsg('Vui lòng chọn file hình ảnh (JPG, PNG, WebP, AVIF).');
       return;
     }
 
+    // Check duplicates against allFiles in library
+    const duplicates: { newFile: File; existingItem: StorageItem }[] = [];
+    const cleanFiles: File[] = [];
+
+    for (const file of fileArray) {
+      // Find matching size and name
+      const found = allFiles.find(
+        (existing) => existing.size === file.size || existing.name.endsWith(file.name)
+      );
+      if (found) {
+        duplicates.push({ newFile: file, existingItem: found });
+      } else {
+        cleanFiles.push(file);
+      }
+    }
+
+    if (duplicates.length > 0) {
+      setPendingUploadFiles(fileArray);
+      setDetectedDuplicates(duplicates);
+      setShowDuplicateUploadModal(true);
+    } else {
+      await executeUpload(fileArray);
+    }
+  };
+
+  // Actually upload to Supabase Storage
+  const executeUpload = async (filesToUpload: File[]) => {
+    if (filesToUpload.length === 0) return;
+
     setIsUploading(true);
     setErrorMsg('');
-    setUploadProgress(`Đang tải 0/${fileArray.length} ảnh...`);
+    setUploadProgress(`Đang tải 0/${filesToUpload.length} ảnh...`);
+
+    // Target folder: If uploadCategory is chosen, use it. Otherwise use currentFolder.
+    const targetPath = uploadCategory ? uploadCategory : currentFolder;
 
     try {
-      for (let i = 0; i < fileArray.length; i++) {
-        setUploadProgress(`Đang tải ${i + 1}/${fileArray.length} ảnh...`);
-        await mediaService.uploadFile(fileArray[i], currentFolder);
+      for (let i = 0; i < filesToUpload.length; i++) {
+        setUploadProgress(`Đang tải ${i + 1}/${filesToUpload.length} ảnh...`);
+        await mediaService.uploadFile(filesToUpload[i], targetPath);
       }
-      setSuccessMsg(`Đã tải lên ${fileArray.length} ảnh thành công!`);
+      setSuccessMsg(`Đã tải lên ${filesToUpload.length} ảnh thành công!`);
       setTimeout(() => setSuccessMsg(''), 3000);
       await loadMedia(currentFolder);
     } catch (err: unknown) {
@@ -114,6 +195,58 @@ export const AdminMediaLibraryPage: React.FC = () => {
       setIsUploading(false);
       setUploadProgress('');
       if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  // Skip duplicates and only upload clean ones
+  const handleUploadOnlyCleanFiles = async () => {
+    setShowDuplicateUploadModal(false);
+    const duplicateNames = new Set(detectedDuplicates.map((d) => d.newFile.name));
+    const cleanFiles = pendingUploadFiles.filter((f) => !duplicateNames.has(f.name));
+    if (cleanFiles.length === 0) {
+      setSuccessMsg('Đã bỏ qua toàn bộ ảnh trùng lặp theo yêu cầu của bạn.');
+      setTimeout(() => setSuccessMsg(''), 3000);
+      return;
+    }
+    await executeUpload(cleanFiles);
+  };
+
+  // Force upload all
+  const handleUploadAllAnyway = async () => {
+    setShowDuplicateUploadModal(false);
+    await executeUpload(pendingUploadFiles);
+  };
+
+  // Scan duplicates across entire library
+  const handleRunDuplicateScanner = async () => {
+    setIsScanningDuplicates(true);
+    setShowDuplicateScannerModal(true);
+    try {
+      const recursive = await mediaService.listAllFilesRecursive();
+      setAllFiles(recursive);
+      const groups = mediaService.findDuplicates(recursive);
+      setDuplicateGroups(groups);
+    } catch (err: unknown) {
+      setErrorMsg(err instanceof Error ? err.message : 'Lỗi khi quét ảnh trùng');
+    } finally {
+      setIsScanningDuplicates(false);
+    }
+  };
+
+  // Delete redundant duplicates in a group (keep only 1st item)
+  const handleDeleteRedundantDuplicates = async (group: DuplicateGroup) => {
+    const toDelete = group.items.slice(1);
+    try {
+      for (const item of toDelete) {
+        await mediaService.deleteFile(item.fullPath);
+      }
+      setSuccessMsg(`Đã xóa ${toDelete.length} bản sao trùng lặp.`);
+      setTimeout(() => setSuccessMsg(''), 3000);
+      // Update local state
+      setDuplicateGroups((prev) => prev.filter((g) => g.size !== group.size));
+      await loadMedia(currentFolder);
+    } catch (err: unknown) {
+      setErrorMsg(err instanceof Error ? err.message : 'Lỗi khi xóa bản sao');
     }
   };
 
@@ -135,6 +268,29 @@ export const AdminMediaLibraryPage: React.FC = () => {
       setErrorMsg(err instanceof Error ? err.message : 'Lỗi khi tạo thư mục');
     } finally {
       setIsCreatingFolder(false);
+    }
+  };
+
+  // Move item to category
+  const handleMoveItemToCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!itemToMove) return;
+
+    setIsMoving(true);
+    setErrorMsg('');
+    try {
+      const cleanFileName = itemToMove.name;
+      const destinationPath = targetCategory ? `${targetCategory}/${cleanFileName}` : cleanFileName;
+
+      await mediaService.moveFile(itemToMove.fullPath, destinationPath);
+      setSuccessMsg(`Đã chuyển ảnh sang ${targetCategory ? `danh mục "${targetCategory}"` : 'Thư mục gốc'}!`);
+      setItemToMove(null);
+      setTimeout(() => setSuccessMsg(''), 3000);
+      await loadMedia(currentFolder);
+    } catch (err: unknown) {
+      setErrorMsg(err instanceof Error ? err.message : 'Lỗi khi chuyển ảnh');
+    } finally {
+      setIsMoving(false);
     }
   };
 
@@ -168,9 +324,33 @@ export const AdminMediaLibraryPage: React.FC = () => {
 
   const breadcrumbs = currentFolder ? currentFolder.split('/') : [];
 
-  const filteredItems = items.filter((item) =>
-    item.name.toLowerCase().includes(searchQuery.toLowerCase().trim())
-  );
+  // Filter items based on Category, View Scope, and Search
+  const displayedItems = useMemo(() => {
+    let list: StorageItem[] = [];
+
+    if (categoryFilter !== 'all' || viewScope === 'all_photos') {
+      // In all photos or category view, display flat list of all recursive files
+      list = allFiles;
+
+      if (categoryFilter === 'uncategorized') {
+        // Files not in any category folder
+        list = list.filter((item) => !item.fullPath.includes('/'));
+      } else if (categoryFilter !== 'all') {
+        // Files whose path starts with categoryFilter
+        list = list.filter((item) => item.fullPath.startsWith(`${categoryFilter}/`));
+      }
+    } else {
+      // Normal folder tree view
+      list = items;
+    }
+
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim();
+      list = list.filter((item) => item.name.toLowerCase().includes(query));
+    }
+
+    return list;
+  }, [categoryFilter, viewScope, allFiles, items, searchQuery]);
 
   const formatFileSize = (bytes?: number) => {
     if (!bytes) return '';
@@ -197,11 +377,23 @@ export const AdminMediaLibraryPage: React.FC = () => {
             Kho Ảnh Online (Media Library)
           </h1>
           <p style={{ fontSize: '0.85rem', color: '#685e54', margin: '3px 0 0' }}>
-            Lưu trữ trên Supabase Storage Cloud • Băng thông cao • Truy cập mọi nơi
+            Tổng cộng: {allFiles.length} ảnh trên Supabase Cloud • Hỗ trợ lọc danh mục & Quét trùng lặp
           </p>
         </div>
 
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+          {/* Duplicate Scanner Button */}
+          <button
+            type="button"
+            onClick={handleRunDuplicateScanner}
+            className="btn btn-outline btn-sm"
+            style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#b78103', borderColor: '#ffe082', backgroundColor: '#fffdf6' }}
+            title="Quét và phát hiện các ảnh bị trùng lặp dung lượng/nội dung"
+          >
+            <Sparkles size={16} color="#d97706" />
+            <span>Quét ảnh trùng</span>
+          </button>
+
           <button
             type="button"
             onClick={() => setShowNewFolderModal(true)}
@@ -212,16 +404,34 @@ export const AdminMediaLibraryPage: React.FC = () => {
             <span>Tạo thư mục</span>
           </button>
 
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="btn btn-primary btn-sm"
-            disabled={isUploading}
-            style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
-          >
-            <Upload size={16} />
-            <span>{isUploading ? uploadProgress : 'Tải ảnh lên'}</span>
-          </button>
+          {/* Upload with optional category */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <select
+              value={uploadCategory}
+              onChange={(e) => setUploadCategory(e.target.value)}
+              className="form-select"
+              style={{ fontSize: '0.8rem', padding: '0.35rem 0.5rem', height: '33px', backgroundColor: '#ffffff' }}
+              title="Chọn danh mục khi tải ảnh (Để trống = Chưa phân loại / Hiện ở Tất cả)"
+            >
+              <option value="">+ Gán Danh mục: (Tự do/Tất cả)</option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="btn btn-primary btn-sm"
+              disabled={isUploading}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+            >
+              <Upload size={16} />
+              <span>{isUploading ? uploadProgress : 'Tải ảnh lên'}</span>
+            </button>
+          </div>
 
           <input
             ref={fileInputRef}
@@ -229,7 +439,7 @@ export const AdminMediaLibraryPage: React.FC = () => {
             multiple
             accept="image/jpeg,image/png,image/webp,image/avif"
             style={{ display: 'none' }}
-            onChange={(e) => e.target.files && handleUploadFiles(e.target.files)}
+            onChange={(e) => e.target.files && handlePreUploadFiles(e.target.files)}
           />
         </div>
       </div>
@@ -275,106 +485,213 @@ export const AdminMediaLibraryPage: React.FC = () => {
         </div>
       )}
 
-      {/* Navigation & Search Bar */}
+      {/* Category Filter Pills & Search Bar */}
       <div
         style={{
           backgroundColor: '#ffffff',
           border: '1px solid #e8e1d5',
           borderRadius: '8px',
-          padding: '0.75rem 1rem',
+          padding: '0.85rem 1rem',
           marginBottom: '1.25rem',
           display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
+          flexDirection: 'column',
           gap: '0.75rem',
         }}
       >
-        {/* Breadcrumb path */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap', fontSize: '0.875rem' }}>
-          {currentFolder && (
-            <button
-              type="button"
-              onClick={handleBackOneLevel}
-              className="btn btn-outline btn-sm"
-              style={{ padding: '0.2rem 0.45rem', marginRight: '0.25rem' }}
-              title="Quay lại thư mục trước"
-            >
-              <ArrowLeft size={14} />
-            </button>
-          )}
+        {/* Row 1: Categories filter */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#685e54', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+            <Filter size={14} /> Danh mục:
+          </span>
 
           <button
             type="button"
-            onClick={() => handleNavigateBreadcrumb(-1, [])}
+            onClick={() => {
+              setCategoryFilter('all');
+              setViewScope('all_photos');
+            }}
             style={{
-              background: 'none',
-              border: 'none',
+              padding: '0.3rem 0.65rem',
+              borderRadius: '20px',
+              border: categoryFilter === 'all' && viewScope === 'all_photos' ? '1px solid #766352' : '1px solid #e8e1d5',
+              backgroundColor: categoryFilter === 'all' && viewScope === 'all_photos' ? '#766352' : '#faf8f5',
+              color: categoryFilter === 'all' && viewScope === 'all_photos' ? '#ffffff' : '#2c2825',
+              fontSize: '0.775rem',
+              fontWeight: 500,
               cursor: 'pointer',
-              color: currentFolder ? '#766352' : '#2c2825',
-              fontWeight: currentFolder ? 500 : 700,
-              padding: '2px 4px',
             }}
           >
-            🏠 Thư mục Gốc
+            Tất cả ảnh ({allFiles.length})
           </button>
 
-          {breadcrumbs.map((seg, idx) => {
-            const isLast = idx === breadcrumbs.length - 1;
+          <button
+            type="button"
+            onClick={() => {
+              setCategoryFilter('all');
+              setViewScope('current_folder');
+            }}
+            style={{
+              padding: '0.3rem 0.65rem',
+              borderRadius: '20px',
+              border: categoryFilter === 'all' && viewScope === 'current_folder' ? '1px solid #766352' : '1px solid #e8e1d5',
+              backgroundColor: categoryFilter === 'all' && viewScope === 'current_folder' ? '#766352' : '#faf8f5',
+              color: categoryFilter === 'all' && viewScope === 'current_folder' ? '#ffffff' : '#2c2825',
+              fontSize: '0.775rem',
+              fontWeight: 500,
+              cursor: 'pointer',
+            }}
+          >
+            📁 Xem theo Thư mục
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setCategoryFilter('uncategorized');
+              setViewScope('all_photos');
+            }}
+            style={{
+              padding: '0.3rem 0.65rem',
+              borderRadius: '20px',
+              border: categoryFilter === 'uncategorized' ? '1px solid #766352' : '1px solid #e8e1d5',
+              backgroundColor: categoryFilter === 'uncategorized' ? '#766352' : '#faf8f5',
+              color: categoryFilter === 'uncategorized' ? '#ffffff' : '#2c2825',
+              fontSize: '0.775rem',
+              fontWeight: 500,
+              cursor: 'pointer',
+            }}
+          >
+            Chưa phân loại
+          </button>
+
+          {categories.map((c) => {
+            const isSelected = categoryFilter === c.id;
             return (
-              <React.Fragment key={idx}>
-                <ChevronRight size={14} color="#9e9387" />
-                <button
-                  type="button"
-                  onClick={() => handleNavigateBreadcrumb(idx, breadcrumbs)}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    cursor: isLast ? 'default' : 'pointer',
-                    color: isLast ? '#2c2825' : '#766352',
-                    fontWeight: isLast ? 700 : 500,
-                    padding: '2px 4px',
-                  }}
-                >
-                  {seg}
-                </button>
-              </React.Fragment>
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => {
+                  setCategoryFilter(c.id);
+                  setViewScope('all_photos');
+                }}
+                style={{
+                  padding: '0.3rem 0.65rem',
+                  borderRadius: '20px',
+                  border: isSelected ? '1px solid #766352' : '1px solid #e8e1d5',
+                  backgroundColor: isSelected ? '#766352' : '#faf8f5',
+                  color: isSelected ? '#ffffff' : '#2c2825',
+                  fontSize: '0.775rem',
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                }}
+              >
+                {c.name}
+              </button>
             );
           })}
         </div>
 
-        {/* Search & Refresh */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginLeft: 'auto' }}>
-          <div style={{ position: 'relative', width: '200px' }}>
-            <Search
-              size={14}
-              style={{
-                position: 'absolute',
-                left: '10px',
-                top: '50%',
-                transform: 'translateY(-50%)',
-                color: '#9e9387',
-              }}
-            />
-            <input
-              type="text"
-              placeholder="Tìm file..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="form-input"
-              style={{ paddingLeft: '2rem', paddingRight: '0.5rem', fontSize: '0.8rem', height: '32px' }}
-            />
-          </div>
+        {/* Row 2: Breadcrumbs & Search */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem', borderTop: '1px solid #f0eae1', paddingTop: '0.65rem' }}>
+          {viewScope === 'current_folder' ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap', fontSize: '0.85rem' }}>
+              {currentFolder && (
+                <button
+                  type="button"
+                  onClick={handleBackOneLevel}
+                  className="btn btn-outline btn-sm"
+                  style={{ padding: '0.2rem 0.45rem', marginRight: '0.25rem' }}
+                  title="Quay lại thư mục trước"
+                >
+                  <ArrowLeft size={14} />
+                </button>
+              )}
 
-          <button
-            type="button"
-            onClick={() => loadMedia(currentFolder)}
-            className="btn btn-outline btn-sm"
-            style={{ padding: '0.35rem 0.6rem' }}
-            title="Làm mới danh sách"
-          >
-            <RefreshCw size={14} />
-          </button>
+              <button
+                type="button"
+                onClick={() => handleNavigateBreadcrumb(-1, [])}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: currentFolder ? '#766352' : '#2c2825',
+                  fontWeight: currentFolder ? 500 : 700,
+                  padding: '2px 4px',
+                }}
+              >
+                🏠 Thư mục Gốc
+              </button>
+
+              {breadcrumbs.map((seg, idx) => {
+                const isLast = idx === breadcrumbs.length - 1;
+                return (
+                  <React.Fragment key={idx}>
+                    <ChevronRight size={14} color="#9e9387" />
+                    <button
+                      type="button"
+                      onClick={() => handleNavigateBreadcrumb(idx, breadcrumbs)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        cursor: isLast ? 'default' : 'pointer',
+                        color: isLast ? '#2c2825' : '#766352',
+                        fontWeight: isLast ? 700 : 500,
+                        padding: '2px 4px',
+                      }}
+                    >
+                      {seg}
+                    </button>
+                  </React.Fragment>
+                );
+              })}
+            </div>
+          ) : (
+            <div style={{ fontSize: '0.825rem', color: '#685e54', fontWeight: 500 }}>
+              Đang xem danh mục:{' '}
+              <strong>
+                {categoryFilter === 'all'
+                  ? 'Tất cả ảnh'
+                  : categoryFilter === 'uncategorized'
+                  ? 'Chưa phân loại'
+                  : categories.find((c) => c.id === categoryFilter)?.name || categoryFilter}
+              </strong>{' '}
+              ({displayedItems.length} ảnh)
+            </div>
+          )}
+
+          {/* Search & Refresh */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginLeft: 'auto' }}>
+            <div style={{ position: 'relative', width: '220px' }}>
+              <Search
+                size={14}
+                style={{
+                  position: 'absolute',
+                  left: '10px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  color: '#9e9387',
+                }}
+              />
+              <input
+                type="text"
+                placeholder="Tìm file theo tên..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="form-input"
+                style={{ paddingLeft: '2rem', paddingRight: '0.5rem', fontSize: '0.8rem', height: '32px' }}
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={() => loadMedia(currentFolder)}
+              className="btn btn-outline btn-sm"
+              style={{ padding: '0.35rem 0.6rem' }}
+              title="Làm mới danh sách"
+            >
+              <RefreshCw size={14} />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -395,7 +712,7 @@ export const AdminMediaLibraryPage: React.FC = () => {
           e.stopPropagation();
           setIsDraggingOver(false);
           if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-            handleUploadFiles(e.dataTransfer.files);
+            handlePreUploadFiles(e.dataTransfer.files);
           }
         }}
         style={{
@@ -411,7 +728,7 @@ export const AdminMediaLibraryPage: React.FC = () => {
             <RefreshCw size={26} className="spin" />
             <p style={{ marginTop: '0.75rem', fontSize: '0.9rem' }}>Đang tải ảnh từ Supabase Cloud...</p>
           </div>
-        ) : filteredItems.length === 0 ? (
+        ) : displayedItems.length === 0 ? (
           <div
             style={{
               textAlign: 'center',
@@ -423,7 +740,7 @@ export const AdminMediaLibraryPage: React.FC = () => {
           >
             <FileImage size={40} color="#b4a99a" style={{ margin: '0 auto 0.75rem' }} />
             <h3 style={{ fontSize: '1.05rem', fontWeight: 600, color: '#2c2825' }}>
-              {searchQuery ? 'Không tìm thấy file phù hợp' : 'Thư mục này hiện đang trống'}
+              {searchQuery ? 'Không tìm thấy file phù hợp' : 'Chưa có ảnh nào trong mục này'}
             </h3>
             <p style={{ fontSize: '0.85rem', color: '#8c8277', marginTop: '0.25rem' }}>
               Kéo thả file ảnh vào đây hoặc bấm nút "Tải ảnh lên" phía trên để lưu ảnh lên Supabase.
@@ -437,7 +754,7 @@ export const AdminMediaLibraryPage: React.FC = () => {
               gap: '1rem',
             }}
           >
-            {filteredItems.map((item) => {
+            {displayedItems.map((item) => {
               if (item.isFolder) {
                 return (
                   <div
@@ -507,6 +824,10 @@ export const AdminMediaLibraryPage: React.FC = () => {
                 );
               }
 
+              // Category name badge if item has folder prefix
+              const folderPrefix = item.fullPath.includes('/') ? item.fullPath.split('/')[0] : '';
+              const catObj = categories.find((c) => c.id === folderPrefix);
+
               // Image item card
               return (
                 <div
@@ -548,6 +869,25 @@ export const AdminMediaLibraryPage: React.FC = () => {
                       loading="lazy"
                     />
 
+                    {/* Category pill on image */}
+                    {catObj && (
+                      <span
+                        style={{
+                          position: 'absolute',
+                          top: '6px',
+                          left: '6px',
+                          backgroundColor: 'rgba(255,255,255,0.92)',
+                          padding: '0.15rem 0.45rem',
+                          borderRadius: '12px',
+                          fontSize: '0.65rem',
+                          fontWeight: 600,
+                          color: '#685e54',
+                        }}
+                      >
+                        {catObj.name}
+                      </span>
+                    )}
+
                     {/* Preview overlay icon */}
                     <div
                       style={{
@@ -584,9 +924,16 @@ export const AdminMediaLibraryPage: React.FC = () => {
                       {item.name}
                     </span>
 
-                    <span style={{ fontSize: '0.7rem', color: '#9e9387', marginTop: '2px' }}>
-                      {formatFileSize(item.size)}
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '3px' }}>
+                      <span style={{ fontSize: '0.7rem', color: '#9e9387' }}>
+                        {formatFileSize(item.size)}
+                      </span>
+                      {folderPrefix && (
+                        <span style={{ fontSize: '0.675rem', color: '#766352', fontFamily: 'monospace' }}>
+                          /{folderPrefix}
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   {/* Actions bar */}
@@ -614,23 +961,43 @@ export const AdminMediaLibraryPage: React.FC = () => {
                       title="Sao chép link ảnh"
                     >
                       {copiedUrl === item.publicUrl ? <Check size={12} color="#1b5e20" /> : <Copy size={12} />}
-                      <span>{copiedUrl === item.publicUrl ? 'Đã chép' : 'Copy link'}</span>
+                      <span>{copiedUrl === item.publicUrl ? 'Đã chép' : 'Copy'}</span>
                     </button>
 
-                    <button
-                      type="button"
-                      onClick={() => setItemToDelete(item)}
-                      style={{
-                        border: 'none',
-                        background: 'none',
-                        cursor: 'pointer',
-                        color: '#c62828',
-                        padding: '4px',
-                      }}
-                      title="Xóa ảnh khỏi kho"
-                    >
-                      <Trash2 size={13} />
-                    </button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setItemToMove(item);
+                          setTargetCategory(folderPrefix || '');
+                        }}
+                        style={{
+                          border: 'none',
+                          background: 'none',
+                          cursor: 'pointer',
+                          color: '#766352',
+                          padding: '3px',
+                        }}
+                        title="Đổi danh mục / Di chuyển ảnh"
+                      >
+                        <MoveRight size={13} />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setItemToDelete(item)}
+                        style={{
+                          border: 'none',
+                          background: 'none',
+                          cursor: 'pointer',
+                          color: '#c62828',
+                          padding: '3px',
+                        }}
+                        title="Xóa ảnh khỏi kho"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
                   </div>
                 </div>
               );
@@ -638,6 +1005,376 @@ export const AdminMediaLibraryPage: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Modal: Duplicate Upload Warning */}
+      {showDuplicateUploadModal &&
+        createPortal(
+          <div
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 10000,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '1rem',
+            }}
+          >
+            <div
+              style={{
+                position: 'fixed',
+                inset: 0,
+                backgroundColor: 'rgba(0,0,0,0.6)',
+                backdropFilter: 'blur(3px)',
+              }}
+              onClick={() => setShowDuplicateUploadModal(false)}
+            />
+            <div
+              style={{
+                position: 'relative',
+                width: '100%',
+                maxWidth: '560px',
+                backgroundColor: '#ffffff',
+                borderRadius: '12px',
+                boxShadow: '0 25px 50px -12px rgba(0,0,0,0.35)',
+                zIndex: 10001,
+                padding: '1.75rem',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', color: '#b78103' }}>
+                <AlertCircle size={26} style={{ flexShrink: 0, marginTop: '2px' }} />
+                <div>
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 600, color: '#2c2825' }}>
+                    Phát hiện ảnh trùng lặp!
+                  </h3>
+                  <p style={{ fontSize: '0.875rem', color: '#685e54', marginTop: '0.35rem', lineHeight: 1.5 }}>
+                    Hệ thống nhận thấy có <strong>{detectedDuplicates.length}</strong> ảnh bạn vừa chọn đã có bản sao y hệt trên kho (cùng dung lượng byte và tên):
+                  </p>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  maxHeight: '200px',
+                  overflowY: 'auto',
+                  margin: '1rem 0',
+                  border: '1px solid #e8e1d5',
+                  borderRadius: '6px',
+                  padding: '0.5rem',
+                  backgroundColor: '#faf8f5',
+                }}
+              >
+                {detectedDuplicates.map((dup, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '0.4rem 0.5rem',
+                      fontSize: '0.8rem',
+                      borderBottom: idx < detectedDuplicates.length - 1 ? '1px solid #f0eae1' : 'none',
+                    }}
+                  >
+                    <div>
+                      <strong>{dup.newFile.name}</strong> ({formatFileSize(dup.newFile.size)})
+                      <div style={{ fontSize: '0.7rem', color: '#8c8277' }}>
+                        Trùng với: <code>{dup.existingItem.fullPath}</code>
+                      </div>
+                    </div>
+                    <span style={{ color: '#c62828', fontSize: '0.75rem', fontWeight: 600 }}>
+                      Đã tồn tại
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  className="btn btn-outline btn-sm"
+                  onClick={() => setShowDuplicateUploadModal(false)}
+                >
+                  Hủy tải lên
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  style={{ backgroundColor: '#2e7d32' }}
+                  onClick={handleUploadOnlyCleanFiles}
+                >
+                  <CheckSquare size={14} />
+                  <span>Bỏ qua ảnh trùng (Khuyên dùng)</span>
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-outline btn-sm"
+                  style={{ color: '#b78103' }}
+                  onClick={handleUploadAllAnyway}
+                >
+                  Vẫn tải tất cả
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {/* Modal: Duplicate Scanner Tool */}
+      {showDuplicateScannerModal &&
+        createPortal(
+          <div
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 10000,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '1rem',
+            }}
+          >
+            <div
+              style={{
+                position: 'fixed',
+                inset: 0,
+                backgroundColor: 'rgba(0,0,0,0.65)',
+                backdropFilter: 'blur(3px)',
+              }}
+              onClick={() => setShowDuplicateScannerModal(false)}
+            />
+            <div
+              style={{
+                position: 'relative',
+                width: '100%',
+                maxWidth: '720px',
+                maxHeight: '85vh',
+                backgroundColor: '#ffffff',
+                borderRadius: '12px',
+                boxShadow: '0 25px 50px -12px rgba(0,0,0,0.35)',
+                zIndex: 10001,
+                display: 'flex',
+                flexDirection: 'column',
+                overflow: 'hidden',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '1.25rem 1.5rem',
+                  borderBottom: '1px solid #e8e1d5',
+                  backgroundColor: '#faf8f5',
+                }}
+              >
+                <div>
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 600, color: '#2c2825', margin: 0 }}>
+                    ⚡ Quét & Dọn Dẹp Ảnh Trùng Lặp
+                  </h3>
+                  <span style={{ fontSize: '0.8rem', color: '#685e54' }}>
+                    Tự động tìm kiếm các ảnh có cùng dung lượng byte & nội dung trong kho
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowDuplicateScannerModal(false)}
+                  style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#8c8277' }}
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div style={{ flex: 1, overflowY: 'auto', padding: '1.25rem' }}>
+                {isScanningDuplicates ? (
+                  <div style={{ textAlign: 'center', padding: '3.5rem 1rem', color: '#766352' }}>
+                    <RefreshCw size={26} className="spin" />
+                    <p style={{ marginTop: '0.75rem', fontSize: '0.9rem' }}>
+                      Đang quét toàn bộ {allFiles.length} ảnh trong kho...
+                    </p>
+                  </div>
+                ) : duplicateGroups.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '3rem 1rem' }}>
+                    <CheckCircle size={44} color="#2e7d32" style={{ margin: '0 auto 0.75rem' }} />
+                    <h4 style={{ fontSize: '1.1rem', fontWeight: 600, color: '#2c2825' }}>
+                      Tuyệt vời! Không phát hiện ảnh trùng lặp nào
+                    </h4>
+                    <p style={{ fontSize: '0.85rem', color: '#685e54', marginTop: '0.25rem' }}>
+                      Kho ảnh của bạn đang rất gọn gàng và không có file nào bị nhân bản lãng phí.
+                    </p>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                    <p style={{ fontSize: '0.85rem', color: '#685e54', margin: 0 }}>
+                      Tìm thấy <strong>{duplicateGroups.length} nhóm ảnh</strong> có cùng dung lượng byte ({duplicateGroups.reduce((acc, g) => acc + g.items.length - 1, 0)} ảnh thừa):
+                    </p>
+
+                    {duplicateGroups.map((group, gIdx) => (
+                      <div
+                        key={gIdx}
+                        style={{
+                          border: '1px solid #e8e1d5',
+                          borderRadius: '8px',
+                          padding: '1rem',
+                          backgroundColor: '#faf8f5',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                          <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#766352' }}>
+                            Nhóm {gIdx + 1} ({group.items.length} bản sao • {formatFileSize(group.size)})
+                          </span>
+
+                          <button
+                            type="button"
+                            className="btn btn-outline btn-sm"
+                            style={{ color: '#c62828', borderColor: '#f9c7c4', fontSize: '0.75rem', padding: '0.25rem 0.55rem' }}
+                            onClick={() => handleDeleteRedundantDuplicates(group)}
+                            title="Xóa các bản sao, giữ lại 1 ảnh đầu tiên"
+                          >
+                            <Trash2 size={13} />
+                            <span>Giữ 1 bản, xóa bản sao thừa</span>
+                          </button>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '0.75rem' }}>
+                          {group.items.map((item, idx) => (
+                            <div
+                              key={item.fullPath}
+                              style={{
+                                backgroundColor: '#ffffff',
+                                border: idx === 0 ? '2px solid #2e7d32' : '1px solid #dcd3c5',
+                                borderRadius: '6px',
+                                overflow: 'hidden',
+                                position: 'relative',
+                              }}
+                            >
+                              <div style={{ width: '100%', paddingTop: '100%', position: 'relative' }}>
+                                <img
+                                  src={item.publicUrl}
+                                  alt={item.name}
+                                  style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+                                />
+                                {idx === 0 && (
+                                  <span
+                                    style={{
+                                      position: 'absolute',
+                                      bottom: '4px',
+                                      left: '4px',
+                                      backgroundColor: '#2e7d32',
+                                      color: '#ffffff',
+                                      fontSize: '0.65rem',
+                                      padding: '1px 5px',
+                                      borderRadius: '4px',
+                                      fontWeight: 600,
+                                    }}
+                                  >
+                                    Bản chính
+                                  </span>
+                                )}
+                              </div>
+                              <div style={{ padding: '0.35rem', fontSize: '0.7rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.fullPath}>
+                                {item.name}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div style={{ padding: '0.85rem 1.25rem', borderTop: '1px solid #e8e1d5', textAlign: 'right', backgroundColor: '#faf8f5' }}>
+                <button
+                  type="button"
+                  className="btn btn-outline btn-sm"
+                  onClick={() => setShowDuplicateScannerModal(false)}
+                >
+                  Đóng
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {/* Modal: Move Image to Category */}
+      {itemToMove &&
+        createPortal(
+          <div
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 10000,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '1rem',
+            }}
+          >
+            <div
+              style={{
+                position: 'fixed',
+                inset: 0,
+                backgroundColor: 'rgba(0,0,0,0.55)',
+                backdropFilter: 'blur(3px)',
+              }}
+              onClick={() => !isMoving && setItemToMove(null)}
+            />
+            <div
+              style={{
+                position: 'relative',
+                width: '100%',
+                maxWidth: '440px',
+                backgroundColor: '#ffffff',
+                borderRadius: '12px',
+                boxShadow: '0 25px 50px -12px rgba(0,0,0,0.35)',
+                zIndex: 10001,
+                padding: '1.5rem',
+              }}
+            >
+              <h3 style={{ fontSize: '1.15rem', fontWeight: 600, marginBottom: '0.5rem' }}>
+                Chuyển Danh Mục Cho Ảnh
+              </h3>
+              <p style={{ fontSize: '0.8rem', color: '#685e54', marginBottom: '1.25rem' }}>
+                Ảnh: <strong>{itemToMove.name}</strong>
+              </p>
+
+              <form onSubmit={handleMoveItemToCategory}>
+                <div className="form-group">
+                  <label className="form-label">Chọn danh mục đích</label>
+                  <select
+                    value={targetCategory}
+                    onChange={(e) => setTargetCategory(e.target.value)}
+                    className="form-select"
+                  >
+                    <option value="">Thư mục gốc (Chưa phân loại / Tất cả)</option>
+                    {categories.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} ({c.id})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.5rem' }}>
+                  <button
+                    type="button"
+                    className="btn btn-outline btn-sm"
+                    onClick={() => setItemToMove(null)}
+                    disabled={isMoving}
+                  >
+                    Hủy
+                  </button>
+                  <button type="submit" className="btn btn-primary btn-sm" disabled={isMoving}>
+                    {isMoving ? 'Đang chuyển...' : 'Lưu thay đổi'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>,
+          document.body
+        )}
 
       {/* Modal: New Folder */}
       {showNewFolderModal &&
