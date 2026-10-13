@@ -1,6 +1,5 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
-import { MessageCircle, Phone, MapPin, Clock, Shield } from 'lucide-react';
+import { MessageCircle, Phone, MapPin, Clock } from 'lucide-react';
 import { SITE_CONFIG } from '../config/site';
 
 const FacebookIcon = () => (
@@ -194,29 +193,6 @@ export const Footer: React.FC = () => {
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <Clock size={16} style={{ flexShrink: 0, color: '#a39482' }} />
                 <span>Hỗ trợ: {SITE_CONFIG.contact.openHours}</span>
-              </div>
-
-              {/* Clear Admin Access Link in Footer */}
-              <div style={{ paddingTop: '0.75rem', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-                <Link
-                  to="/admin/login"
-                  className="btn btn-outline btn-sm"
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.45rem',
-                    color: '#ffffff',
-                    borderColor: 'rgba(255,255,255,0.25)',
-                    backgroundColor: 'rgba(255,255,255,0.06)',
-                    fontSize: '0.8rem',
-                    padding: '0.4rem 0.8rem',
-                    borderRadius: 'var(--radius-sm)',
-                  }}
-                  title="Đăng nhập trang quản trị"
-                >
-                  <Shield size={14} color="#e5ded5" />
-                  <span>Khu vực Quản trị Admin</span>
-                </Link>
               </div>
             </div>
           </div>

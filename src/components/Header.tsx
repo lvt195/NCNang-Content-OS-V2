@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Search, Shield, ShieldCheck, X } from 'lucide-react';
+import { Search, X } from 'lucide-react';
 import { SITE_CONFIG } from '../config/site';
-import { useAuth } from '../context/AuthContext';
 
 interface HeaderProps {
   searchQuery?: string;
@@ -14,7 +13,6 @@ export const Header: React.FC<HeaderProps> = ({
   onSearchChange,
 }) => {
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
-  const { user, isAdmin } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -166,25 +164,23 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         )}
 
-        {/* Right Actions: Mobile Search + Guaranteed Visible Admin Button */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.35rem',
-            flexShrink: 0,
-            marginLeft: 'auto',
-          }}
-        >
-          {/* Mobile search toggle */}
-          {isCatalog && onSearchChange && (
+        {/* Right Actions: Mobile Search Toggle */}
+        {isCatalog && onSearchChange && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              flexShrink: 0,
+              marginLeft: 'auto',
+            }}
+          >
             <button
               className="btn btn-outline btn-sm mobile-search-btn"
               onClick={() => setMobileSearchOpen(!mobileSearchOpen)}
               aria-label="Tìm kiếm sản phẩm"
               style={{
-                width: '34px',
-                height: '34px',
+                width: '36px',
+                height: '36px',
                 padding: 0,
                 borderRadius: '50%',
                 display: 'flex',
@@ -193,34 +189,10 @@ export const Header: React.FC<HeaderProps> = ({
                 flexShrink: 0,
               }}
             >
-              <Search size={15} />
+              <Search size={16} />
             </button>
-          )}
-
-          {/* Always prominent Quản trị button */}
-          <Link
-            to={user && isAdmin ? '/admin' : '/admin/login'}
-            className="btn btn-primary btn-sm"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.35rem',
-              padding: '0.38rem 0.65rem',
-              fontSize: '0.8rem',
-              fontWeight: 600,
-              backgroundColor: 'var(--accent-brown)',
-              color: '#ffffff',
-              borderRadius: 'var(--radius-sm)',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
-              whiteSpace: 'nowrap',
-              flexShrink: 0,
-            }}
-            title="Khu vực Quản trị cửa hàng"
-          >
-            {user && isAdmin ? <ShieldCheck size={15} /> : <Shield size={15} />}
-            <span>Quản trị</span>
-          </Link>
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Mobile search input expandable */}
