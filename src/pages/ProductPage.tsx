@@ -14,6 +14,7 @@ import { productService } from '../services/productService';
 import { formatVND } from '../utils/formatCurrency';
 import { getColorOption } from '../data/colors';
 import { SITE_CONFIG } from '../config/site';
+import { analyticsService } from '../services/analyticsService';
 import { Header } from '../components/Header';
 import { Footer } from '../components/Footer';
 import { ProductGallery } from '../components/ProductGallery';
@@ -38,6 +39,9 @@ export const ProductPage: React.FC = () => {
           setProduct(prod);
 
           if (prod) {
+            // Track view analytics
+            analyticsService.trackProductView(prod);
+
             // Load related products from same category
             const allPublished = await productService.getPublishedProducts();
             const related = allPublished

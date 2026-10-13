@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Product } from '../types/product';
 import { formatVND } from '../utils/formatCurrency';
 import { getColorOption } from '../data/colors';
+import { analyticsService } from '../services/analyticsService';
 
 interface ProductCardProps {
   product: Product;
@@ -17,6 +18,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
     <article className="product-card">
       <Link
         to={`/products/${product.slug || product.id}`}
+        onClick={() => analyticsService.trackProductView(product)}
         aria-label={`Xem chi tiết sản phẩm ${product.name}`}
         style={{ display: 'flex', flexDirection: 'column', height: '100%', textDecoration: 'none' }}
       >

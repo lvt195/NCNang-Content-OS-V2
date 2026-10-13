@@ -10,6 +10,7 @@ import { ProductCard } from '../components/ProductCard';
 import { ProductFilters } from '../components/ProductFilters';
 import { getColorOption } from '../data/colors';
 import { SITE_CONFIG } from '../config/site';
+import { analyticsService } from '../services/analyticsService';
 
 export const CatalogPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -39,6 +40,11 @@ export const CatalogPage: React.FC = () => {
       setFilters((prev) => ({ ...prev, searchQuery: q }));
     }
   }, [searchParams]);
+
+  // Track site visit on mount
+  useEffect(() => {
+    analyticsService.trackSiteVisit();
+  }, []);
 
   // Fetch published products and categories on mount
   useEffect(() => {
