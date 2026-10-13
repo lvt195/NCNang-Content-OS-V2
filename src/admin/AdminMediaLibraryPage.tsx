@@ -52,12 +52,16 @@ export const AdminMediaLibraryPage: React.FC = () => {
 
   // Duplicate Check Modal on Upload
   const [pendingUploadFiles, setPendingUploadFiles] = useState<File[]>([]);
-  const [detectedDuplicates, setDetectedDuplicates] = useState<{ newFile: File; existingItem: StorageItem }[]>([]);
+  const [detectedDuplicates, setDetectedDuplicates] = useState<
+    { newFile: File; existingItem: StorageItem; reason: string }[]
+  >([]);
   const [showDuplicateUploadModal, setShowDuplicateUploadModal] = useState<boolean>(false);
+  const [isCheckingUploadDuplicates, setIsCheckingUploadDuplicates] = useState<boolean>(false);
 
   // Duplicate Scanner Tool Modal
   const [showDuplicateScannerModal, setShowDuplicateScannerModal] = useState<boolean>(false);
   const [isScanningDuplicates, setIsScanningDuplicates] = useState<boolean>(false);
+  const [scanProgressText, setScanProgressText] = useState<string>('');
   const [duplicateGroups, setDuplicateGroups] = useState<DuplicateGroup[]>([]);
 
   // Move category modal
@@ -137,7 +141,7 @@ export const AdminMediaLibraryPage: React.FC = () => {
     setViewScope('current_folder');
   };
 
-  // Upload files check for duplicates
+  // Upload files check for duplicates by actual image data & content
   const handlePreUploadFiles = async (files: FileList | File[]) => {
     const fileArray = Array.from(files).filter((f) => f.type.startsWith('image/'));
     if (fileArray.length === 0) {
@@ -145,28 +149,96 @@ export const AdminMediaLibraryPage: React.FC = () => {
       return;
     }
 
-    // Check duplicates against allFiles in library
-    const duplicates: { newFile: File; existingItem: StorageItem }[] = [];
-    const cleanFiles: File[] = [];
+    setIsCheckingUploadDuplicates(true);
+    setErrorMsg('');
 
-    for (const file of fileArray) {
-      // Find matching size and name
-      const found = allFiles.find(
-        (existing) => existing.size === file.size || existing.name.endsWith(file.name)
+    try {
+      // 1. Compute binary hash & perceptual hash for incoming files
+      const incomingHashed = await Promise.all(
+        fileArray.map(async (file) => {
+          const sha256 = await mediaService.computeBinaryHash(file);
+          const pHash = await mediaService.computePerceptualHash(file);
+          return { file, sha256, pHash };
+        })
       );
-      if (found) {
-        duplicates.push({ newFile: file, existingItem: found });
-      } else {
-        cleanFiles.push(file);
-      }
-    }
 
-    if (duplicates.length > 0) {
-      setPendingUploadFiles(fileArray);
-      setDetectedDuplicates(duplicates);
-      setShowDuplicateUploadModal(true);
-    } else {
+      // 2. Fetch or load fingerprints for existing library files
+      const duplicates: { newFile: File; existingItem: StorageItem; reason: string }[] = [];
+
+      for (const incoming of incomingHashed) {
+        let matchFound: { item: StorageItem; reason: string } | null = null;
+
+        // Compare against existing library items
+        for (const existing of allFiles) {
+          if (existing.isFolder) continue;
+
+          // Quick size filter check optimization: if sizes match exactly
+          if (existing.size && existing.size === incoming.file.size) {
+            matchFound = {
+              item: existing,
+              reason: 'Trùng khớp 100% dung lượng byte dữ liệu',
+            };
+            break;
+          }
+
+          // If library item has publicUrl, check its data fingerprint
+          if (existing.publicUrl) {
+            const existingFp = await mediaService.getImageFingerprint(existing);
+            
+            // Check SHA-256 exact binary content match
+            if (existingFp.sha256 && existingFp.sha256 === incoming.sha256) {
+              matchFound = {
+                item: existing,
+                reason: 'Trùng 100% mã nhị phân ảnh (SHA-256)',
+              };
+              break;
+            }
+
+            // Check Perceptual Hash (Visual content match)
+            if (existingFp.pHash && incoming.pHash) {
+              const dist = mediaService.hammingDistance(existingFp.pHash, incoming.pHash);
+              if (dist <= 3) {
+                matchFound = {
+                  item: existing,
+                  reason: `Trùng khớp thị giác ~${Math.round(((64 - dist) / 64) * 100)}% nội dung ảnh`,
+                };
+                break;
+              }
+            }
+          }
+
+          // Fallback: name match
+          if (existing.name.endsWith(incoming.file.name)) {
+            matchFound = {
+              item: existing,
+              reason: 'Trùng tên file ảnh',
+            };
+            break;
+          }
+        }
+
+        if (matchFound) {
+          duplicates.push({
+            newFile: incoming.file,
+            existingItem: matchFound.item,
+            reason: matchFound.reason,
+          });
+        }
+      }
+
+      if (duplicates.length > 0) {
+        setPendingUploadFiles(fileArray);
+        setDetectedDuplicates(duplicates);
+        setShowDuplicateUploadModal(true);
+      } else {
+        await executeUpload(fileArray);
+      }
+    } catch (err: unknown) {
+      console.warn('Lỗi kiểm tra ảnh trùng:', err);
+      // Fallback: continue upload if checking fails
       await executeUpload(fileArray);
+    } finally {
+      setIsCheckingUploadDuplicates(false);
     }
   };
 
@@ -217,19 +289,23 @@ export const AdminMediaLibraryPage: React.FC = () => {
     await executeUpload(pendingUploadFiles);
   };
 
-  // Scan duplicates across entire library
+  // Scan duplicates across entire library by actual data
   const handleRunDuplicateScanner = async () => {
     setIsScanningDuplicates(true);
     setShowDuplicateScannerModal(true);
+    setScanProgressText('Đang lấy danh sách tất cả ảnh trong kho...');
     try {
       const recursive = await mediaService.listAllFilesRecursive();
       setAllFiles(recursive);
-      const groups = mediaService.findDuplicates(recursive);
+      const groups = await mediaService.findDuplicatesByData(recursive, (msg) => {
+        setScanProgressText(msg);
+      });
       setDuplicateGroups(groups);
     } catch (err: unknown) {
       setErrorMsg(err instanceof Error ? err.message : 'Lỗi khi quét ảnh trùng');
     } finally {
       setIsScanningDuplicates(false);
+      setScanProgressText('');
     }
   };
 
@@ -425,11 +501,20 @@ export const AdminMediaLibraryPage: React.FC = () => {
               type="button"
               onClick={() => fileInputRef.current?.click()}
               className="btn btn-primary btn-sm"
-              disabled={isUploading}
+              disabled={isUploading || isCheckingUploadDuplicates}
               style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
             >
-              <Upload size={16} />
-              <span>{isUploading ? uploadProgress : 'Tải ảnh lên'}</span>
+              {isCheckingUploadDuplicates ? (
+                <>
+                  <RefreshCw size={16} className="spin" />
+                  <span>Đang phân tích dữ liệu ảnh...</span>
+                </>
+              ) : (
+                <>
+                  <Upload size={16} />
+                  <span>{isUploading ? uploadProgress : 'Tải ảnh lên'}</span>
+                </>
+              )}
             </button>
           </div>
 
@@ -1045,17 +1130,17 @@ export const AdminMediaLibraryPage: React.FC = () => {
                 <AlertCircle size={26} style={{ flexShrink: 0, marginTop: '2px' }} />
                 <div>
                   <h3 style={{ fontSize: '1.2rem', fontWeight: 600, color: '#2c2825' }}>
-                    Phát hiện ảnh trùng lặp!
+                    Phát hiện ảnh trùng dữ liệu!
                   </h3>
                   <p style={{ fontSize: '0.875rem', color: '#685e54', marginTop: '0.35rem', lineHeight: 1.5 }}>
-                    Hệ thống nhận thấy có <strong>{detectedDuplicates.length}</strong> ảnh bạn vừa chọn đã có bản sao y hệt trên kho (cùng dung lượng byte và tên):
+                    Hệ thống nhận thấy có <strong>{detectedDuplicates.length}</strong> ảnh bạn vừa chọn đã tồn tại trên kho dựa trên phân tích dữ liệu ảnh (mã SHA-256 / độ tương đồng thị giác):
                   </p>
                 </div>
               </div>
 
               <div
                 style={{
-                  maxHeight: '200px',
+                  maxHeight: '220px',
                   overflowY: 'auto',
                   margin: '1rem 0',
                   border: '1px solid #e8e1d5',
@@ -1071,18 +1156,21 @@ export const AdminMediaLibraryPage: React.FC = () => {
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      padding: '0.4rem 0.5rem',
+                      padding: '0.5rem',
                       fontSize: '0.8rem',
                       borderBottom: idx < detectedDuplicates.length - 1 ? '1px solid #f0eae1' : 'none',
                     }}
                   >
                     <div>
                       <strong>{dup.newFile.name}</strong> ({formatFileSize(dup.newFile.size)})
-                      <div style={{ fontSize: '0.7rem', color: '#8c8277' }}>
+                      <div style={{ fontSize: '0.725rem', color: '#8c8277', marginTop: '2px' }}>
                         Trùng với: <code>{dup.existingItem.fullPath}</code>
                       </div>
+                      <div style={{ fontSize: '0.7rem', color: '#b78103', fontWeight: 500, marginTop: '2px' }}>
+                        ⚡ {dup.reason}
+                      </div>
                     </div>
-                    <span style={{ color: '#c62828', fontSize: '0.75rem', fontWeight: 600 }}>
+                    <span style={{ color: '#c62828', fontSize: '0.75rem', fontWeight: 600, flexShrink: 0, marginLeft: '0.5rem' }}>
                       Đã tồn tại
                     </span>
                   </div>
@@ -1170,10 +1258,10 @@ export const AdminMediaLibraryPage: React.FC = () => {
               >
                 <div>
                   <h3 style={{ fontSize: '1.2rem', fontWeight: 600, color: '#2c2825', margin: 0 }}>
-                    ⚡ Quét & Dọn Dẹp Ảnh Trùng Lặp
+                    ⚡ Quét & Dọn Dẹp Ảnh Trùng Lặp Theo Dữ Liệu
                   </h3>
                   <span style={{ fontSize: '0.8rem', color: '#685e54' }}>
-                    Tự động tìm kiếm các ảnh có cùng dung lượng byte & nội dung trong kho
+                    So sánh phân tích nhị phân (SHA-256) và thị giác ảnh (Perceptual Hash) trong toàn bộ kho
                   </span>
                 </div>
                 <button
@@ -1189,24 +1277,27 @@ export const AdminMediaLibraryPage: React.FC = () => {
                 {isScanningDuplicates ? (
                   <div style={{ textAlign: 'center', padding: '3.5rem 1rem', color: '#766352' }}>
                     <RefreshCw size={26} className="spin" />
-                    <p style={{ marginTop: '0.75rem', fontSize: '0.9rem' }}>
-                      Đang quét toàn bộ {allFiles.length} ảnh trong kho...
+                    <p style={{ marginTop: '0.75rem', fontSize: '0.9rem', fontWeight: 500 }}>
+                      {scanProgressText || `Đang quét dữ liệu toàn bộ ${allFiles.length} ảnh trong kho...`}
                     </p>
+                    <span style={{ fontSize: '0.75rem', color: '#9e9387' }}>
+                      Quá trình so sánh trực tiếp dữ liệu pixel và mã hash nhị phân của từng ảnh
+                    </span>
                   </div>
                 ) : duplicateGroups.length === 0 ? (
                   <div style={{ textAlign: 'center', padding: '3rem 1rem' }}>
                     <CheckCircle size={44} color="#2e7d32" style={{ margin: '0 auto 0.75rem' }} />
                     <h4 style={{ fontSize: '1.1rem', fontWeight: 600, color: '#2c2825' }}>
-                      Tuyệt vời! Không phát hiện ảnh trùng lặp nào
+                      Tuyệt vời! Không phát hiện ảnh trùng lặp dữ liệu nào
                     </h4>
                     <p style={{ fontSize: '0.85rem', color: '#685e54', marginTop: '0.25rem' }}>
-                      Kho ảnh của bạn đang rất gọn gàng và không có file nào bị nhân bản lãng phí.
+                      Tất cả ảnh trong kho đều có nội dung hình ảnh riêng biệt, không có bản sao thừa.
                     </p>
                   </div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                     <p style={{ fontSize: '0.85rem', color: '#685e54', margin: 0 }}>
-                      Tìm thấy <strong>{duplicateGroups.length} nhóm ảnh</strong> có cùng dung lượng byte ({duplicateGroups.reduce((acc, g) => acc + g.items.length - 1, 0)} ảnh thừa):
+                      Tìm thấy <strong>{duplicateGroups.length} nhóm ảnh</strong> trùng lặp nội dung ({duplicateGroups.reduce((acc, g) => acc + g.items.length - 1, 0)} ảnh thừa):
                     </p>
 
                     {duplicateGroups.map((group, gIdx) => (

@@ -249,7 +249,246 @@ export const mediaService = {
   },
 
   /**
-   * Group duplicate files by exact size & name
+   * Compute exact binary SHA-256 hash from File or Blob or ArrayBuffer
+   */
+  async computeBinaryHash(data: Blob | ArrayBuffer): Promise<string> {
+    const buffer = data instanceof ArrayBuffer ? data : await data.arrayBuffer();
+    const digest = await crypto.subtle.digest('SHA-256', buffer);
+    const hashArray = Array.from(new Uint8Array(digest));
+    return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+  },
+
+  /**
+   * Compute 64-bit Perceptual Hash (Difference Hash / dHash) of an image
+   * This identifies visually identical images even if re-encoded, resized, or saved in different formats (JPG/PNG/WebP).
+   */
+  async computePerceptualHash(imageSource: string | Blob): Promise<string> {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+
+      let objectUrl: string | null = null;
+      if (typeof imageSource === 'string') {
+        img.src = imageSource;
+      } else {
+        objectUrl = URL.createObjectURL(imageSource);
+        img.src = objectUrl;
+      }
+
+      img.onload = () => {
+        if (objectUrl) URL.revokeObjectURL(objectUrl);
+        try {
+          const canvas = document.createElement('canvas');
+          const width = 9;
+          const height = 8;
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d', { willReadFrequently: true });
+          if (!ctx) {
+            resolve('');
+            return;
+          }
+
+          // Draw scaled down
+          ctx.drawImage(img, 0, 0, width, height);
+          const imgData = ctx.getImageData(0, 0, width, height);
+          const data = imgData.data;
+
+          // Compute grayscale values
+          const grayValues: number[] = [];
+          for (let i = 0; i < data.length; i += 4) {
+            // standard luminance formula: 0.299*R + 0.587*G + 0.114*B
+            const gray = Math.round(data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
+            grayValues.push(gray);
+          }
+
+          // Compare adjacent pixels horizontally (9 cols -> 8 differences per row -> 64 bits)
+          let binaryStr = '';
+          for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width - 1; x++) {
+              const left = grayValues[y * width + x];
+              const right = grayValues[y * width + (x + 1)];
+              binaryStr += left > right ? '1' : '0';
+            }
+          }
+
+          // Convert 64-bit binary string into 16-character hex string
+          let hex = '';
+          for (let i = 0; i < binaryStr.length; i += 4) {
+            const nibble = binaryStr.substring(i, i + 4);
+            hex += parseInt(nibble, 2).toString(16);
+          }
+          resolve(hex);
+        } catch (e) {
+          console.warn('Perceptual hash computation failed (CORS or canvas error):', e);
+          resolve('');
+        }
+      };
+
+      img.onerror = () => {
+        if (objectUrl) URL.revokeObjectURL(objectUrl);
+        // Fallback: return empty string
+        resolve('');
+      };
+    });
+  },
+
+  /**
+   * Calculate Hamming Distance between two 16-hex perceptual hashes (0..64)
+   * Distance <= 4 means virtually identical images
+   */
+  hammingDistance(hexA: string, hexB: string): number {
+    if (!hexA || !hexB || hexA.length !== hexB.length) return 999;
+    let dist = 0;
+    for (let i = 0; i < hexA.length; i++) {
+      const valA = parseInt(hexA[i], 16);
+      const valB = parseInt(hexB[i], 16);
+      let xor = valA ^ valB;
+      while (xor > 0) {
+        dist += xor & 1;
+        xor >>= 1;
+      }
+    }
+    return dist;
+  },
+
+  /**
+   * Get cached fingerprint or compute from publicUrl
+   */
+  async getImageFingerprint(
+    item: StorageItem,
+    onProgress?: (msg: string) => void
+  ): Promise<{ sha256?: string; pHash?: string }> {
+    if (!item.publicUrl) return {};
+
+    const cacheKey = `img_fp_${item.fullPath}_${item.size || 0}`;
+    try {
+      const cached = sessionStorage.getItem(cacheKey);
+      if (cached) {
+        return JSON.parse(cached);
+      }
+    } catch {
+      // ignore
+    }
+
+    if (onProgress) onProgress(`Đang phân tích dữ liệu: ${item.name}...`);
+
+    let pHash = '';
+    let sha256 = '';
+
+    try {
+      // First try perceptual hash directly from URL
+      pHash = await this.computePerceptualHash(item.publicUrl);
+    } catch {
+      // ignore
+    }
+
+    try {
+      // Fetch blob for exact binary SHA-256 hash
+      const resp = await fetch(item.publicUrl);
+      if (resp.ok) {
+        const blob = await resp.blob();
+        sha256 = await this.computeBinaryHash(blob);
+        if (!pHash) {
+          pHash = await this.computePerceptualHash(blob);
+        }
+      }
+    } catch {
+      // ignore fetch errors
+    }
+
+    const result = { sha256, pHash };
+    try {
+      sessionStorage.setItem(cacheKey, JSON.stringify(result));
+    } catch {
+      // ignore quota limits
+    }
+
+    return result;
+  },
+
+  /**
+   * Group duplicate files by actual image data (SHA-256 binary hash or visual Perceptual Hash)
+   */
+  async findDuplicatesByData(
+    items: StorageItem[],
+    onProgress?: (progressText: string) => void
+  ): Promise<DuplicateGroup[]> {
+    const files = items.filter((i) => !i.isFolder && i.publicUrl);
+    if (files.length <= 1) return [];
+
+    const fingerprints = new Map<string, { sha256: string; pHash: string; item: StorageItem }>();
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      if (onProgress) {
+        onProgress(`Đang phân tích dữ liệu ảnh ${i + 1}/${files.length} (${file.name})...`);
+      }
+      const fp = await this.getImageFingerprint(file);
+      fingerprints.set(file.fullPath, {
+        sha256: fp.sha256 || '',
+        pHash: fp.pHash || '',
+        item: file,
+      });
+    }
+
+    // Cluster matching images
+    const visited = new Set<string>();
+    const duplicateGroups: DuplicateGroup[] = [];
+
+    const list = Array.from(fingerprints.values());
+    for (let i = 0; i < list.length; i++) {
+      const current = list[i];
+      if (visited.has(current.item.fullPath)) continue;
+
+      const group: StorageItem[] = [current.item];
+      visited.add(current.item.fullPath);
+
+      for (let j = i + 1; j < list.length; j++) {
+        const target = list[j];
+        if (visited.has(target.item.fullPath)) continue;
+
+        let isMatch = false;
+        // 1. Exact binary data match (SHA-256)
+        if (current.sha256 && target.sha256 && current.sha256 === target.sha256) {
+          isMatch = true;
+        }
+        // 2. Visual content match (dHash Hamming distance <= 4 out of 64 bits = >= 94% visual match)
+        else if (current.pHash && target.pHash) {
+          const dist = this.hammingDistance(current.pHash, target.pHash);
+          if (dist <= 4) {
+            isMatch = true;
+          }
+        }
+        // 3. Fallback: exact file size in bytes if hashes couldn't be loaded
+        else if (
+          current.item.size &&
+          target.item.size &&
+          current.item.size === target.item.size &&
+          current.item.size > 0
+        ) {
+          isMatch = true;
+        }
+
+        if (isMatch) {
+          group.push(target.item);
+          visited.add(target.item.fullPath);
+        }
+      }
+
+      if (group.length > 1) {
+        duplicateGroups.push({
+          size: current.item.size || 0,
+          items: group,
+        });
+      }
+    }
+
+    return duplicateGroups;
+  },
+
+  /**
+   * Fast initial grouping by size
    */
   findDuplicates(items: StorageItem[]): DuplicateGroup[] {
     const sizeMap = new Map<number, StorageItem[]>();
