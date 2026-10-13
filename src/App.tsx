@@ -14,6 +14,7 @@ import { AdminLayout } from './admin/AdminLayout';
 import { AdminDashboardPage } from './admin/AdminDashboardPage';
 import { AdminProductsPage } from './admin/AdminProductsPage';
 import { AdminProductFormPage } from './admin/AdminProductFormPage';
+import { AdminBulkImportPage } from './admin/AdminBulkImportPage';
 import { AdminCategoriesPage } from './admin/AdminCategoriesPage';
 
 export const App: React.FC = () => {
@@ -33,6 +34,7 @@ export const App: React.FC = () => {
             <Route index element={<AdminDashboardPage />} />
             <Route path="products" element={<AdminProductsPage />} />
             <Route path="products/new" element={<AdminProductFormPage />} />
+            <Route path="products/bulk" element={<AdminBulkImportPage />} />
             <Route path="products/:id/edit" element={<AdminProductFormPage />} />
             <Route path="categories" element={<AdminCategoriesPage />} />
           </Route>

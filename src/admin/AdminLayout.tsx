@@ -7,6 +7,7 @@ import {
   LogOut,
   ExternalLink,
   PlusCircle,
+  FolderPlus,
   Menu,
   X,
   User,
@@ -29,6 +30,7 @@ export const AdminLayout: React.FC = () => {
     { to: '/admin', label: 'Tổng quan', icon: LayoutDashboard, end: true },
     { to: '/admin/products', label: 'Sản phẩm', icon: Package, end: false },
     { to: '/admin/products/new', label: 'Thêm mới', icon: PlusCircle, end: false },
+    { to: '/admin/products/bulk', label: 'Nhập theo Folder', icon: FolderPlus, end: false },
     { to: '/admin/categories', label: 'Danh mục', icon: Tags, end: false },
   ];
 

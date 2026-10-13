@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -13,6 +14,8 @@ import {
   CheckCircle,
   ArrowUp,
   ArrowDown,
+  GripVertical,
+  FolderPlus,
 } from 'lucide-react';
 import { Product, Category, ProductColor, ComboItem } from '../types/product';
 import { productService } from '../services/productService';
@@ -50,6 +53,8 @@ export const AdminProductFormPage: React.FC = () => {
   const [images, setImages] = useState<string[]>([]);
   const [coverImage, setCoverImage] = useState<string>('');
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [isDraggingFiles, setIsDraggingFiles] = useState(false);
+  const [draggedImgIdx, setDraggedImgIdx] = useState<number | null>(null);
 
   // Combo items
   const [comboItems, setComboItems] = useState<ComboItem[]>([]);
@@ -142,14 +147,13 @@ export const AdminProductFormPage: React.FC = () => {
     setComboItems((prev) => prev.filter((_, idx) => idx !== index));
   };
 
-  // Image upload handler
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
+  // Core upload file logic
+  const uploadFiles = async (fileList: FileList | File[]) => {
+    const files = Array.from(fileList).filter((f) => f.type.startsWith('image/'));
+    if (files.length === 0) return;
 
     if (!code.trim()) {
       setErrorMsg('Vui lòng nhập Mã sản phẩm (Code) trước khi tải ảnh lên.');
-      e.target.value = '';
       return;
     }
 
@@ -177,6 +181,13 @@ export const AdminProductFormPage: React.FC = () => {
       setErrorMsg(err instanceof Error ? err.message : 'Lỗi khi tải ảnh');
     } finally {
       setUploadingImage(false);
+    }
+  };
+
+  // Image upload handler
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      await uploadFiles(e.target.files);
       e.target.value = '';
     }
   };
@@ -305,7 +316,19 @@ export const AdminProductFormPage: React.FC = () => {
           </h1>
         </div>
 
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+          {!isEditMode && (
+            <Link
+              to="/admin/products/bulk"
+              className="btn btn-outline btn-sm"
+              style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#766352' }}
+              title="Thêm hàng loạt sản phẩm bằng cách kéo thả folder"
+            >
+              <FolderPlus size={16} />
+              <span>Nhập từ Folder (nhiều SP)</span>
+            </Link>
+          )}
+
           <button
             type="button"
             className="btn btn-outline btn-sm"
@@ -699,22 +722,45 @@ export const AdminProductFormPage: React.FC = () => {
               {/* Upload trigger */}
               <div
                 style={{
-                  border: '2px dashed #dcd3c5',
+                  border: isDraggingFiles ? '2px dashed #766352' : '2px dashed #dcd3c5',
+                  backgroundColor: isDraggingFiles ? '#f3eee6' : '#faf8f5',
                   borderRadius: '8px',
                   padding: '1.5rem 1rem',
                   textAlign: 'center',
-                  backgroundColor: '#faf8f5',
                   cursor: 'pointer',
                   marginBottom: '1rem',
+                  transition: 'all 0.2s ease',
                 }}
                 onClick={() => document.getElementById('image-upload-input')?.click()}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setIsDraggingFiles(true);
+                }}
+                onDragLeave={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setIsDraggingFiles(false);
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setIsDraggingFiles(false);
+                  if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                    uploadFiles(e.dataTransfer.files);
+                  }
+                }}
               >
                 <Upload size={24} color="#766352" style={{ margin: '0 auto 0.5rem' }} />
                 <span style={{ fontSize: '0.875rem', fontWeight: 500, color: '#2c2825', display: 'block' }}>
-                  {uploadingImage ? 'Đang tải ảnh lên Storage...' : 'Bấm để tải ảnh từ máy tính'}
+                  {uploadingImage
+                    ? 'Đang tải ảnh lên Storage...'
+                    : isDraggingFiles
+                    ? 'Thả ảnh vào đây để tải lên'
+                    : 'Kéo thả ảnh vào đây hoặc bấm để chọn'}
                 </span>
                 <span style={{ fontSize: '0.75rem', color: '#8c8277' }}>
-                  Hỗ trợ JPG, PNG, WebP (Tối đa 5MB/ảnh)
+                  Hỗ trợ kéo thả nhiều ảnh JPG, PNG, WebP (Tối đa 5MB/ảnh)
                 </span>
                 <input
                   id="image-upload-input"
@@ -734,21 +780,63 @@ export const AdminProductFormPage: React.FC = () => {
                 </p>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <span style={{ fontSize: '0.75rem', color: '#8c8277', display: 'block', marginBottom: '0.25rem' }}>
+                    💡 Kéo thả biểu tượng ⠿ để đổi vị trí ảnh, hoặc bấm nút mũi tên:
+                  </span>
                   {images.map((imgUrl, idx) => {
                     const isCover = (coverImage || images[0]) === imgUrl;
+                    const isDraggingThis = draggedImgIdx === idx;
                     return (
                       <div
                         key={idx}
+                        draggable
+                        onDragStart={(e) => {
+                          setDraggedImgIdx(idx);
+                          e.dataTransfer.effectAllowed = 'move';
+                        }}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          e.dataTransfer.dropEffect = 'move';
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          if (draggedImgIdx === null || draggedImgIdx === idx) return;
+                          const list = [...images];
+                          const [item] = list.splice(draggedImgIdx, 1);
+                          list.splice(idx, 0, item);
+                          setImages(list);
+                          setDraggedImgIdx(null);
+                        }}
+                        onDragEnd={() => setDraggedImgIdx(null)}
                         style={{
                           display: 'flex',
                           alignItems: 'center',
                           gap: '0.75rem',
                           padding: '0.5rem',
                           backgroundColor: isCover ? '#f8f4ed' : '#fdfbf7',
-                          border: isCover ? '1px solid #766352' : '1px solid #e8e1d5',
+                          border: isDraggingThis
+                            ? '2px dashed #766352'
+                            : isCover
+                            ? '1px solid #766352'
+                            : '1px solid #e8e1d5',
                           borderRadius: '6px',
+                          opacity: isDraggingThis ? 0.5 : 1,
+                          cursor: 'grab',
+                          transition: 'border 0.2s ease',
                         }}
                       >
+                        <div
+                          style={{
+                            color: '#9e9387',
+                            cursor: 'grab',
+                            display: 'flex',
+                            alignItems: 'center',
+                          }}
+                          title="Kéo thả để sắp xếp lại thứ tự ảnh"
+                        >
+                          <GripVertical size={16} />
+                        </div>
+
                         <img
                           src={imgUrl}
                           alt={`Ảnh ${idx + 1}`}
@@ -758,6 +846,7 @@ export const AdminProductFormPage: React.FC = () => {
                             objectFit: 'cover',
                             borderRadius: '4px',
                             backgroundColor: '#e8e1d5',
+                            flexShrink: 0,
                           }}
                         />
 
@@ -844,77 +933,181 @@ export const AdminProductFormPage: React.FC = () => {
       </form>
 
       {/* Live Preview Modal */}
-      {showPreviewModal && (
-        <>
-          <div className="drawer-backdrop" onClick={() => setShowPreviewModal(false)} />
+      {showPreviewModal &&
+        createPortal(
           <div
             style={{
               position: 'fixed',
-              top: '50%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-              width: '92%',
-              maxWidth: '820px',
-              maxHeight: '90vh',
-              overflowY: 'auto',
-              backgroundColor: '#ffffff',
-              borderRadius: '12px',
-              boxShadow: '0 20px 40px rgba(0,0,0,0.25)',
-              zIndex: 999,
-              padding: '1.75rem',
+              inset: 0,
+              zIndex: 10000,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '1rem',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem', borderBottom: '1px solid #e8e1d5', paddingBottom: '0.75rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Eye size={18} color="#766352" />
-                <h3 style={{ fontSize: '1.15rem', fontWeight: 600 }}>
-                  Xem trước hiển thị trên trang chủ
-                </h3>
-              </div>
-              <button type="button" onClick={() => setShowPreviewModal(false)}>
-                <X size={20} />
-              </button>
-            </div>
+            {/* Backdrop */}
+            <div
+              style={{
+                position: 'fixed',
+                inset: 0,
+                backgroundColor: 'rgba(0, 0, 0, 0.55)',
+                backdropFilter: 'blur(3px)',
+                WebkitBackdropFilter: 'blur(3px)',
+              }}
+              onClick={() => setShowPreviewModal(false)}
+            />
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '2rem', alignItems: 'flex-start' }}>
-              {/* Product Card preview */}
-              <div>
-                <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#685e54', display: 'block', marginBottom: '0.5rem' }}>
-                  1. Dạng Thẻ Sản Phẩm (Grid):
-                </span>
-                <div style={{ maxWidth: '280px' }}>
-                  <ProductCard product={currentPreviewProduct} />
-                </div>
-              </div>
-
-              {/* Quick details breakdown */}
-              <div style={{ backgroundColor: '#faf8f5', padding: '1.25rem', borderRadius: '8px', border: '1px solid #e8e1d5' }}>
-                <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#685e54', display: 'block', marginBottom: '0.5rem' }}>
-                  2. Thông số sản phẩm:
-                </span>
-                <div style={{ fontSize: '0.85rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                  <div><strong>Mã:</strong> {currentPreviewProduct.id}</div>
-                  <div><strong>Tên:</strong> {currentPreviewProduct.name}</div>
-                  <div><strong>Slug:</strong> /{currentPreviewProduct.slug}</div>
-                  <div><strong>Trạng thái:</strong> {published ? '🟢 Công khai' : '🔴 Đang ẩn'}</div>
-                  <div><strong>Ảnh đại diện:</strong> {currentPreviewProduct.coverImage}</div>
-                  <div><strong>Tổng số ảnh:</strong> {images.length}</div>
-                </div>
-              </div>
-            </div>
-
-            <div style={{ marginTop: '1.5rem', textAlign: 'right' }}>
-              <button
-                type="button"
-                className="btn btn-primary btn-sm"
-                onClick={() => setShowPreviewModal(false)}
+            {/* Modal Dialog Content (Crisp, foreground) */}
+            <div
+              style={{
+                position: 'relative',
+                width: '100%',
+                maxWidth: '840px',
+                maxHeight: '90vh',
+                overflowY: 'auto',
+                backgroundColor: '#ffffff',
+                borderRadius: '12px',
+                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
+                zIndex: 10001,
+                padding: '1.75rem',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginBottom: '1.25rem',
+                  borderBottom: '1px solid #e8e1d5',
+                  paddingBottom: '0.75rem',
+                }}
               >
-                Đóng xem trước
-              </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Eye size={20} color="#766352" />
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 600, color: '#2c2825' }}>
+                    Xem trước hiển thị sản phẩm
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowPreviewModal(false)}
+                  style={{
+                    border: 'none',
+                    background: 'none',
+                    cursor: 'pointer',
+                    color: '#8c8277',
+                    padding: '4px',
+                    borderRadius: '4px',
+                  }}
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+                  gap: '2rem',
+                  alignItems: 'flex-start',
+                }}
+              >
+                {/* Product Card preview */}
+                <div>
+                  <span
+                    style={{
+                      fontSize: '0.85rem',
+                      fontWeight: 600,
+                      color: '#685e54',
+                      display: 'block',
+                      marginBottom: '0.6rem',
+                    }}
+                  >
+                    1. Hiển thị dạng Thẻ (Trang chủ / Danh mục):
+                  </span>
+                  <div style={{ maxWidth: '300px', margin: '0 auto' }}>
+                    <ProductCard product={currentPreviewProduct} />
+                  </div>
+                </div>
+
+                {/* Quick details breakdown */}
+                <div
+                  style={{
+                    backgroundColor: '#faf8f5',
+                    padding: '1.25rem',
+                    borderRadius: '8px',
+                    border: '1px solid #e8e1d5',
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: '0.85rem',
+                      fontWeight: 600,
+                      color: '#685e54',
+                      display: 'block',
+                      marginBottom: '0.6rem',
+                    }}
+                  >
+                    2. Thông số sản phẩm đang soạn:
+                  </span>
+                  <div
+                    style={{
+                      fontSize: '0.875rem',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.5rem',
+                    }}
+                  >
+                    <div>
+                      <strong>Mã sản phẩm:</strong> <code>{currentPreviewProduct.id}</code>
+                    </div>
+                    <div>
+                      <strong>Tên:</strong> {currentPreviewProduct.name}
+                    </div>
+                    <div>
+                      <strong>Đường dẫn (slug):</strong> /products/{currentPreviewProduct.slug}
+                    </div>
+                    <div>
+                      <strong>Giá:</strong> {Number(price).toLocaleString('vi-VN')} đ
+                    </div>
+                    <div>
+                      <strong>Trạng thái:</strong>{' '}
+                      {published ? (
+                        <span style={{ color: '#1b5e20', fontWeight: 600 }}>🟢 Công khai</span>
+                      ) : (
+                        <span style={{ color: '#b71c1c', fontWeight: 600 }}>🔴 Đang ẩn</span>
+                      )}
+                    </div>
+                    <div>
+                      <strong>Ảnh đại diện:</strong> {currentPreviewProduct.coverImage}
+                    </div>
+                    <div>
+                      <strong>Số lượng ảnh:</strong> {images.length} ảnh
+                    </div>
+                    <div>
+                      <strong>Màu sắc:</strong> {selectedColors.join(', ') || 'Chưa chọn'}
+                    </div>
+                    <div>
+                      <strong>Kích thước:</strong> {selectedSizes.join(', ') || 'Chưa chọn'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ marginTop: '1.5rem', textAlign: 'right' }}>
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  onClick={() => setShowPreviewModal(false)}
+                >
+                  Đóng xem trước
+                </button>
+              </div>
             </div>
-          </div>
-        </>
-      )}
+          </div>,
+          document.body
+        )}
 
       <style>{`
         @media (min-width: 960px) {

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { PlusCircle, Edit2, Trash2, RefreshCw, AlertCircle, CheckCircle } from 'lucide-react';
 import { Category } from '../types/product';
 import { productService } from '../services/productService';
@@ -175,100 +176,121 @@ export const AdminCategoriesPage: React.FC = () => {
         )}
       </div>
 
-      {/* Create / Edit Modal */}
-      {editingCategory && (
-        <>
-          <div className="drawer-backdrop" onClick={() => !saving && setEditingCategory(null)} />
+      {/* Create / Edit Modal (Rendered via Portal above backdrop) */}
+      {editingCategory &&
+        createPortal(
           <div
             style={{
               position: 'fixed',
-              top: '50%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-              width: '90%',
-              maxWidth: '480px',
-              backgroundColor: '#ffffff',
-              borderRadius: '12px',
-              boxShadow: '0 20px 40px rgba(0,0,0,0.25)',
-              zIndex: 999,
-              padding: '1.75rem',
+              inset: 0,
+              zIndex: 10000,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '1rem',
             }}
           >
-            <h3 style={{ fontSize: '1.2rem', fontWeight: 600, marginBottom: '1.25rem' }}>
-              {isNew ? 'Thêm danh mục mới' : `Chỉnh sửa: ${editingCategory.name}`}
-            </h3>
+            {/* Backdrop */}
+            <div
+              style={{
+                position: 'fixed',
+                inset: 0,
+                backgroundColor: 'rgba(0, 0, 0, 0.55)',
+                backdropFilter: 'blur(3px)',
+                WebkitBackdropFilter: 'blur(3px)',
+              }}
+              onClick={() => !saving && setEditingCategory(null)}
+            />
 
-            <form onSubmit={handleSave}>
-              <div className="form-group">
-                <label className="form-label">Mã ID (Slug) *</label>
-                <input
-                  type="text"
-                  required
-                  disabled={!isNew}
-                  placeholder="VD: dem-topper, chan-he"
-                  className="form-input"
-                  value={editingCategory.id || ''}
-                  onChange={(e) =>
-                    setEditingCategory({ ...editingCategory, id: e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, '') })
-                  }
-                />
-                <span className="form-help">Mã danh mục viết liền không dấu.</span>
-              </div>
+            {/* Modal Dialog Content (Crisp, foreground) */}
+            <div
+              style={{
+                position: 'relative',
+                width: '100%',
+                maxWidth: '480px',
+                backgroundColor: '#ffffff',
+                borderRadius: '12px',
+                boxShadow: '0 25px 50px -12px rgba(0,0,0,0.35)',
+                zIndex: 10001,
+                padding: '1.75rem',
+              }}
+            >
+              <h3 style={{ fontSize: '1.2rem', fontWeight: 600, marginBottom: '1.25rem' }}>
+                {isNew ? 'Thêm danh mục mới' : `Chỉnh sửa: ${editingCategory.name}`}
+              </h3>
 
-              <div className="form-group">
-                <label className="form-label">Tên hiển thị *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="VD: Nệm Topper Tự Nhiên"
-                  className="form-input"
-                  value={editingCategory.name || ''}
-                  onChange={(e) => setEditingCategory({ ...editingCategory, name: e.target.value })}
-                />
-              </div>
+              <form onSubmit={handleSave}>
+                <div className="form-group">
+                  <label className="form-label">Mã ID (Slug) *</label>
+                  <input
+                    type="text"
+                    required
+                    disabled={!isNew}
+                    placeholder="VD: dem-topper, chan-he"
+                    className="form-input"
+                    value={editingCategory.id || ''}
+                    onChange={(e) =>
+                      setEditingCategory({ ...editingCategory, id: e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, '') })
+                    }
+                  />
+                  <span className="form-help">Mã danh mục viết liền không dấu.</span>
+                </div>
 
-              <div className="form-group">
-                <label className="form-label">Thứ tự hiển thị</label>
-                <input
-                  type="number"
-                  min="0"
-                  className="form-input"
-                  value={editingCategory.displayOrder || 0}
-                  onChange={(e) =>
-                    setEditingCategory({ ...editingCategory, displayOrder: Number(e.target.value) || 0 })
-                  }
-                />
-              </div>
+                <div className="form-group">
+                  <label className="form-label">Tên hiển thị *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="VD: Nệm Topper Tự Nhiên"
+                    className="form-input"
+                    value={editingCategory.name || ''}
+                    onChange={(e) => setEditingCategory({ ...editingCategory, name: e.target.value })}
+                  />
+                </div>
 
-              <div className="form-group">
-                <label className="form-label">Mô tả ngắn</label>
-                <textarea
-                  rows={2}
-                  className="form-textarea"
-                  value={editingCategory.description || ''}
-                  onChange={(e) =>
-                    setEditingCategory({ ...editingCategory, description: e.target.value })
-                  }
-                />
-              </div>
+                <div className="form-group">
+                  <label className="form-label">Thứ tự hiển thị</label>
+                  <input
+                    type="number"
+                    min="0"
+                    className="form-input"
+                    value={editingCategory.displayOrder || 0}
+                    onChange={(e) =>
+                      setEditingCategory({ ...editingCategory, displayOrder: Number(e.target.value) || 0 })
+                    }
+                  />
+                </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.5rem' }}>
-                <button
-                  type="button"
-                  className="btn btn-outline btn-sm"
-                  onClick={() => setEditingCategory(null)}
-                  disabled={saving}
-                >
-                  Hủy
-                </button>
-                <button type="submit" className="btn btn-primary btn-sm" disabled={saving}>
-                  {saving ? 'Đang lưu...' : 'Lưu danh mục'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </>
-      )}
+                <div className="form-group">
+                  <label className="form-label">Mô tả ngắn</label>
+                  <textarea
+                    rows={2}
+                    className="form-textarea"
+                    value={editingCategory.description || ''}
+                    onChange={(e) =>
+                      setEditingCategory({ ...editingCategory, description: e.target.value })
+                    }
+                  />
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.5rem' }}>
+                  <button
+                    type="button"
+                    className="btn btn-outline btn-sm"
+                    onClick={() => setEditingCategory(null)}
+                    disabled={saving}
+                  >
+                    Hủy
+                  </button>
+                  <button type="submit" className="btn btn-primary btn-sm" disabled={saving}>
+                    {saving ? 'Đang lưu...' : 'Lưu danh mục'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 };
