@@ -16,6 +16,7 @@ import {
   ArrowDown,
   GripVertical,
   FolderPlus,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { Product, Category, ProductColor, ComboItem } from '../types/product';
 import { productService } from '../services/productService';
@@ -23,6 +24,7 @@ import { DEFAULT_COLORS } from '../data/colors';
 import { SITE_CONFIG } from '../config/site';
 import { normalizeVietnamese } from '../utils/filterProducts';
 import { ProductCard } from '../components/ProductCard';
+import { MediaPickerModal } from '../components/MediaPickerModal';
 
 export const AdminProductFormPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -55,6 +57,7 @@ export const AdminProductFormPage: React.FC = () => {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [isDraggingFiles, setIsDraggingFiles] = useState(false);
   const [draggedImgIdx, setDraggedImgIdx] = useState<number | null>(null);
+  const [showMediaPicker, setShowMediaPicker] = useState(false);
 
   // Combo items
   const [comboItems, setComboItems] = useState<ComboItem[]>([]);
@@ -715,8 +718,18 @@ export const AdminProductFormPage: React.FC = () => {
 
             {/* Images Upload Card */}
             <div style={{ backgroundColor: '#ffffff', border: '1px solid #e8e1d5', borderRadius: '8px', padding: '1.5rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-                <h2 style={{ fontSize: '1.05rem', fontWeight: 600 }}>Hình ảnh sản phẩm ({images.length})</h2>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <h2 style={{ fontSize: '1.05rem', fontWeight: 600, margin: 0 }}>Hình ảnh sản phẩm ({images.length})</h2>
+                <button
+                  type="button"
+                  onClick={() => setShowMediaPicker(true)}
+                  className="btn btn-outline btn-sm"
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.8rem', padding: '0.3rem 0.6rem' }}
+                  title="Chọn ảnh đã tải lên Supabase Storage"
+                >
+                  <ImageIcon size={15} />
+                  <span>Chọn từ Kho ảnh Online</span>
+                </button>
               </div>
 
               {/* Upload trigger */}
@@ -1108,6 +1121,24 @@ export const AdminProductFormPage: React.FC = () => {
           </div>,
           document.body
         )}
+
+      {/* Media Picker Modal */}
+      <MediaPickerModal
+        isOpen={showMediaPicker}
+        onClose={() => setShowMediaPicker(false)}
+        onSelectImages={(newUrls) => {
+          setImages((prev) => {
+            const updated = [...prev, ...newUrls];
+            if (!coverImage && updated.length > 0) {
+              setCoverImage(updated[0]);
+            }
+            return updated;
+          });
+          setSuccessMsg(`Đã thêm ${newUrls.length} ảnh từ Kho online vào sản phẩm!`);
+          setTimeout(() => setSuccessMsg(''), 3000);
+        }}
+        initialFolder={code || ''}
+      />
 
       <style>{`
         @media (min-width: 960px) {

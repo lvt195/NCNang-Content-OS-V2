@@ -16,6 +16,7 @@ import { AdminProductsPage } from './admin/AdminProductsPage';
 import { AdminProductFormPage } from './admin/AdminProductFormPage';
 import { AdminBulkImportPage } from './admin/AdminBulkImportPage';
 import { AdminCategoriesPage } from './admin/AdminCategoriesPage';
+import { AdminMediaLibraryPage } from './admin/AdminMediaLibraryPage';
 
 export const App: React.FC = () => {
   return (
@@ -37,6 +38,7 @@ export const App: React.FC = () => {
             <Route path="products/bulk" element={<AdminBulkImportPage />} />
             <Route path="products/:id/edit" element={<AdminProductFormPage />} />
             <Route path="categories" element={<AdminCategoriesPage />} />
+            <Route path="media" element={<AdminMediaLibraryPage />} />
           </Route>
         </Route>
 
