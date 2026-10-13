@@ -14,7 +14,6 @@ import {
   CheckCircle,
   ArrowUp,
   ArrowDown,
-  GripVertical,
   FolderPlus,
   Image as ImageIcon,
 } from 'lucide-react';
@@ -787,157 +786,201 @@ export const AdminProductFormPage: React.FC = () => {
               </div>
 
               {/* Image List */}
+              {/* Image List */}
               {images.length === 0 ? (
                 <p style={{ fontSize: '0.8rem', color: '#8c8277', textAlign: 'center' }}>
                   Chưa có ảnh nào. Sản phẩm sẽ dùng ảnh mặc định nếu để trống.
                 </p>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <span style={{ fontSize: '0.75rem', color: '#8c8277', display: 'block', marginBottom: '0.25rem' }}>
-                    💡 Kéo thả biểu tượng ⠿ để đổi vị trí ảnh, hoặc bấm nút mũi tên:
-                  </span>
-                  {images.map((imgUrl, idx) => {
-                    const isCover = (coverImage || images[0]) === imgUrl;
-                    const isDraggingThis = draggedImgIdx === idx;
-                    return (
-                      <div
-                        key={idx}
-                        draggable
-                        onDragStart={(e) => {
-                          setDraggedImgIdx(idx);
-                          e.dataTransfer.effectAllowed = 'move';
-                        }}
-                        onDragOver={(e) => {
-                          e.preventDefault();
-                          e.dataTransfer.dropEffect = 'move';
-                        }}
-                        onDrop={(e) => {
-                          e.preventDefault();
-                          if (draggedImgIdx === null || draggedImgIdx === idx) return;
-                          const list = [...images];
-                          const [item] = list.splice(draggedImgIdx, 1);
-                          list.splice(idx, 0, item);
-                          setImages(list);
-                          setDraggedImgIdx(null);
-                        }}
-                        onDragEnd={() => setDraggedImgIdx(null)}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '0.75rem',
-                          padding: '0.5rem',
-                          backgroundColor: isCover ? '#f8f4ed' : '#fdfbf7',
-                          border: isDraggingThis
-                            ? '2px dashed #766352'
-                            : isCover
-                            ? '1px solid #766352'
-                            : '1px solid #e8e1d5',
-                          borderRadius: '6px',
-                          opacity: isDraggingThis ? 0.5 : 1,
-                          cursor: 'grab',
-                          transition: 'border 0.2s ease',
-                        }}
-                      >
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                    <span style={{ fontSize: '0.75rem', color: '#8c8277' }}>
+                      💡 Kéo thả thẻ để đổi thứ tự ảnh. Ảnh đầu tiên (hoặc có gắn ★) sẽ là ảnh bìa.
+                    </span>
+                  </div>
+
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))',
+                      gap: '0.75rem',
+                    }}
+                  >
+                    {images.map((imgUrl, idx) => {
+                      const isCover = (coverImage || images[0]) === imgUrl;
+                      const isDraggingThis = draggedImgIdx === idx;
+                      return (
                         <div
+                          key={idx}
+                          draggable
+                          onDragStart={(e) => {
+                            setDraggedImgIdx(idx);
+                            e.dataTransfer.effectAllowed = 'move';
+                          }}
+                          onDragOver={(e) => {
+                            e.preventDefault();
+                            e.dataTransfer.dropEffect = 'move';
+                          }}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            if (draggedImgIdx === null || draggedImgIdx === idx) return;
+                            const list = [...images];
+                            const [item] = list.splice(draggedImgIdx, 1);
+                            list.splice(idx, 0, item);
+                            setImages(list);
+                            setDraggedImgIdx(null);
+                          }}
+                          onDragEnd={() => setDraggedImgIdx(null)}
                           style={{
-                            color: '#9e9387',
+                            position: 'relative',
+                            backgroundColor: isCover ? '#f8f4ed' : '#ffffff',
+                            border: isDraggingThis
+                              ? '2px dashed #766352'
+                              : isCover
+                              ? '2px solid #766352'
+                              : '1px solid #e8e1d5',
+                            borderRadius: '8px',
+                            overflow: 'hidden',
+                            boxShadow: isCover ? '0 2px 8px rgba(118, 99, 82, 0.2)' : '0 1px 3px rgba(0,0,0,0.05)',
+                            opacity: isDraggingThis ? 0.5 : 1,
                             cursor: 'grab',
                             display: 'flex',
-                            alignItems: 'center',
+                            flexDirection: 'column',
                           }}
-                          title="Kéo thả để sắp xếp lại thứ tự ảnh"
                         >
-                          <GripVertical size={16} />
-                        </div>
+                          {/* Image preview */}
+                          <div style={{ width: '100%', paddingTop: '85%', position: 'relative', backgroundColor: '#f3eee6' }}>
+                            <img
+                              src={imgUrl}
+                              alt={`Ảnh ${idx + 1}`}
+                              style={{
+                                position: 'absolute',
+                                top: 0,
+                                left: 0,
+                                width: '100%',
+                                height: '100%',
+                                objectFit: 'cover',
+                              }}
+                            />
 
-                        <img
-                          src={imgUrl}
-                          alt={`Ảnh ${idx + 1}`}
-                          style={{
-                            width: '48px',
-                            height: '48px',
-                            objectFit: 'cover',
-                            borderRadius: '4px',
-                            backgroundColor: '#e8e1d5',
-                            flexShrink: 0,
-                          }}
-                        />
+                            {/* Badge Cover */}
+                            {isCover && (
+                              <span
+                                style={{
+                                  position: 'absolute',
+                                  top: '4px',
+                                  left: '4px',
+                                  backgroundColor: '#766352',
+                                  color: '#ffffff',
+                                  fontSize: '0.65rem',
+                                  fontWeight: 700,
+                                  padding: '2px 6px',
+                                  borderRadius: '4px',
+                                  boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                                }}
+                              >
+                                ★ Bìa
+                              </span>
+                            )}
 
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <span
+                            {/* Position indicator */}
+                            <span
+                              style={{
+                                position: 'absolute',
+                                bottom: '4px',
+                                left: '4px',
+                                backgroundColor: 'rgba(0,0,0,0.6)',
+                                color: '#ffffff',
+                                fontSize: '0.65rem',
+                                padding: '1px 5px',
+                                borderRadius: '3px',
+                              }}
+                            >
+                              #{idx + 1}
+                            </span>
+                          </div>
+
+                          {/* Quick Actions Footer */}
+                          <div
                             style={{
-                              fontSize: '0.775rem',
-                              color: '#685e54',
-                              display: 'block',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap',
+                              padding: '0.35rem 0.4rem',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              backgroundColor: '#faf8f5',
+                              borderTop: '1px solid #f0eae1',
                             }}
                           >
-                            {imgUrl.split('/').pop()}
-                          </span>
-                          {isCover && (
-                            <span style={{ fontSize: '0.7rem', color: '#766352', fontWeight: 600 }}>
-                              ★ Ảnh bìa chính
-                            </span>
-                          )}
-                        </div>
+                            <div style={{ display: 'flex', gap: '2px' }}>
+                              {!isCover && (
+                                <button
+                                  type="button"
+                                  onClick={() => setCoverImage(imgUrl)}
+                                  style={{
+                                    border: 'none',
+                                    background: 'none',
+                                    cursor: 'pointer',
+                                    color: '#766352',
+                                    padding: '2px',
+                                  }}
+                                  title="Đặt làm ảnh bìa"
+                                >
+                                  <Star size={13} />
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                disabled={idx === 0}
+                                onClick={() => handleMoveImage(idx, 'up')}
+                                style={{
+                                  border: 'none',
+                                  background: 'none',
+                                  cursor: 'pointer',
+                                  color: '#685e54',
+                                  padding: '2px',
+                                  opacity: idx === 0 ? 0.3 : 1,
+                                }}
+                                title="Đẩy sang trái"
+                              >
+                                <ArrowUp size={13} style={{ transform: 'rotate(-90deg)' }} />
+                              </button>
+                              <button
+                                type="button"
+                                disabled={idx === images.length - 1}
+                                onClick={() => handleMoveImage(idx, 'down')}
+                                style={{
+                                  border: 'none',
+                                  background: 'none',
+                                  cursor: 'pointer',
+                                  color: '#685e54',
+                                  padding: '2px',
+                                  opacity: idx === images.length - 1 ? 0.3 : 1,
+                                }}
+                                title="Đẩy sang phải"
+                              >
+                                <ArrowDown size={13} style={{ transform: 'rotate(-90deg)' }} />
+                              </button>
+                            </div>
 
-                        {/* Actions */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          {!isCover && (
                             <button
                               type="button"
-                              onClick={() => setCoverImage(imgUrl)}
+                              onClick={() => handleRemoveImage(idx)}
                               style={{
-                                fontSize: '0.75rem',
-                                color: '#766352',
-                                padding: '0.2rem 0.4rem',
-                                border: '1px solid #dcd3c5',
-                                borderRadius: '4px',
+                                border: 'none',
+                                background: 'none',
+                                cursor: 'pointer',
+                                color: '#c62828',
+                                padding: '2px',
                               }}
-                              title="Đặt làm ảnh bìa"
+                              title="Xóa ảnh"
                             >
-                              <Star size={12} />
+                              <X size={14} />
                             </button>
-                          )}
-
-                          <button
-                            type="button"
-                            disabled={idx === 0}
-                            onClick={() => handleMoveImage(idx, 'up')}
-                            style={{ padding: '0.2rem', color: '#685e54', opacity: idx === 0 ? 0.3 : 1 }}
-                            title="Di chuyển lên"
-                          >
-                            <ArrowUp size={14} />
-                          </button>
-
-                          <button
-                            type="button"
-                            disabled={idx === images.length - 1}
-                            onClick={() => handleMoveImage(idx, 'down')}
-                            style={{
-                              padding: '0.2rem',
-                              color: '#685e54',
-                              opacity: idx === images.length - 1 ? 0.3 : 1,
-                            }}
-                            title="Di chuyển xuống"
-                          >
-                            <ArrowDown size={14} />
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveImage(idx)}
-                            style={{ padding: '0.2rem', color: '#c62828' }}
-                            title="Xóa ảnh này"
-                          >
-                            <X size={14} />
-                          </button>
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </div>

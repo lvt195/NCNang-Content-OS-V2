@@ -21,10 +21,11 @@ import {
   Sparkles,
   MoveRight,
   CheckSquare,
+  Package,
 } from 'lucide-react';
 import { mediaService, StorageItem, DuplicateGroup } from '../services/mediaService';
 import { productService } from '../services/productService';
-import { Category } from '../types/product';
+import { Category, Product } from '../types/product';
 
 export const AdminMediaLibraryPage: React.FC = () => {
   const [currentFolder, setCurrentFolder] = useState<string>('');
@@ -39,7 +40,9 @@ export const AdminMediaLibraryPage: React.FC = () => {
 
   // Category Filter: 'all' | 'uncategorized' | categoryId
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [productFilter, setProductFilter] = useState<string>('all');
   const [viewScope, setViewScope] = useState<'current_folder' | 'all_photos'>('current_folder');
+  const [products, setProducts] = useState<Product[]>([]);
 
   // Upload category selection (Optional: uncategorized or assign to a category)
   const [uploadCategory, setUploadCategory] = useState<string>('');
@@ -81,14 +84,18 @@ export const AdminMediaLibraryPage: React.FC = () => {
   const [itemToDelete, setItemToDelete] = useState<StorageItem | null>(null);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
 
-  // Load categories and data
+  // Load categories, products and data
   useEffect(() => {
     async function init() {
       try {
-        const cats = await productService.getCategories();
+        const [cats, prods] = await Promise.all([
+          productService.getCategories(),
+          productService.getAllProductsAdmin(),
+        ]);
         setCategories(cats);
+        setProducts(prods);
       } catch (err) {
-        console.warn('Could not load categories:', err);
+        console.warn('Could not load categories or products:', err);
       }
     }
     init();
@@ -400,12 +407,12 @@ export const AdminMediaLibraryPage: React.FC = () => {
 
   const breadcrumbs = currentFolder ? currentFolder.split('/') : [];
 
-  // Filter items based on Category, View Scope, and Search
+  // Filter items based on Category, Product, View Scope, and Search
   const displayedItems = useMemo(() => {
     let list: StorageItem[] = [];
 
-    if (categoryFilter !== 'all' || viewScope === 'all_photos') {
-      // In all photos or category view, display flat list of all recursive files
+    if (categoryFilter !== 'all' || productFilter !== 'all' || viewScope === 'all_photos') {
+      // In all photos, category, or product view, display flat list of all recursive files
       list = allFiles;
 
       if (categoryFilter === 'uncategorized') {
@@ -414,6 +421,21 @@ export const AdminMediaLibraryPage: React.FC = () => {
       } else if (categoryFilter !== 'all') {
         // Files whose path starts with categoryFilter
         list = list.filter((item) => item.fullPath.startsWith(`${categoryFilter}/`));
+      }
+
+      // Filter by selected product ID
+      if (productFilter !== 'all') {
+        const prod = products.find((p) => p.id === productFilter);
+        const prodImages = new Set(prod?.images || []);
+        if (prod?.coverImage) prodImages.add(prod.coverImage);
+
+        list = list.filter((item) => {
+          // Check if item fullPath contains product id, or publicUrl is in product images
+          const matchId = item.fullPath.toUpperCase().includes(productFilter.toUpperCase());
+          const matchUrl = item.publicUrl && prodImages.has(item.publicUrl);
+          const matchFileName = item.name.toUpperCase().includes(productFilter.toUpperCase());
+          return matchId || matchUrl || matchFileName;
+        });
       }
     } else {
       // Normal folder tree view
@@ -426,7 +448,7 @@ export const AdminMediaLibraryPage: React.FC = () => {
     }
 
     return list;
-  }, [categoryFilter, viewScope, allFiles, items, searchQuery]);
+  }, [categoryFilter, productFilter, viewScope, allFiles, items, searchQuery, products]);
 
   const formatFileSize = (bytes?: number) => {
     if (!bytes) return '';
@@ -675,6 +697,62 @@ export const AdminMediaLibraryPage: React.FC = () => {
             );
           })}
         </div>
+
+        {/* Row 2: Filter by Product */}
+        {products.length > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', borderTop: '1px solid #f4efe8', paddingTop: '0.65rem' }}>
+            <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#685e54', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+              <Package size={14} /> Sản phẩm:
+            </span>
+
+            <select
+              value={productFilter}
+              onChange={(e) => {
+                setProductFilter(e.target.value);
+                setViewScope('all_photos');
+              }}
+              style={{
+                padding: '0.3rem 0.65rem',
+                borderRadius: '6px',
+                border: productFilter !== 'all' ? '1px solid #766352' : '1px solid #dcd3c5',
+                backgroundColor: productFilter !== 'all' ? '#fdfbf7' : '#ffffff',
+                color: '#2c2825',
+                fontSize: '0.8rem',
+                fontWeight: 500,
+                outline: 'none',
+                maxWidth: '280px',
+              }}
+            >
+              <option value="all">Tất cả sản phẩm ({products.length})</option>
+              {products.map((p) => (
+                <option key={p.id} value={p.id}>
+                  [{p.id}] {p.name}
+                </option>
+              ))}
+            </select>
+
+            {productFilter !== 'all' && (
+              <button
+                type="button"
+                onClick={() => setProductFilter('all')}
+                style={{
+                  border: 'none',
+                  background: 'none',
+                  color: '#c62828',
+                  fontSize: '0.75rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '2px',
+                  padding: '2px 6px',
+                }}
+              >
+                <X size={13} />
+                <span>Bỏ lọc SP</span>
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Row 2: Breadcrumbs & Search */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem', borderTop: '1px solid #f0eae1', paddingTop: '0.65rem' }}>
