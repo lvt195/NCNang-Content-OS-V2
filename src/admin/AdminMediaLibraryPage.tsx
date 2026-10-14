@@ -11,6 +11,7 @@ import {
   Search,
   ArrowLeft,
   ChevronRight,
+  ChevronLeft,
   Eye,
   X,
   FileImage,
@@ -43,6 +44,27 @@ export const AdminMediaLibraryPage: React.FC = () => {
   const [productFilter, setProductFilter] = useState<string>('all');
   const [viewScope, setViewScope] = useState<'current_folder' | 'all_photos'>('current_folder');
   const [products, setProducts] = useState<Product[]>([]);
+
+  // Collapsible sidebar state (persisted in localStorage)
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('admin_media_sidebar_collapsed') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleSidebarCollapsed = () => {
+    setIsSidebarCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('admin_media_sidebar_collapsed', String(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  };
 
   // Upload category selection (Optional: uncategorized or assign to a category)
   const [uploadCategory, setUploadCategory] = useState<string>('');
@@ -769,14 +791,28 @@ export const AdminMediaLibraryPage: React.FC = () => {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: '270px minmax(0, 1fr)',
-          gap: '1.25rem',
+          gridTemplateColumns: isSidebarCollapsed ? '68px minmax(0, 1fr)' : '270px minmax(0, 1fr)',
+          gap: isSidebarCollapsed ? '0.85rem' : '1.25rem',
           alignItems: 'start',
+          transition: 'grid-template-columns 0.2s ease',
         }}
         className="media-library-layout"
       >
-        {/* Left Sidebar: Categories & Drop Targets */}
-        <aside style={{ position: 'sticky', top: '1rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        {/* Left Sidebar: Categories & Drop Targets (Pinned Sticky) */}
+        <aside
+          style={{
+            position: 'sticky',
+            top: '72px',
+            maxHeight: 'calc(100vh - 88px)',
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.75rem',
+            scrollbarWidth: 'thin',
+            zIndex: 20,
+          }}
+        >
           {/* Categories Drop Target Card */}
           <div
             style={{
@@ -787,192 +823,116 @@ export const AdminMediaLibraryPage: React.FC = () => {
               boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
             }}
           >
-            {/* Header */}
-            <div
-              style={{
-                padding: '0.85rem 1rem',
-                backgroundColor: '#faf8f5',
-                borderBottom: '1px solid #f0eae1',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-              }}
-            >
-              <span style={{ fontSize: '0.825rem', fontWeight: 700, color: '#2c2825', letterSpacing: '0.02em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                <Filter size={14} color="#766352" />
-                <span>Danh mục lưu trữ</span>
-              </span>
-              <span style={{ fontSize: '0.75rem', color: '#9e9387', fontWeight: 600 }}>
-                {allFiles.length} ảnh
-              </span>
-            </div>
-
-            {/* Drag Drop Hint */}
-            <div style={{ padding: '0.55rem 0.85rem', backgroundColor: '#fffdf6', borderBottom: '1px solid #f9edd7', fontSize: '0.725rem', color: '#8c6820', lineHeight: 1.4 }}>
-              💡 <strong>Kéo ảnh thả vào đây:</strong> Kéo ảnh từ bên phải thả vào danh mục để chuyển nhanh.
-            </div>
-
-            {/* Target List */}
-            <div style={{ padding: '0.5rem', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              {/* All Photos */}
-              <button
-                type="button"
-                onClick={() => {
-                  setCategoryFilter('all');
-                  setViewScope('all_photos');
-                }}
-                style={{
-                  width: '100%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '0.55rem 0.75rem',
-                  borderRadius: '6px',
-                  border: categoryFilter === 'all' && viewScope === 'all_photos' ? '1px solid #766352' : '1px solid transparent',
-                  backgroundColor: categoryFilter === 'all' && viewScope === 'all_photos' ? '#766352' : 'transparent',
-                  color: categoryFilter === 'all' && viewScope === 'all_photos' ? '#ffffff' : '#2c2825',
-                  fontSize: '0.825rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                  transition: 'all 0.15s ease',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <FileImage size={16} color={categoryFilter === 'all' && viewScope === 'all_photos' ? '#ffffff' : '#766352'} />
-                  <span>Tất cả ảnh</span>
-                </div>
-                <span
+            {isSidebarCollapsed ? (
+              /* ================= Collapsed Mini Mode ================= */
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                {/* Expand Toggle Button */}
+                <button
+                  type="button"
+                  onClick={toggleSidebarCollapsed}
+                  title="Mở rộng menu danh mục"
                   style={{
-                    fontSize: '0.725rem',
-                    padding: '1px 6px',
-                    borderRadius: '10px',
-                    backgroundColor: categoryFilter === 'all' && viewScope === 'all_photos' ? 'rgba(255,255,255,0.25)' : '#f0eae1',
-                    color: categoryFilter === 'all' && viewScope === 'all_photos' ? '#ffffff' : '#685e54',
+                    width: '100%',
+                    padding: '0.65rem 0.2rem',
+                    backgroundColor: '#faf8f5',
+                    border: 'none',
+                    borderBottom: '1px solid #f0eae1',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '2px',
+                    color: '#766352',
+                    transition: 'background-color 0.15s ease',
                   }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f2eee6')}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#faf8f5')}
                 >
-                  {allFiles.length}
-                </span>
-              </button>
+                  <ChevronRight size={18} />
+                  <span style={{ fontSize: '0.65rem', fontWeight: 700 }}>Mở rộng</span>
+                </button>
 
-              {/* Folder Tree View */}
-              <button
-                type="button"
-                onClick={() => {
-                  setCategoryFilter('all');
-                  setViewScope('current_folder');
-                }}
-                style={{
-                  width: '100%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '0.55rem 0.75rem',
-                  borderRadius: '6px',
-                  border: categoryFilter === 'all' && viewScope === 'current_folder' ? '1px solid #766352' : '1px solid transparent',
-                  backgroundColor: categoryFilter === 'all' && viewScope === 'current_folder' ? '#766352' : 'transparent',
-                  color: categoryFilter === 'all' && viewScope === 'current_folder' ? '#ffffff' : '#2c2825',
-                  fontSize: '0.825rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                  transition: 'all 0.15s ease',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <Folder size={16} color={categoryFilter === 'all' && viewScope === 'current_folder' ? '#ffffff' : '#766352'} />
-                  <span>Xem theo Thư mục</span>
-                </div>
-              </button>
-
-              {/* Uncategorized Drop Target */}
-              <button
-                type="button"
-                onClick={() => {
-                  setCategoryFilter('uncategorized');
-                  setViewScope('all_photos');
-                }}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  setDragOverCategory('uncategorized');
-                }}
-                onDragLeave={() => setDragOverCategory(null)}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  let pathsToMove = draggedPaths;
-                  try {
-                    const data = e.dataTransfer.getData('text/plain');
-                    if (data) {
-                      const parsed = JSON.parse(data);
-                      if (Array.isArray(parsed) && parsed.length > 0) pathsToMove = parsed;
-                    }
-                  } catch (err) {
-                    console.warn(err);
-                  }
-                  handleBatchMoveToCategory('', pathsToMove);
-                }}
-                style={{
-                  width: '100%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '0.55rem 0.75rem',
-                  borderRadius: '6px',
-                  border: dragOverCategory === 'uncategorized'
-                    ? '2px dashed #b78103'
-                    : categoryFilter === 'uncategorized'
-                    ? '1px solid #766352'
-                    : '1px solid transparent',
-                  backgroundColor: dragOverCategory === 'uncategorized'
-                    ? '#fff9db'
-                    : categoryFilter === 'uncategorized'
-                    ? '#766352'
-                    : 'transparent',
-                  color: categoryFilter === 'uncategorized' && dragOverCategory !== 'uncategorized' ? '#ffffff' : '#2c2825',
-                  fontSize: '0.825rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                  transition: 'all 0.15s ease',
-                }}
-                title="Thả ảnh vào đây để chuyển về Thư mục gốc (Chưa phân loại)"
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <span style={{ fontSize: '0.9rem' }}>⚪</span>
-                  <span>{dragOverCategory === 'uncategorized' ? '👉 Thả về Thư mục gốc' : 'Chưa phân loại'}</span>
-                </div>
-                <span
-                  style={{
-                    fontSize: '0.725rem',
-                    padding: '1px 6px',
-                    borderRadius: '10px',
-                    backgroundColor: categoryFilter === 'uncategorized' && dragOverCategory !== 'uncategorized' ? 'rgba(255,255,255,0.25)' : '#f0eae1',
-                    color: categoryFilter === 'uncategorized' && dragOverCategory !== 'uncategorized' ? '#ffffff' : '#685e54',
-                  }}
-                >
-                  {categoryCounts['uncategorized'] || 0}
-                </span>
-              </button>
-
-              <div style={{ height: '1px', backgroundColor: '#f0eae1', margin: '4px 0' }} />
-
-              {/* Category Drop Targets */}
-              {categories.map((c) => {
-                const isSelected = categoryFilter === c.id;
-                const isDragTarget = dragOverCategory === c.id;
-                const count = categoryCounts[c.id] || 0;
-
-                return (
+                {/* Collapsed Target List */}
+                <div style={{ padding: '0.4rem 0.2rem', display: 'flex', flexDirection: 'column', gap: '5px', width: '100%' }}>
+                  {/* All Photos */}
                   <button
-                    key={c.id}
                     type="button"
                     onClick={() => {
-                      setCategoryFilter(c.id);
+                      setCategoryFilter('all');
+                      setViewScope('all_photos');
+                    }}
+                    title={`Tất cả ảnh (${allFiles.length})`}
+                    style={{
+                      width: '100%',
+                      padding: '0.45rem 0.15rem',
+                      borderRadius: '6px',
+                      border: categoryFilter === 'all' && viewScope === 'all_photos' ? '1px solid #766352' : '1px solid transparent',
+                      backgroundColor: categoryFilter === 'all' && viewScope === 'all_photos' ? '#766352' : 'transparent',
+                      color: categoryFilter === 'all' && viewScope === 'all_photos' ? '#ffffff' : '#2c2825',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: '2px',
+                      position: 'relative',
+                    }}
+                  >
+                    <FileImage size={17} color={categoryFilter === 'all' && viewScope === 'all_photos' ? '#ffffff' : '#766352'} />
+                    <span style={{ fontSize: '0.6rem', fontWeight: 600 }}>Tất cả</span>
+                    <span
+                      style={{
+                        position: 'absolute',
+                        top: '1px',
+                        right: '2px',
+                        fontSize: '0.55rem',
+                        padding: '0 3px',
+                        borderRadius: '6px',
+                        backgroundColor: categoryFilter === 'all' && viewScope === 'all_photos' ? 'rgba(255,255,255,0.3)' : '#f0eae1',
+                        color: categoryFilter === 'all' && viewScope === 'all_photos' ? '#ffffff' : '#685e54',
+                        fontWeight: 700,
+                      }}
+                    >
+                      {allFiles.length}
+                    </span>
+                  </button>
+
+                  {/* Folder Tree View */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCategoryFilter('all');
+                      setViewScope('current_folder');
+                    }}
+                    title="Xem theo Thư mục"
+                    style={{
+                      width: '100%',
+                      padding: '0.45rem 0.15rem',
+                      borderRadius: '6px',
+                      border: categoryFilter === 'all' && viewScope === 'current_folder' ? '1px solid #766352' : '1px solid transparent',
+                      backgroundColor: categoryFilter === 'all' && viewScope === 'current_folder' ? '#766352' : 'transparent',
+                      color: categoryFilter === 'all' && viewScope === 'current_folder' ? '#ffffff' : '#2c2825',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: '2px',
+                    }}
+                  >
+                    <Folder size={17} color={categoryFilter === 'all' && viewScope === 'current_folder' ? '#ffffff' : '#766352'} />
+                    <span style={{ fontSize: '0.6rem', fontWeight: 600 }}>Thư mục</span>
+                  </button>
+
+                  {/* Uncategorized Drop Target */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCategoryFilter('uncategorized');
                       setViewScope('all_photos');
                     }}
                     onDragOver={(e) => {
                       e.preventDefault();
-                      setDragOverCategory(c.id);
+                      setDragOverCategory('uncategorized');
                     }}
                     onDragLeave={() => setDragOverCategory(null)}
                     onDrop={(e) => {
@@ -987,7 +947,222 @@ export const AdminMediaLibraryPage: React.FC = () => {
                       } catch (err) {
                         console.warn(err);
                       }
-                      handleBatchMoveToCategory(c.id, pathsToMove);
+                      handleBatchMoveToCategory('', pathsToMove);
+                    }}
+                    title={`Chưa phân loại (${categoryCounts['uncategorized'] || 0} ảnh) - Kéo thả ảnh vào đây`}
+                    style={{
+                      width: '100%',
+                      padding: '0.45rem 0.15rem',
+                      borderRadius: '6px',
+                      border: dragOverCategory === 'uncategorized'
+                        ? '2px dashed #b78103'
+                        : categoryFilter === 'uncategorized'
+                        ? '1px solid #766352'
+                        : '1px solid transparent',
+                      backgroundColor: dragOverCategory === 'uncategorized'
+                        ? '#fff9db'
+                        : categoryFilter === 'uncategorized'
+                        ? '#766352'
+                        : 'transparent',
+                      color: categoryFilter === 'uncategorized' && dragOverCategory !== 'uncategorized' ? '#ffffff' : '#2c2825',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: '2px',
+                      position: 'relative',
+                      transform: dragOverCategory === 'uncategorized' ? 'scale(1.08)' : 'none',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    <span style={{ fontSize: '0.85rem', lineHeight: 1 }}>⚪</span>
+                    <span style={{ fontSize: '0.6rem', fontWeight: 600 }}>Gốc</span>
+                    <span
+                      style={{
+                        position: 'absolute',
+                        top: '1px',
+                        right: '2px',
+                        fontSize: '0.55rem',
+                        padding: '0 3px',
+                        borderRadius: '6px',
+                        backgroundColor: categoryFilter === 'uncategorized' && dragOverCategory !== 'uncategorized' ? 'rgba(255,255,255,0.3)' : '#f0eae1',
+                        color: categoryFilter === 'uncategorized' && dragOverCategory !== 'uncategorized' ? '#ffffff' : '#685e54',
+                        fontWeight: 700,
+                      }}
+                    >
+                      {categoryCounts['uncategorized'] || 0}
+                    </span>
+                  </button>
+
+                  <div style={{ height: '1px', backgroundColor: '#f0eae1', margin: '2px 0' }} />
+
+                  {/* Categories Drop Targets */}
+                  {categories.map((c) => {
+                    const isSelected = categoryFilter === c.id;
+                    const isDragTarget = dragOverCategory === c.id;
+                    const count = categoryCounts[c.id] || 0;
+                    const shortName = c.name.length > 5 ? c.name.slice(0, 4) + '..' : c.name;
+
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => {
+                          setCategoryFilter(c.id);
+                          setViewScope('all_photos');
+                        }}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          setDragOverCategory(c.id);
+                        }}
+                        onDragLeave={() => setDragOverCategory(null)}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          let pathsToMove = draggedPaths;
+                          try {
+                            const data = e.dataTransfer.getData('text/plain');
+                            if (data) {
+                              const parsed = JSON.parse(data);
+                              if (Array.isArray(parsed) && parsed.length > 0) pathsToMove = parsed;
+                            }
+                          } catch (err) {
+                            console.warn(err);
+                          }
+                          handleBatchMoveToCategory(c.id, pathsToMove);
+                        }}
+                        title={`Danh mục: ${c.name} (${count} ảnh) - Kéo thả ảnh vào đây để chuyển`}
+                        style={{
+                          width: '100%',
+                          padding: '0.45rem 0.15rem',
+                          borderRadius: '6px',
+                          border: isDragTarget
+                            ? '2px dashed #b78103'
+                            : isSelected
+                            ? '1px solid #766352'
+                            : '1px solid transparent',
+                          backgroundColor: isDragTarget
+                            ? '#fff9db'
+                            : isSelected
+                            ? '#766352'
+                            : 'transparent',
+                          color: isSelected && !isDragTarget ? '#ffffff' : '#2c2825',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          gap: '2px',
+                          position: 'relative',
+                          transform: isDragTarget ? 'scale(1.08)' : 'none',
+                          transition: 'all 0.15s ease',
+                        }}
+                      >
+                        <Folder size={16} color={isSelected && !isDragTarget ? '#ffffff' : '#766352'} />
+                        <span
+                          style={{
+                            fontSize: '0.6rem',
+                            fontWeight: 600,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            maxWidth: '56px',
+                          }}
+                        >
+                          {shortName}
+                        </span>
+                        <span
+                          style={{
+                            position: 'absolute',
+                            top: '1px',
+                            right: '2px',
+                            fontSize: '0.55rem',
+                            padding: '0 3px',
+                            borderRadius: '6px',
+                            backgroundColor: isSelected && !isDragTarget ? 'rgba(255,255,255,0.3)' : '#f0eae1',
+                            color: isSelected && !isDragTarget ? '#ffffff' : '#685e54',
+                            fontWeight: 700,
+                          }}
+                        >
+                          {count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              /* ================= Expanded Mode ================= */
+              <div>
+                {/* Header with Title & Collapse Button */}
+                <div
+                  style={{
+                    padding: '0.75rem 0.85rem',
+                    backgroundColor: '#faf8f5',
+                    borderBottom: '1px solid #f0eae1',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: '0.8rem',
+                      fontWeight: 700,
+                      color: '#2c2825',
+                      letterSpacing: '0.02em',
+                      textTransform: 'uppercase',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                    }}
+                  >
+                    <Filter size={14} color="#766352" />
+                    <span>Danh mục</span>
+                  </span>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <span style={{ fontSize: '0.725rem', color: '#9e9387', fontWeight: 600 }}>
+                      {allFiles.length} ảnh
+                    </span>
+                    <button
+                      type="button"
+                      onClick={toggleSidebarCollapsed}
+                      title="Thu nhỏ thanh danh mục (Ghim & tiết kiệm diện tích)"
+                      style={{
+                        border: '1px solid #e0d7c9',
+                        background: '#ffffff',
+                        borderRadius: '5px',
+                        padding: '2px 6px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '2px',
+                        color: '#685e54',
+                        fontSize: '0.7rem',
+                        fontWeight: 600,
+                        transition: 'all 0.15s ease',
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f7f4ee')}
+                      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#ffffff')}
+                    >
+                      <ChevronLeft size={13} />
+                      <span>Thu gọn</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Drag Drop Hint */}
+                <div style={{ padding: '0.55rem 0.85rem', backgroundColor: '#fffdf6', borderBottom: '1px solid #f9edd7', fontSize: '0.725rem', color: '#8c6820', lineHeight: 1.4 }}>
+                  💡 <strong>Kéo ảnh thả vào đây:</strong> Kéo ảnh từ bên phải thả vào danh mục để chuyển nhanh.
+                </div>
+
+                {/* Target List */}
+                <div style={{ padding: '0.5rem', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  {/* All Photos */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCategoryFilter('all');
+                      setViewScope('all_photos');
                     }}
                     style={{
                       width: '100%',
@@ -996,50 +1171,271 @@ export const AdminMediaLibraryPage: React.FC = () => {
                       justifyContent: 'space-between',
                       padding: '0.55rem 0.75rem',
                       borderRadius: '6px',
-                      border: isDragTarget
-                        ? '2px dashed #b78103'
-                        : isSelected
-                        ? '1px solid #766352'
-                        : '1px solid transparent',
-                      backgroundColor: isDragTarget
-                        ? '#fff9db'
-                        : isSelected
-                        ? '#766352'
-                        : 'transparent',
-                      color: isSelected && !isDragTarget ? '#ffffff' : '#2c2825',
+                      border: categoryFilter === 'all' && viewScope === 'all_photos' ? '1px solid #766352' : '1px solid transparent',
+                      backgroundColor: categoryFilter === 'all' && viewScope === 'all_photos' ? '#766352' : 'transparent',
+                      color: categoryFilter === 'all' && viewScope === 'all_photos' ? '#ffffff' : '#2c2825',
                       fontSize: '0.825rem',
                       fontWeight: 600,
                       cursor: 'pointer',
                       textAlign: 'left',
                       transition: 'all 0.15s ease',
                     }}
-                    title={`Thả ảnh vào đây để chuyển sang danh mục "${c.name}"`}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', overflow: 'hidden' }}>
-                      <Folder size={15} color={isSelected && !isDragTarget ? '#ffffff' : '#766352'} />
-                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {isDragTarget ? `👉 Thả vào ${c.name}` : c.name}
-                      </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <FileImage size={16} color={categoryFilter === 'all' && viewScope === 'all_photos' ? '#ffffff' : '#766352'} />
+                      <span>Tất cả ảnh</span>
                     </div>
                     <span
                       style={{
                         fontSize: '0.725rem',
                         padding: '1px 6px',
                         borderRadius: '10px',
-                        backgroundColor: isSelected && !isDragTarget ? 'rgba(255,255,255,0.25)' : '#f0eae1',
-                        color: isSelected && !isDragTarget ? '#ffffff' : '#685e54',
+                        backgroundColor: categoryFilter === 'all' && viewScope === 'all_photos' ? 'rgba(255,255,255,0.25)' : '#f0eae1',
+                        color: categoryFilter === 'all' && viewScope === 'all_photos' ? '#ffffff' : '#685e54',
                       }}
                     >
-                      {count}
+                      {allFiles.length}
                     </span>
                   </button>
-                );
-              })}
-            </div>
+
+                  {/* Folder Tree View */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCategoryFilter('all');
+                      setViewScope('current_folder');
+                    }}
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '0.55rem 0.75rem',
+                      borderRadius: '6px',
+                      border: categoryFilter === 'all' && viewScope === 'current_folder' ? '1px solid #766352' : '1px solid transparent',
+                      backgroundColor: categoryFilter === 'all' && viewScope === 'current_folder' ? '#766352' : 'transparent',
+                      color: categoryFilter === 'all' && viewScope === 'current_folder' ? '#ffffff' : '#2c2825',
+                      fontSize: '0.825rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <Folder size={16} color={categoryFilter === 'all' && viewScope === 'current_folder' ? '#ffffff' : '#766352'} />
+                      <span>Xem theo Thư mục</span>
+                    </div>
+                  </button>
+
+                  {/* Uncategorized Drop Target */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCategoryFilter('uncategorized');
+                      setViewScope('all_photos');
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setDragOverCategory('uncategorized');
+                    }}
+                    onDragLeave={() => setDragOverCategory(null)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      let pathsToMove = draggedPaths;
+                      try {
+                        const data = e.dataTransfer.getData('text/plain');
+                        if (data) {
+                          const parsed = JSON.parse(data);
+                          if (Array.isArray(parsed) && parsed.length > 0) pathsToMove = parsed;
+                        }
+                      } catch (err) {
+                        console.warn(err);
+                      }
+                      handleBatchMoveToCategory('', pathsToMove);
+                    }}
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '0.55rem 0.75rem',
+                      borderRadius: '6px',
+                      border: dragOverCategory === 'uncategorized'
+                        ? '2px dashed #b78103'
+                        : categoryFilter === 'uncategorized'
+                        ? '1px solid #766352'
+                        : '1px solid transparent',
+                      backgroundColor: dragOverCategory === 'uncategorized'
+                        ? '#fff9db'
+                        : categoryFilter === 'uncategorized'
+                        ? '#766352'
+                        : 'transparent',
+                      color: categoryFilter === 'uncategorized' && dragOverCategory !== 'uncategorized' ? '#ffffff' : '#2c2825',
+                      fontSize: '0.825rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'all 0.15s ease',
+                    }}
+                    title="Thả ảnh vào đây để chuyển về Thư mục gốc (Chưa phân loại)"
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span style={{ fontSize: '0.9rem' }}>⚪</span>
+                      <span>{dragOverCategory === 'uncategorized' ? '👉 Thả về Thư mục gốc' : 'Chưa phân loại'}</span>
+                    </div>
+                    <span
+                      style={{
+                        fontSize: '0.725rem',
+                        padding: '1px 6px',
+                        borderRadius: '10px',
+                        backgroundColor: categoryFilter === 'uncategorized' && dragOverCategory !== 'uncategorized' ? 'rgba(255,255,255,0.25)' : '#f0eae1',
+                        color: categoryFilter === 'uncategorized' && dragOverCategory !== 'uncategorized' ? '#ffffff' : '#685e54',
+                      }}
+                    >
+                      {categoryCounts['uncategorized'] || 0}
+                    </span>
+                  </button>
+
+                  <div style={{ height: '1px', backgroundColor: '#f0eae1', margin: '4px 0' }} />
+
+                  {/* Category Drop Targets */}
+                  {categories.map((c) => {
+                    const isSelected = categoryFilter === c.id;
+                    const isDragTarget = dragOverCategory === c.id;
+                    const count = categoryCounts[c.id] || 0;
+
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => {
+                          setCategoryFilter(c.id);
+                          setViewScope('all_photos');
+                        }}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          setDragOverCategory(c.id);
+                        }}
+                        onDragLeave={() => setDragOverCategory(null)}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          let pathsToMove = draggedPaths;
+                          try {
+                            const data = e.dataTransfer.getData('text/plain');
+                            if (data) {
+                              const parsed = JSON.parse(data);
+                              if (Array.isArray(parsed) && parsed.length > 0) pathsToMove = parsed;
+                            }
+                          } catch (err) {
+                            console.warn(err);
+                          }
+                          handleBatchMoveToCategory(c.id, pathsToMove);
+                        }}
+                        style={{
+                          width: '100%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '0.55rem 0.75rem',
+                          borderRadius: '6px',
+                          border: isDragTarget
+                            ? '2px dashed #b78103'
+                            : isSelected
+                            ? '1px solid #766352'
+                            : '1px solid transparent',
+                          backgroundColor: isDragTarget
+                            ? '#fff9db'
+                            : isSelected
+                            ? '#766352'
+                            : 'transparent',
+                          color: isSelected && !isDragTarget ? '#ffffff' : '#2c2825',
+                          fontSize: '0.825rem',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          transition: 'all 0.15s ease',
+                        }}
+                        title={`Thả ảnh vào đây để chuyển sang danh mục "${c.name}"`}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', overflow: 'hidden' }}>
+                          <Folder size={15} color={isSelected && !isDragTarget ? '#ffffff' : '#766352'} />
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {isDragTarget ? `👉 Thả vào ${c.name}` : c.name}
+                          </span>
+                        </div>
+                        <span
+                          style={{
+                            fontSize: '0.725rem',
+                            padding: '1px 6px',
+                            borderRadius: '10px',
+                            backgroundColor: isSelected && !isDragTarget ? 'rgba(255,255,255,0.25)' : '#f0eae1',
+                            color: isSelected && !isDragTarget ? '#ffffff' : '#685e54',
+                          }}
+                        >
+                          {count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Product Filter Card */}
-          {products.length > 0 && (
+          {/* Product Filter Card (Collapsed) */}
+          {products.length > 0 && isSidebarCollapsed && (
+            <div
+              style={{
+                backgroundColor: '#ffffff',
+                border: '1px solid #e8e1d5',
+                borderRadius: '10px',
+                padding: '0.45rem 0.2rem',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+              }}
+            >
+              <button
+                type="button"
+                onClick={toggleSidebarCollapsed}
+                title={
+                  productFilter !== 'all'
+                    ? `Đang lọc: ${products.find((p) => p.id === productFilter)?.name || productFilter}. Bấm để xem/đổi`
+                    : 'Lọc theo Sản phẩm (Bấm để mở)'
+                }
+                style={{
+                  border: 'none',
+                  background: 'none',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '2px',
+                  color: productFilter !== 'all' ? '#b78103' : '#766352',
+                  padding: '4px 2px',
+                  width: '100%',
+                }}
+              >
+                <Package size={17} />
+                <span style={{ fontSize: '0.6rem', fontWeight: 600 }}>Sản phẩm</span>
+                {productFilter !== 'all' && (
+                  <span
+                    style={{
+                      width: '6px',
+                      height: '6px',
+                      borderRadius: '50%',
+                      backgroundColor: '#b78103',
+                    }}
+                  />
+                )}
+              </button>
+            </div>
+          )}
+
+          {/* Product Filter Card (Expanded) */}
+          {products.length > 0 && !isSidebarCollapsed && (
             <div
               style={{
                 backgroundColor: '#ffffff',
@@ -1115,71 +1511,96 @@ export const AdminMediaLibraryPage: React.FC = () => {
             }}
           >
             {/* Breadcrumbs or Category Title */}
-            {viewScope === 'current_folder' ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap', fontSize: '0.85rem' }}>
-                {currentFolder && (
-                  <button
-                    type="button"
-                    onClick={handleBackOneLevel}
-                    className="btn btn-outline btn-sm"
-                    style={{ padding: '0.2rem 0.45rem', marginRight: '0.25rem' }}
-                    title="Quay lại thư mục trước"
-                  >
-                    <ArrowLeft size={14} />
-                  </button>
-                )}
-
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+              {isSidebarCollapsed && (
                 <button
                   type="button"
-                  onClick={() => handleNavigateBreadcrumb(-1, [])}
+                  onClick={toggleSidebarCollapsed}
+                  className="btn btn-outline btn-sm"
                   style={{
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    color: currentFolder ? '#766352' : '#2c2825',
-                    fontWeight: currentFolder ? 500 : 700,
-                    padding: '2px 4px',
+                    padding: '0.2rem 0.55rem',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    fontSize: '0.75rem',
+                    borderColor: '#dcd3c5',
+                    backgroundColor: '#faf8f5',
+                    color: '#766352',
+                    fontWeight: 600,
                   }}
+                  title="Mở rộng menu danh mục bên trái"
                 >
-                  🏠 Thư mục Gốc
+                  <ChevronRight size={14} />
+                  <span>Mở danh mục</span>
                 </button>
+              )}
 
-                {breadcrumbs.map((seg, idx) => {
-                  const isLast = idx === breadcrumbs.length - 1;
-                  return (
-                    <React.Fragment key={idx}>
-                      <ChevronRight size={14} color="#9e9387" />
-                      <button
-                        type="button"
-                        onClick={() => handleNavigateBreadcrumb(idx, breadcrumbs)}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          cursor: isLast ? 'default' : 'pointer',
-                          color: isLast ? '#2c2825' : '#766352',
-                          fontWeight: isLast ? 700 : 500,
-                          padding: '2px 4px',
-                        }}
-                      >
-                        {seg}
-                      </button>
-                    </React.Fragment>
-                  );
-                })}
-              </div>
-            ) : (
-              <div style={{ fontSize: '0.85rem', color: '#685e54', fontWeight: 500 }}>
-                Đang xem:{' '}
-                <strong style={{ color: '#2c2825' }}>
-                  {categoryFilter === 'all'
-                    ? 'Tất cả ảnh'
-                    : categoryFilter === 'uncategorized'
-                    ? 'Chưa phân loại'
-                    : categories.find((c) => c.id === categoryFilter)?.name || categoryFilter}
-                </strong>{' '}
-                <span style={{ color: '#9e9387' }}>({displayedItems.length} ảnh)</span>
-              </div>
-            )}
+              {viewScope === 'current_folder' ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap', fontSize: '0.85rem' }}>
+                  {currentFolder && (
+                    <button
+                      type="button"
+                      onClick={handleBackOneLevel}
+                      className="btn btn-outline btn-sm"
+                      style={{ padding: '0.2rem 0.45rem', marginRight: '0.25rem' }}
+                      title="Quay lại thư mục trước"
+                    >
+                      <ArrowLeft size={14} />
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => handleNavigateBreadcrumb(-1, [])}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      color: currentFolder ? '#766352' : '#2c2825',
+                      fontWeight: currentFolder ? 500 : 700,
+                      padding: '2px 4px',
+                    }}
+                  >
+                    🏠 Thư mục Gốc
+                  </button>
+
+                  {breadcrumbs.map((seg, idx) => {
+                    const isLast = idx === breadcrumbs.length - 1;
+                    return (
+                      <React.Fragment key={idx}>
+                        <ChevronRight size={14} color="#9e9387" />
+                        <button
+                          type="button"
+                          onClick={() => handleNavigateBreadcrumb(idx, breadcrumbs)}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            cursor: isLast ? 'default' : 'pointer',
+                            color: isLast ? '#2c2825' : '#766352',
+                            fontWeight: isLast ? 700 : 500,
+                            padding: '2px 4px',
+                          }}
+                        >
+                          {seg}
+                        </button>
+                      </React.Fragment>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div style={{ fontSize: '0.85rem', color: '#685e54', fontWeight: 500 }}>
+                  Đang xem:{' '}
+                  <strong style={{ color: '#2c2825' }}>
+                    {categoryFilter === 'all'
+                      ? 'Tất cả ảnh'
+                      : categoryFilter === 'uncategorized'
+                      ? 'Chưa phân loại'
+                      : categories.find((c) => c.id === categoryFilter)?.name || categoryFilter}
+                  </strong>{' '}
+                  <span style={{ color: '#9e9387' }}>({displayedItems.length} ảnh)</span>
+                </div>
+              )}
+            </div>
 
             {/* Search & Refresh */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginLeft: 'auto' }}>
