@@ -95,10 +95,12 @@ export const AdminMediaLibraryPage: React.FC = () => {
   const [viewScope, setViewScope] = useState<'current_folder' | 'all_photos'>('all_photos');
   const [products, setProducts] = useState<Product[]>([]);
 
-  // Collapsible sidebar state (persisted in localStorage)
+  // Collapsible sidebar state (persisted in localStorage, auto-collapsed on mobile by default)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
     try {
-      return localStorage.getItem('admin_media_sidebar_collapsed') === 'true';
+      const saved = localStorage.getItem('admin_media_sidebar_collapsed');
+      if (saved !== null) return saved === 'true';
+      return typeof window !== 'undefined' && window.innerWidth <= 900;
     } catch {
       return false;
     }
@@ -804,7 +806,7 @@ export const AdminMediaLibraryPage: React.FC = () => {
           </button>
 
           {/* Upload with optional category */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap', maxWidth: '100%' }}>
             <select
               value={uploadCategory}
               onChange={(e) => setUploadCategory(e.target.value)}
@@ -1966,6 +1968,7 @@ export const AdminMediaLibraryPage: React.FC = () => {
               </div>
             ) : (
               <div
+                className="media-photo-grid"
                 style={{
                   display: 'grid',
                   gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))',
@@ -2968,6 +2971,7 @@ export const AdminMediaLibraryPage: React.FC = () => {
       {/* Floating Batch Actions Bar */}
       {selectedPaths.size > 0 && (
         <div
+          className="media-batch-bar"
           style={{
             position: 'fixed',
             bottom: '1.5rem',
@@ -3362,9 +3366,47 @@ export const AdminMediaLibraryPage: React.FC = () => {
         )}
 
       <style>{`
+        .media-photo-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+          gap: 0.85rem;
+        }
+
         @media (max-width: 900px) {
           .media-library-layout {
-            grid-template-columns: 1fr !important;
+            display: flex !important;
+            flex-direction: column !important;
+            width: 100% !important;
+            min-width: 0 !important;
+            gap: 0.85rem !important;
+          }
+          .media-library-layout aside {
+            position: static !important;
+            top: auto !important;
+            max-height: none !important;
+            width: 100% !important;
+            min-width: 0 !important;
+            z-index: 1 !important;
+          }
+          .media-library-layout main {
+            width: 100% !important;
+            min-width: 0 !important;
+          }
+          .media-batch-bar {
+            bottom: calc(58px + env(safe-area-inset-bottom, 0px) + 12px) !important;
+            width: calc(100% - 1.5rem) !important;
+            max-width: 460px !important;
+            padding: 0.5rem 0.85rem !important;
+            gap: 0.5rem !important;
+            justify-content: space-between !important;
+            font-size: 0.8rem !important;
+          }
+        }
+
+        @media (max-width: 600px) {
+          .media-photo-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            gap: 0.5rem !important;
           }
         }
       `}</style>

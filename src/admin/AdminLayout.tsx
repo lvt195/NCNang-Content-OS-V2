@@ -38,33 +38,6 @@ export const AdminLayout: React.FC = () => {
 
   return (
     <div className="admin-layout">
-      {/* Mobile Top Header */}
-      <header className="admin-mobile-header">
-        <button
-          type="button"
-          className="admin-mobile-menu-btn"
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          aria-label="Menu quản trị"
-        >
-          {mobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
-        </button>
-
-        <div className="admin-mobile-header-brand">
-          <span className="admin-mobile-brand-name">{SITE_CONFIG.name}</span>
-          <span className="admin-mobile-brand-badge">Admin</span>
-        </div>
-
-        <Link
-          to="/"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="admin-mobile-store-link"
-          title="Xem website cửa hàng"
-        >
-          <ExternalLink size={18} />
-        </Link>
-      </header>
-
       {/* Mobile Drawer Backdrop */}
       {mobileMenuOpen && (
         <div
@@ -214,6 +187,33 @@ export const AdminLayout: React.FC = () => {
 
       {/* Main Content Area */}
       <div className="admin-main">
+        {/* Mobile Top Header */}
+        <header className="admin-mobile-header">
+          <button
+            type="button"
+            className="admin-mobile-menu-btn"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            aria-label="Menu quản trị"
+          >
+            {mobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
+          </button>
+
+          <div className="admin-mobile-header-brand">
+            <span className="admin-mobile-brand-name">{SITE_CONFIG.name}</span>
+            <span className="admin-mobile-brand-badge">Admin</span>
+          </div>
+
+          <Link
+            to="/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="admin-mobile-store-link"
+            title="Xem website cửa hàng"
+          >
+            <ExternalLink size={18} />
+          </Link>
+        </header>
+
         {/* Desktop Topbar */}
         <header className="admin-desktop-topbar">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', color: '#685e54' }}>
