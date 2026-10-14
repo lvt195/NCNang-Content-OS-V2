@@ -84,6 +84,13 @@ export const AdminMediaLibraryPage: React.FC = () => {
   const [itemToDelete, setItemToDelete] = useState<StorageItem | null>(null);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
 
+  // Multi-Select & Shift-Select State
+  const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set());
+  const [lastSelectedIdx, setLastSelectedIdx] = useState<number | null>(null);
+  const [draggedPaths, setDraggedPaths] = useState<string[]>([]);
+  const [dragOverCategory, setDragOverCategory] = useState<string | null>(null);
+  const [isBatchMoving, setIsBatchMoving] = useState<boolean>(false);
+
   // Load categories, products and data
   useEffect(() => {
     async function init() {
@@ -101,13 +108,13 @@ export const AdminMediaLibraryPage: React.FC = () => {
     init();
   }, []);
 
-  const loadMedia = async (folder: string) => {
+  const loadMedia = async (folder: string, forceRefresh = false) => {
     setLoading(true);
     setErrorMsg('');
     try {
       const [res, recursive] = await Promise.all([
-        mediaService.listItems(folder),
-        mediaService.listAllFilesRecursive(),
+        mediaService.listItems(folder, forceRefresh),
+        mediaService.listAllFilesRecursive('', 4, forceRefresh),
       ]);
       const visibleItems = res.items.filter((i) => !i.name.startsWith('.'));
       setItems(visibleItems);
@@ -398,14 +405,111 @@ export const AdminMediaLibraryPage: React.FC = () => {
     }
   };
 
-  // Copy URL
-  const handleCopyUrl = (url: string) => {
-    navigator.clipboard.writeText(url);
-    setCopiedUrl(url);
-    setTimeout(() => setCopiedUrl(''), 2000);
+  // Toggle select item with click & Shift-Click
+  const handleItemSelect = (item: StorageItem, index: number, e: React.MouseEvent) => {
+    if (item.isFolder) return;
+
+    if (e.shiftKey && lastSelectedIdx !== null) {
+      // Range selection
+      const start = Math.min(lastSelectedIdx, index);
+      const end = Math.max(lastSelectedIdx, index);
+      const nextSet = new Set(selectedPaths);
+      for (let i = start; i <= end; i++) {
+        const it = displayedItems[i];
+        if (it && !it.isFolder) {
+          nextSet.add(it.fullPath);
+        }
+      }
+      setSelectedPaths(nextSet);
+    } else if (e.ctrlKey || e.metaKey) {
+      // Toggle single item
+      const nextSet = new Set(selectedPaths);
+      if (nextSet.has(item.fullPath)) {
+        nextSet.delete(item.fullPath);
+      } else {
+        nextSet.add(item.fullPath);
+      }
+      setSelectedPaths(nextSet);
+      setLastSelectedIdx(index);
+    } else {
+      // Direct checkbox click or selection toggle
+      const nextSet = new Set(selectedPaths);
+      if (nextSet.has(item.fullPath)) {
+        nextSet.delete(item.fullPath);
+      } else {
+        nextSet.add(item.fullPath);
+      }
+      setSelectedPaths(nextSet);
+      setLastSelectedIdx(index);
+    }
   };
 
-  const breadcrumbs = currentFolder ? currentFolder.split('/') : [];
+  const handleSelectAll = () => {
+    const filePaths = displayedItems.filter((i) => !i.isFolder).map((i) => i.fullPath);
+    if (selectedPaths.size === filePaths.length && filePaths.length > 0) {
+      setSelectedPaths(new Set());
+    } else {
+      setSelectedPaths(new Set(filePaths));
+    }
+  };
+
+  const handleClearSelection = () => {
+    setSelectedPaths(new Set());
+    setLastSelectedIdx(null);
+  };
+
+  // Batch move selected items into target category
+  const handleBatchMoveToCategory = async (targetCat: string) => {
+    const paths = Array.from(selectedPaths);
+    if (paths.length === 0) return;
+
+    setIsBatchMoving(true);
+    setErrorMsg('');
+    try {
+      for (const fromPath of paths) {
+        const fileName = fromPath.split('/').pop() || '';
+        const destination = targetCat ? `${targetCat}/${fileName}` : fileName;
+        if (fromPath !== destination) {
+          await mediaService.moveFile(fromPath, destination);
+        }
+      }
+      setSuccessMsg(`Đã chuyển ${paths.length} ảnh sang danh mục "${targetCat || 'Thư mục gốc'}" thành công!`);
+      setSelectedPaths(new Set());
+      setLastSelectedIdx(null);
+      setTimeout(() => setSuccessMsg(''), 3000);
+      await loadMedia(currentFolder, true);
+    } catch (err: unknown) {
+      setErrorMsg(err instanceof Error ? err.message : 'Lỗi khi di chuyển nhiều ảnh');
+    } finally {
+      setIsBatchMoving(false);
+      setDragOverCategory(null);
+    }
+  };
+
+  // Batch delete selected files
+  const handleBatchDeleteSelected = async () => {
+    const paths = Array.from(selectedPaths);
+    if (paths.length === 0) return;
+    if (!window.confirm(`Bạn có chắc chắn muốn xóa ${paths.length} ảnh đã chọn khỏi kho ảnh?`)) {
+      return;
+    }
+
+    setIsBatchMoving(true);
+    setErrorMsg('');
+    try {
+      for (const p of paths) {
+        await mediaService.deleteFile(p);
+      }
+      setSuccessMsg(`Đã xóa ${paths.length} ảnh thành công!`);
+      setSelectedPaths(new Set());
+      setTimeout(() => setSuccessMsg(''), 3000);
+      await loadMedia(currentFolder, true);
+    } catch (err: unknown) {
+      setErrorMsg(err instanceof Error ? err.message : 'Lỗi khi xóa ảnh');
+    } finally {
+      setIsBatchMoving(false);
+    }
+  };
 
   // Filter items based on Category, Product, View Scope, and Search
   const displayedItems = useMemo(() => {
@@ -455,6 +559,19 @@ export const AdminMediaLibraryPage: React.FC = () => {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  };
+
+  const breadcrumbs = currentFolder ? currentFolder.split('/') : [];
+
+  const handleCopyUrl = async (url: string) => {
+    if (!url) return;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedUrl(url);
+      setTimeout(() => setCopiedUrl(''), 2000);
+    } catch (err) {
+      console.warn('Could not copy url:', err);
+    }
   };
 
   return (
@@ -611,6 +728,23 @@ export const AdminMediaLibraryPage: React.FC = () => {
             <Filter size={14} /> Danh mục:
           </span>
 
+          {draggedPaths.length > 0 && (
+            <span
+              style={{
+                fontSize: '0.75rem',
+                fontWeight: 600,
+                color: '#b78103',
+                backgroundColor: '#fff9db',
+                border: '1px dashed #d4a373',
+                padding: '2px 8px',
+                borderRadius: '12px',
+                animation: 'pulse 1.5s infinite',
+              }}
+            >
+              👉 Thả vào danh mục bên dưới để chuyển {draggedPaths.length} ảnh
+            </span>
+          )}
+
           <button
             type="button"
             onClick={() => {
@@ -657,22 +791,44 @@ export const AdminMediaLibraryPage: React.FC = () => {
               setCategoryFilter('uncategorized');
               setViewScope('all_photos');
             }}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragOverCategory('uncategorized');
+            }}
+            onDragLeave={() => setDragOverCategory(null)}
+            onDrop={(e) => {
+              e.preventDefault();
+              handleBatchMoveToCategory('');
+            }}
             style={{
               padding: '0.3rem 0.65rem',
               borderRadius: '20px',
-              border: categoryFilter === 'uncategorized' ? '1px solid #766352' : '1px solid #e8e1d5',
-              backgroundColor: categoryFilter === 'uncategorized' ? '#766352' : '#faf8f5',
-              color: categoryFilter === 'uncategorized' ? '#ffffff' : '#2c2825',
+              border:
+                dragOverCategory === 'uncategorized'
+                  ? '2px dashed #b78103'
+                  : categoryFilter === 'uncategorized'
+                  ? '1px solid #766352'
+                  : '1px solid #e8e1d5',
+              backgroundColor:
+                dragOverCategory === 'uncategorized'
+                  ? '#fff9db'
+                  : categoryFilter === 'uncategorized'
+                  ? '#766352'
+                  : '#faf8f5',
+              color: categoryFilter === 'uncategorized' && dragOverCategory !== 'uncategorized' ? '#ffffff' : '#2c2825',
               fontSize: '0.775rem',
               fontWeight: 500,
               cursor: 'pointer',
+              transition: 'all 0.15s ease',
             }}
+            title="Thả ảnh vào đây để bỏ danh mục (chuyển về Thư mục gốc)"
           >
             Chưa phân loại
           </button>
 
           {categories.map((c) => {
             const isSelected = categoryFilter === c.id;
+            const isDragTarget = dragOverCategory === c.id;
             return (
               <button
                 key={c.id}
@@ -681,16 +837,35 @@ export const AdminMediaLibraryPage: React.FC = () => {
                   setCategoryFilter(c.id);
                   setViewScope('all_photos');
                 }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setDragOverCategory(c.id);
+                }}
+                onDragLeave={() => setDragOverCategory(null)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  handleBatchMoveToCategory(c.id);
+                }}
                 style={{
                   padding: '0.3rem 0.65rem',
                   borderRadius: '20px',
-                  border: isSelected ? '1px solid #766352' : '1px solid #e8e1d5',
-                  backgroundColor: isSelected ? '#766352' : '#faf8f5',
-                  color: isSelected ? '#ffffff' : '#2c2825',
+                  border: isDragTarget
+                    ? '2px dashed #b78103'
+                    : isSelected
+                    ? '1px solid #766352'
+                    : '1px solid #e8e1d5',
+                  backgroundColor: isDragTarget
+                    ? '#fff9db'
+                    : isSelected
+                    ? '#766352'
+                    : '#faf8f5',
+                  color: isSelected && !isDragTarget ? '#ffffff' : '#2c2825',
                   fontSize: '0.775rem',
                   fontWeight: 500,
                   cursor: 'pointer',
+                  transition: 'all 0.15s ease',
                 }}
+                title={`Thả ảnh vào đây để chuyển sang danh mục "${c.name}"`}
               >
                 {c.name}
               </button>
@@ -917,7 +1092,7 @@ export const AdminMediaLibraryPage: React.FC = () => {
               gap: '1rem',
             }}
           >
-            {displayedItems.map((item) => {
+            {displayedItems.map((item, idx) => {
               if (item.isFolder) {
                 return (
                   <div
@@ -990,22 +1165,65 @@ export const AdminMediaLibraryPage: React.FC = () => {
               // Category name badge if item has folder prefix
               const folderPrefix = item.fullPath.includes('/') ? item.fullPath.split('/')[0] : '';
               const catObj = categories.find((c) => c.id === folderPrefix);
+              const isSelected = selectedPaths.has(item.fullPath);
 
               // Image item card
               return (
                 <div
                   key={item.fullPath}
+                  draggable
+                  onDragStart={(e) => {
+                    const toDrag = selectedPaths.has(item.fullPath) && selectedPaths.size > 0
+                      ? Array.from(selectedPaths)
+                      : [item.fullPath];
+                    setDraggedPaths(toDrag);
+                    e.dataTransfer.setData('text/plain', JSON.stringify(toDrag));
+                  }}
+                  onDragEnd={() => {
+                    setDraggedPaths([]);
+                    setDragOverCategory(null);
+                  }}
                   style={{
                     backgroundColor: '#ffffff',
-                    border: '1px solid #e8e1d5',
+                    border: isSelected ? '2px solid #766352' : '1px solid #e8e1d5',
                     borderRadius: '8px',
                     overflow: 'hidden',
                     display: 'flex',
                     flexDirection: 'column',
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                    boxShadow: isSelected ? '0 0 0 2px rgba(118, 99, 82, 0.25)' : '0 1px 3px rgba(0,0,0,0.04)',
                     position: 'relative',
+                    cursor: 'grab',
+                    transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
                   }}
                 >
+                  {/* Selection Checkbox */}
+                  <div
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleItemSelect(item, idx, e);
+                    }}
+                    style={{
+                      position: 'absolute',
+                      top: '6px',
+                      left: '6px',
+                      zIndex: 3,
+                      backgroundColor: isSelected ? '#766352' : 'rgba(255,255,255,0.92)',
+                      color: isSelected ? '#ffffff' : '#685e54',
+                      borderRadius: '4px',
+                      width: '24px',
+                      height: '24px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      border: isSelected ? '1px solid #766352' : '1px solid #ced4da',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+                    }}
+                    title="Chọn ảnh (Giữ Shift để chọn khoảng, hoặc kéo vào danh mục)"
+                  >
+                    {isSelected ? <Check size={16} strokeWidth={3} /> : null}
+                  </div>
+
                   {/* Thumbnail */}
                   <div
                     style={{
@@ -1016,7 +1234,13 @@ export const AdminMediaLibraryPage: React.FC = () => {
                       overflow: 'hidden',
                       cursor: 'pointer',
                     }}
-                    onClick={() => setPreviewItem(item)}
+                    onClick={(e) => {
+                      if (e.shiftKey) {
+                        handleItemSelect(item, idx, e);
+                      } else {
+                        setPreviewItem(item);
+                      }
+                    }}
                   >
                     <img
                       src={item.publicUrl}
@@ -1038,7 +1262,7 @@ export const AdminMediaLibraryPage: React.FC = () => {
                         style={{
                           position: 'absolute',
                           top: '6px',
-                          left: '6px',
+                          right: '6px',
                           backgroundColor: 'rgba(255,255,255,0.92)',
                           padding: '0.15rem 0.45rem',
                           borderRadius: '12px',
@@ -1780,6 +2004,124 @@ export const AdminMediaLibraryPage: React.FC = () => {
           </div>,
           document.body
         )}
+
+      {/* Floating Batch Actions Bar */}
+      {selectedPaths.size > 0 && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: '1.5rem',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            backgroundColor: '#2c2825',
+            color: '#ffffff',
+            borderRadius: '50px',
+            padding: '0.6rem 1.25rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '1rem',
+            boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.4)',
+            zIndex: 9999,
+            flexWrap: 'wrap',
+          }}
+        >
+          <span style={{ fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+            <CheckSquare size={16} color="#d4a373" />
+            Đã chọn {selectedPaths.size} ảnh
+          </span>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <button
+              type="button"
+              onClick={handleSelectAll}
+              style={{
+                backgroundColor: 'rgba(255,255,255,0.15)',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '20px',
+                padding: '0.3rem 0.65rem',
+                fontSize: '0.75rem',
+                cursor: 'pointer',
+              }}
+            >
+              {selectedPaths.size === displayedItems.filter((i) => !i.isFolder).length
+                ? 'Bỏ chọn'
+                : 'Chọn tất cả'}
+            </button>
+
+            {/* Batch move dropdown */}
+            <select
+              defaultValue=""
+              onChange={(e) => {
+                if (e.target.value !== '') {
+                  handleBatchMoveToCategory(e.target.value === '__ROOT__' ? '' : e.target.value);
+                  e.target.value = '';
+                }
+              }}
+              disabled={isBatchMoving}
+              style={{
+                backgroundColor: '#ffffff',
+                color: '#2c2825',
+                borderRadius: '20px',
+                border: 'none',
+                padding: '0.35rem 0.75rem',
+                fontSize: '0.75rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                outline: 'none',
+              }}
+            >
+              <option value="" disabled>
+                {isBatchMoving ? 'Đang chuyển...' : 'Chuyển sang danh mục ▾'}
+              </option>
+              <option value="__ROOT__">Thư mục gốc (Chưa phân loại)</option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+
+            <button
+              type="button"
+              onClick={handleBatchDeleteSelected}
+              disabled={isBatchMoving}
+              style={{
+                backgroundColor: '#dc2626',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '20px',
+                padding: '0.35rem 0.75rem',
+                fontSize: '0.75rem',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.25rem',
+              }}
+            >
+              <Trash2 size={13} />
+              <span>Xóa</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleClearSelection}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#cbd5e1',
+                cursor: 'pointer',
+                padding: '2px',
+                display: 'flex',
+                alignItems: 'center',
+              }}
+              title="Đóng / Bỏ chọn"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

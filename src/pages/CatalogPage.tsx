@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { ArrowUpDown, RefreshCw, X, SlidersHorizontal } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { useSearchParams, Link } from 'react-router-dom';
+import { ArrowUpDown, RefreshCw, X, SlidersHorizontal, ArrowRight, MessageCircle } from 'lucide-react';
 import { Product, Category, FilterState, SortOption } from '../types/product';
 import { productService } from '../services/productService';
 import { filterProducts } from '../utils/filterProducts';
@@ -11,6 +12,7 @@ import { ProductFilters } from '../components/ProductFilters';
 import { getColorOption } from '../data/colors';
 import { SITE_CONFIG } from '../config/site';
 import { analyticsService } from '../services/analyticsService';
+import { formatVND } from '../utils/formatCurrency';
 
 export const CatalogPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -19,6 +21,8 @@ export const CatalogPage: React.FC = () => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
+  const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
+  const [activeQuickViewImg, setActiveQuickViewImg] = useState<string>('');
 
   // Read initial query params from URL if present
   const initialSearch = searchParams.get('q') || '';
@@ -382,7 +386,14 @@ export const CatalogPage: React.FC = () => {
               ) : filteredProducts.length > 0 ? (
                 <div className="product-grid" style={{ width: '100%' }}>
                   {filteredProducts.map((product) => (
-                    <ProductCard key={product.id} product={product} />
+                    <ProductCard
+                      key={product.id}
+                      product={product}
+                      onQuickView={(p) => {
+                        setQuickViewProduct(p);
+                        setActiveQuickViewImg(p.coverImage || p.images?.[0] || '');
+                      }}
+                    />
                   ))}
                 </div>
               ) : (
@@ -418,6 +429,338 @@ export const CatalogPage: React.FC = () => {
           </div>
         </div>
       </main>
+
+      {/* Quick View Modal for Customer Storefront */}
+      {quickViewProduct &&
+        createPortal(
+          <div
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 10000,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '1rem',
+            }}
+          >
+            {/* Backdrop */}
+            <div
+              style={{
+                position: 'fixed',
+                inset: 0,
+                backgroundColor: 'rgba(0, 0, 0, 0.65)',
+                backdropFilter: 'blur(4px)',
+              }}
+              onClick={() => setQuickViewProduct(null)}
+            />
+
+            {/* Modal Dialog */}
+            <div
+              style={{
+                position: 'relative',
+                width: '100%',
+                maxWidth: '860px',
+                maxHeight: '90vh',
+                backgroundColor: 'var(--bg-surface)',
+                borderRadius: 'var(--radius-lg)',
+                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
+                zIndex: 10001,
+                overflow: 'hidden',
+                display: 'flex',
+                flexDirection: 'column',
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div
+                style={{
+                  padding: '1rem 1.5rem',
+                  borderBottom: '1px solid var(--border-subtle)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  backgroundColor: 'var(--bg-muted)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                  <span
+                    style={{
+                      fontFamily: 'monospace',
+                      fontWeight: 700,
+                      backgroundColor: 'var(--accent-brown)',
+                      color: '#ffffff',
+                      padding: '0.2rem 0.55rem',
+                      borderRadius: '4px',
+                      fontSize: '0.8rem',
+                    }}
+                  >
+                    {quickViewProduct.id}
+                  </span>
+                  <h3
+                    className="font-serif"
+                    style={{
+                      fontSize: '1.15rem',
+                      fontWeight: 600,
+                      color: 'var(--text-primary)',
+                      margin: 0,
+                    }}
+                  >
+                    {quickViewProduct.name}
+                  </h3>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setQuickViewProduct(null)}
+                  style={{
+                    border: 'none',
+                    background: 'none',
+                    cursor: 'pointer',
+                    color: 'var(--text-muted)',
+                    padding: '4px',
+                    display: 'flex',
+                    alignItems: 'center',
+                  }}
+                  aria-label="Đóng xem nhanh"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* Body: Two Columns */}
+              <div
+                style={{
+                  padding: '1.5rem',
+                  overflowY: 'auto',
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+                  gap: '1.75rem',
+                  alignItems: 'start',
+                }}
+              >
+                {/* Left: Photos Preview */}
+                <div>
+                  <div
+                    style={{
+                      width: '100%',
+                      aspectRatio: '1 / 1',
+                      borderRadius: 'var(--radius-md)',
+                      overflow: 'hidden',
+                      backgroundColor: 'var(--bg-muted)',
+                      border: '1px solid var(--border-subtle)',
+                      position: 'relative',
+                      boxShadow: '0 2px 10px rgba(0,0,0,0.05)',
+                    }}
+                  >
+                    <img
+                      src={activeQuickViewImg || quickViewProduct.coverImage || quickViewProduct.images?.[0] || '/images/placeholder.webp'}
+                      alt={quickViewProduct.name}
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover',
+                      }}
+                    />
+                  </div>
+
+                  {/* Thumbnails */}
+                  {quickViewProduct.images && quickViewProduct.images.length > 1 && (
+                    <div
+                      style={{
+                        display: 'flex',
+                        gap: '0.5rem',
+                        marginTop: '0.75rem',
+                        overflowX: 'auto',
+                        paddingBottom: '0.25rem',
+                      }}
+                    >
+                      {quickViewProduct.images.map((imgUrl, idx) => {
+                        const isSelected = (activeQuickViewImg || quickViewProduct.coverImage) === imgUrl;
+                        return (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => setActiveQuickViewImg(imgUrl)}
+                            style={{
+                              width: '60px',
+                              height: '60px',
+                              flexShrink: 0,
+                              borderRadius: 'var(--radius-sm)',
+                              overflow: 'hidden',
+                              border: isSelected
+                                ? '2px solid var(--accent-brown)'
+                                : '1px solid var(--border-subtle)',
+                              padding: 0,
+                              cursor: 'pointer',
+                              backgroundColor: 'transparent',
+                              opacity: isSelected ? 1 : 0.6,
+                              transition: 'all 0.15s ease',
+                            }}
+                          >
+                            <img
+                              src={imgUrl}
+                              alt=""
+                              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            />
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Right: Info & Actions */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                      <span className="badge badge-draft">
+                        {categories.find((c) => c.id === quickViewProduct.category)?.name || quickViewProduct.category}
+                      </span>
+                      {quickViewProduct.type === 'combo' && (
+                        <span className="badge badge-combo">Bộ Combo</span>
+                      )}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: '1.4rem',
+                        fontWeight: 700,
+                        color: 'var(--accent-brown)',
+                        fontFamily: 'serif',
+                      }}
+                    >
+                      {formatVND(quickViewProduct.price)}
+                    </div>
+                  </div>
+
+                  {/* Colors */}
+                  {quickViewProduct.colors && quickViewProduct.colors.length > 0 && (
+                    <div>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '0.35rem' }}>
+                        Màu sắc:
+                      </span>
+                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                        {quickViewProduct.colors.map((cId) => {
+                          const c = getColorOption(cId);
+                          return (
+                            <span
+                              key={cId}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '5px',
+                                padding: '0.2rem 0.55rem',
+                                borderRadius: '14px',
+                                border: '1px solid var(--border-subtle)',
+                                fontSize: '0.75rem',
+                                backgroundColor: 'var(--bg-muted)',
+                              }}
+                            >
+                              <span
+                                style={{
+                                  width: '10px',
+                                  height: '10px',
+                                  borderRadius: '50%',
+                                  backgroundColor: c.hex,
+                                  border: `1px solid ${c.borderHex || 'rgba(0,0,0,0.1)'}`,
+                                }}
+                              />
+                              <span>{c.label.split(' / ')[0]}</span>
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Sizes */}
+                  {quickViewProduct.sizes && quickViewProduct.sizes.length > 0 && (
+                    <div>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '0.35rem' }}>
+                        Kích thước:
+                      </span>
+                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                        {quickViewProduct.sizes.map((sz) => (
+                          <span
+                            key={sz}
+                            style={{
+                              padding: '0.2rem 0.6rem',
+                              borderRadius: '4px',
+                              backgroundColor: 'var(--bg-muted)',
+                              border: '1px solid var(--border-subtle)',
+                              fontSize: '0.75rem',
+                              fontWeight: 500,
+                            }}
+                          >
+                            {sz}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Description Preview */}
+                  {quickViewProduct.description && (
+                    <p
+                      style={{
+                        fontSize: '0.85rem',
+                        color: 'var(--text-secondary)',
+                        lineHeight: 1.5,
+                        margin: 0,
+                        display: '-webkit-box',
+                        WebkitLineClamp: 3,
+                        WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden',
+                      }}
+                    >
+                      {quickViewProduct.description}
+                    </p>
+                  )}
+
+                  {/* Actions */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', marginTop: '0.5rem' }}>
+                    <Link
+                      to={`/products/${quickViewProduct.slug || quickViewProduct.id}`}
+                      className="btn btn-primary"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.4rem',
+                        textDecoration: 'none',
+                        padding: '0.65rem 1rem',
+                        fontWeight: 600,
+                      }}
+                    >
+                      <span>Xem chi tiết đầy đủ</span>
+                      <ArrowRight size={16} />
+                    </Link>
+
+                    <a
+                      href={SITE_CONFIG.contact.messenger.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn btn-outline"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.4rem',
+                        textDecoration: 'none',
+                        padding: '0.55rem 1rem',
+                        fontSize: '0.85rem',
+                      }}
+                    >
+                      <MessageCircle size={16} />
+                      <span>Nhắn tin tư vấn Messenger</span>
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
 
       <Footer />
 

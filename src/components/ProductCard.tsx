@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { Eye } from 'lucide-react';
 import { Product } from '../types/product';
 import { formatVND } from '../utils/formatCurrency';
 import { getColorOption } from '../data/colors';
@@ -7,9 +8,10 @@ import { analyticsService } from '../services/analyticsService';
 
 interface ProductCardProps {
   product: Product;
+  onQuickView?: (product: Product) => void;
 }
 
-export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
+export const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }) => {
   const [imageError, setImageError] = useState(false);
 
   const displayImage = product.coverImage || product.images?.[0] || '/images/placeholder.webp';
@@ -72,6 +74,44 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
               <span className="badge badge-featured">Nổi bật</span>
             )}
           </div>
+
+          {/* Quick View Button */}
+          {onQuickView && (
+            <button
+              type="button"
+              className="quick-view-btn"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onQuickView(product);
+              }}
+              style={{
+                position: 'absolute',
+                bottom: '10px',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                backgroundColor: 'rgba(255, 255, 255, 0.94)',
+                color: '#2c2825',
+                border: '1px solid rgba(0,0,0,0.08)',
+                borderRadius: '20px',
+                padding: '0.35rem 0.85rem',
+                fontSize: '0.75rem',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.14)',
+                cursor: 'pointer',
+                zIndex: 3,
+                backdropFilter: 'blur(3px)',
+                whiteSpace: 'nowrap',
+              }}
+              title="Xem nhanh ảnh & thông tin"
+            >
+              <Eye size={13} />
+              <span>Xem nhanh</span>
+            </button>
+          )}
         </div>
 
         {/* Card Body */}

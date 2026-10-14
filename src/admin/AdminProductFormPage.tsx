@@ -24,6 +24,7 @@ import { SITE_CONFIG } from '../config/site';
 import { normalizeVietnamese } from '../utils/filterProducts';
 import { ProductCard } from '../components/ProductCard';
 import { MediaPickerModal } from '../components/MediaPickerModal';
+import { formatVND } from '../utils/formatCurrency';
 
 export const AdminProductFormPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -386,6 +387,280 @@ export const AdminProductFormPage: React.FC = () => {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1.5rem' }} className="admin-form-grid">
           {/* Main Info Column */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            {/* Visual Images Card - Prioritized at top */}
+            <div style={{ backgroundColor: '#ffffff', border: '1px solid #e8e1d5', borderRadius: '8px', padding: '1.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <div>
+                  <h2 style={{ fontSize: '1.05rem', fontWeight: 600, margin: 0, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <ImageIcon size={18} color="#766352" />
+                    <span>Bộ sưu tập hình ảnh ({images.length} ảnh)</span>
+                  </h2>
+                  <p style={{ fontSize: '0.75rem', color: '#8c8277', margin: '3px 0 0' }}>
+                    Ảnh đầu tiên hoặc có gắn ★ sẽ làm ảnh bìa chính trên trang chủ & catalog.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowMediaPicker(true)}
+                  className="btn btn-outline btn-sm"
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.8rem', padding: '0.35rem 0.65rem' }}
+                  title="Chọn ảnh đã tải lên Supabase Storage"
+                >
+                  <ImageIcon size={15} />
+                  <span>Chọn từ Kho ảnh Online</span>
+                </button>
+              </div>
+
+              {/* Upload Dropzone */}
+              <div
+                style={{
+                  border: isDraggingFiles ? '2px dashed #766352' : '2px dashed #dcd3c5',
+                  backgroundColor: isDraggingFiles ? '#f3eee6' : '#faf8f5',
+                  borderRadius: '8px',
+                  padding: '1.25rem 1rem',
+                  textAlign: 'center',
+                  cursor: 'pointer',
+                  marginBottom: '1.25rem',
+                  transition: 'all 0.2s ease',
+                }}
+                onClick={() => document.getElementById('image-upload-input')?.click()}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setIsDraggingFiles(true);
+                }}
+                onDragLeave={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setIsDraggingFiles(false);
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setIsDraggingFiles(false);
+                  if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                    uploadFiles(e.dataTransfer.files);
+                  }
+                }}
+              >
+                <Upload size={22} color="#766352" style={{ margin: '0 auto 0.4rem' }} />
+                <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#2c2825', display: 'block' }}>
+                  {uploadingImage
+                    ? 'Đang tải ảnh lên Storage...'
+                    : isDraggingFiles
+                    ? 'Thả ảnh vào đây để tải lên'
+                    : 'Kéo thả ảnh vào đây hoặc bấm để chọn'}
+                </span>
+                <span style={{ fontSize: '0.75rem', color: '#8c8277' }}>
+                  Hỗ trợ kéo thả nhiều ảnh JPG, PNG, WebP (Tối đa 5MB/ảnh)
+                </span>
+                <input
+                  id="image-upload-input"
+                  type="file"
+                  multiple
+                  accept="image/jpeg,image/png,image/webp,image/avif"
+                  style={{ display: 'none' }}
+                  onChange={handleFileUpload}
+                  disabled={uploadingImage}
+                />
+              </div>
+
+              {/* Image List */}
+              {images.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '1.5rem', backgroundColor: '#faf8f5', borderRadius: '6px', border: '1px dashed #e8e1d5' }}>
+                  <ImageIcon size={32} color="#bfa382" style={{ margin: '0 auto 0.5rem' }} />
+                  <p style={{ fontSize: '0.85rem', color: '#8c8277', margin: 0 }}>
+                    Chưa có ảnh nào. Sản phẩm sẽ dùng ảnh mặc định nếu để trống.
+                  </p>
+                </div>
+              ) : (
+                <div>
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))',
+                      gap: '0.75rem',
+                    }}
+                  >
+                    {images.map((imgUrl, idx) => {
+                      const isCover = (coverImage || images[0]) === imgUrl;
+                      const isDraggingThis = draggedImgIdx === idx;
+                      return (
+                        <div
+                          key={idx}
+                          draggable
+                          onDragStart={(e) => {
+                            setDraggedImgIdx(idx);
+                            e.dataTransfer.effectAllowed = 'move';
+                          }}
+                          onDragOver={(e) => {
+                            e.preventDefault();
+                            e.dataTransfer.dropEffect = 'move';
+                          }}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            if (draggedImgIdx === null || draggedImgIdx === idx) return;
+                            const list = [...images];
+                            const [item] = list.splice(draggedImgIdx, 1);
+                            list.splice(idx, 0, item);
+                            setImages(list);
+                            setDraggedImgIdx(null);
+                          }}
+                          onDragEnd={() => setDraggedImgIdx(null)}
+                          style={{
+                            position: 'relative',
+                            backgroundColor: isCover ? '#f8f4ed' : '#ffffff',
+                            border: isDraggingThis
+                              ? '2px dashed #766352'
+                              : isCover
+                              ? '2px solid #766352'
+                              : '1px solid #e8e1d5',
+                            borderRadius: '8px',
+                            overflow: 'hidden',
+                            boxShadow: isCover ? '0 2px 8px rgba(118, 99, 82, 0.2)' : '0 1px 3px rgba(0,0,0,0.05)',
+                            opacity: isDraggingThis ? 0.5 : 1,
+                            cursor: 'grab',
+                            display: 'flex',
+                            flexDirection: 'column',
+                          }}
+                        >
+                          {/* Image preview */}
+                          <div style={{ width: '100%', paddingTop: '85%', position: 'relative', backgroundColor: '#f3eee6' }}>
+                            <img
+                              src={imgUrl}
+                              alt={`Ảnh ${idx + 1}`}
+                              style={{
+                                position: 'absolute',
+                                top: 0,
+                                left: 0,
+                                width: '100%',
+                                height: '100%',
+                                objectFit: 'cover',
+                              }}
+                            />
+
+                            {/* Badge Cover */}
+                            {isCover && (
+                              <span
+                                style={{
+                                  position: 'absolute',
+                                  top: '4px',
+                                  left: '4px',
+                                  backgroundColor: '#766352',
+                                  color: '#ffffff',
+                                  fontSize: '0.65rem',
+                                  fontWeight: 700,
+                                  padding: '2px 6px',
+                                  borderRadius: '4px',
+                                  boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                                }}
+                              >
+                                ★ Bìa
+                              </span>
+                            )}
+
+                            {/* Position indicator */}
+                            <span
+                              style={{
+                                position: 'absolute',
+                                bottom: '4px',
+                                left: '4px',
+                                backgroundColor: 'rgba(0,0,0,0.6)',
+                                color: '#ffffff',
+                                fontSize: '0.65rem',
+                                padding: '1px 5px',
+                                borderRadius: '3px',
+                              }}
+                            >
+                              #{idx + 1}
+                            </span>
+                          </div>
+
+                          {/* Quick Actions Footer */}
+                          <div
+                            style={{
+                              padding: '0.35rem 0.4rem',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              backgroundColor: '#faf8f5',
+                              borderTop: '1px solid #f0eae1',
+                            }}
+                          >
+                            <div style={{ display: 'flex', gap: '2px' }}>
+                              {!isCover && (
+                                <button
+                                  type="button"
+                                  onClick={() => setCoverImage(imgUrl)}
+                                  style={{
+                                    border: 'none',
+                                    background: 'none',
+                                    cursor: 'pointer',
+                                    color: '#766352',
+                                    padding: '2px',
+                                  }}
+                                  title="Đặt làm ảnh bìa"
+                                >
+                                  <Star size={13} />
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                disabled={idx === 0}
+                                onClick={() => handleMoveImage(idx, 'up')}
+                                style={{
+                                  border: 'none',
+                                  background: 'none',
+                                  cursor: 'pointer',
+                                  color: '#685e54',
+                                  padding: '2px',
+                                  opacity: idx === 0 ? 0.3 : 1,
+                                }}
+                                title="Đẩy sang trái"
+                              >
+                                <ArrowUp size={13} style={{ transform: 'rotate(-90deg)' }} />
+                              </button>
+                              <button
+                                type="button"
+                                disabled={idx === images.length - 1}
+                                onClick={() => handleMoveImage(idx, 'down')}
+                                style={{
+                                  border: 'none',
+                                  background: 'none',
+                                  cursor: 'pointer',
+                                  color: '#685e54',
+                                  padding: '2px',
+                                  opacity: idx === images.length - 1 ? 0.3 : 1,
+                                }}
+                                title="Đẩy sang phải"
+                              >
+                                <ArrowDown size={13} style={{ transform: 'rotate(-90deg)' }} />
+                              </button>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveImage(idx)}
+                              style={{
+                                border: 'none',
+                                background: 'none',
+                                cursor: 'pointer',
+                                color: '#c62828',
+                                padding: '2px',
+                              }}
+                              title="Xóa ảnh"
+                            >
+                              <X size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* General Card */}
             <div style={{ backgroundColor: '#ffffff', border: '1px solid #e8e1d5', borderRadius: '8px', padding: '1.5rem' }}>
               <h2 style={{ fontSize: '1.05rem', fontWeight: 600, marginBottom: '1.25rem', borderBottom: '1px solid #f2ede4', paddingBottom: '0.5rem' }}>
@@ -715,274 +990,46 @@ export const AdminProductFormPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Images Upload Card */}
-            <div style={{ backgroundColor: '#ffffff', border: '1px solid #e8e1d5', borderRadius: '8px', padding: '1.5rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-                <h2 style={{ fontSize: '1.05rem', fontWeight: 600, margin: 0 }}>Hình ảnh sản phẩm ({images.length})</h2>
+            {/* Live Product Card Preview in Right Column */}
+            <div style={{ backgroundColor: '#ffffff', border: '1px solid #e8e1d5', borderRadius: '8px', padding: '1.25rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem' }}>
+                <h3 style={{ fontSize: '0.95rem', fontWeight: 600, color: '#2c2825', margin: 0 }}>
+                  Xem trước hiển thị (Card)
+                </h3>
                 <button
                   type="button"
-                  onClick={() => setShowMediaPicker(true)}
+                  onClick={() => setShowPreviewModal(true)}
                   className="btn btn-outline btn-sm"
-                  style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.8rem', padding: '0.3rem 0.6rem' }}
-                  title="Chọn ảnh đã tải lên Supabase Storage"
+                  style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', display: 'flex', alignItems: 'center', gap: '3px' }}
                 >
-                  <ImageIcon size={15} />
-                  <span>Chọn từ Kho ảnh Online</span>
+                  <Eye size={12} />
+                  <span>Full Preview</span>
                 </button>
               </div>
 
-              {/* Upload trigger */}
-              <div
-                style={{
-                  border: isDraggingFiles ? '2px dashed #766352' : '2px dashed #dcd3c5',
-                  backgroundColor: isDraggingFiles ? '#f3eee6' : '#faf8f5',
-                  borderRadius: '8px',
-                  padding: '1.5rem 1rem',
-                  textAlign: 'center',
-                  cursor: 'pointer',
-                  marginBottom: '1rem',
-                  transition: 'all 0.2s ease',
-                }}
-                onClick={() => document.getElementById('image-upload-input')?.click()}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setIsDraggingFiles(true);
-                }}
-                onDragLeave={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setIsDraggingFiles(false);
-                }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setIsDraggingFiles(false);
-                  if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-                    uploadFiles(e.dataTransfer.files);
-                  }
-                }}
-              >
-                <Upload size={24} color="#766352" style={{ margin: '0 auto 0.5rem' }} />
-                <span style={{ fontSize: '0.875rem', fontWeight: 500, color: '#2c2825', display: 'block' }}>
-                  {uploadingImage
-                    ? 'Đang tải ảnh lên Storage...'
-                    : isDraggingFiles
-                    ? 'Thả ảnh vào đây để tải lên'
-                    : 'Kéo thả ảnh vào đây hoặc bấm để chọn'}
-                </span>
-                <span style={{ fontSize: '0.75rem', color: '#8c8277' }}>
-                  Hỗ trợ kéo thả nhiều ảnh JPG, PNG, WebP (Tối đa 5MB/ảnh)
-                </span>
-                <input
-                  id="image-upload-input"
-                  type="file"
-                  multiple
-                  accept="image/jpeg,image/png,image/webp,image/avif"
-                  style={{ display: 'none' }}
-                  onChange={handleFileUpload}
-                  disabled={uploadingImage}
-                />
-              </div>
-
-              {/* Image List */}
-              {/* Image List */}
-              {images.length === 0 ? (
-                <p style={{ fontSize: '0.8rem', color: '#8c8277', textAlign: 'center' }}>
-                  Chưa có ảnh nào. Sản phẩm sẽ dùng ảnh mặc định nếu để trống.
-                </p>
-              ) : (
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                    <span style={{ fontSize: '0.75rem', color: '#8c8277' }}>
-                      💡 Kéo thả thẻ để đổi thứ tự ảnh. Ảnh đầu tiên (hoặc có gắn ★) sẽ là ảnh bìa.
+              <div style={{ border: '1px solid #e8e1d5', borderRadius: '8px', overflow: 'hidden', backgroundColor: '#faf8f5' }}>
+                <div style={{ width: '100%', paddingTop: '80%', position: 'relative', backgroundColor: '#f3eee6' }}>
+                  <img
+                    src={coverImage || images[0] || '/images/placeholder.webp'}
+                    alt="Preview"
+                    style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
+                  {featured && (
+                    <span style={{ position: 'absolute', top: '8px', left: '8px', backgroundColor: '#766352', color: '#fff', fontSize: '0.65rem', padding: '2px 6px', borderRadius: '4px', fontWeight: 600 }}>
+                      Nổi bật
                     </span>
+                  )}
+                </div>
+                <div style={{ padding: '0.75rem' }}>
+                  <div style={{ fontSize: '0.75rem', color: '#9e9387', fontWeight: 600 }}>{code || 'MÃ SP'}</div>
+                  <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#2c2825', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {name || 'Tên sản phẩm'}
                   </div>
-
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))',
-                      gap: '0.75rem',
-                    }}
-                  >
-                    {images.map((imgUrl, idx) => {
-                      const isCover = (coverImage || images[0]) === imgUrl;
-                      const isDraggingThis = draggedImgIdx === idx;
-                      return (
-                        <div
-                          key={idx}
-                          draggable
-                          onDragStart={(e) => {
-                            setDraggedImgIdx(idx);
-                            e.dataTransfer.effectAllowed = 'move';
-                          }}
-                          onDragOver={(e) => {
-                            e.preventDefault();
-                            e.dataTransfer.dropEffect = 'move';
-                          }}
-                          onDrop={(e) => {
-                            e.preventDefault();
-                            if (draggedImgIdx === null || draggedImgIdx === idx) return;
-                            const list = [...images];
-                            const [item] = list.splice(draggedImgIdx, 1);
-                            list.splice(idx, 0, item);
-                            setImages(list);
-                            setDraggedImgIdx(null);
-                          }}
-                          onDragEnd={() => setDraggedImgIdx(null)}
-                          style={{
-                            position: 'relative',
-                            backgroundColor: isCover ? '#f8f4ed' : '#ffffff',
-                            border: isDraggingThis
-                              ? '2px dashed #766352'
-                              : isCover
-                              ? '2px solid #766352'
-                              : '1px solid #e8e1d5',
-                            borderRadius: '8px',
-                            overflow: 'hidden',
-                            boxShadow: isCover ? '0 2px 8px rgba(118, 99, 82, 0.2)' : '0 1px 3px rgba(0,0,0,0.05)',
-                            opacity: isDraggingThis ? 0.5 : 1,
-                            cursor: 'grab',
-                            display: 'flex',
-                            flexDirection: 'column',
-                          }}
-                        >
-                          {/* Image preview */}
-                          <div style={{ width: '100%', paddingTop: '85%', position: 'relative', backgroundColor: '#f3eee6' }}>
-                            <img
-                              src={imgUrl}
-                              alt={`Ảnh ${idx + 1}`}
-                              style={{
-                                position: 'absolute',
-                                top: 0,
-                                left: 0,
-                                width: '100%',
-                                height: '100%',
-                                objectFit: 'cover',
-                              }}
-                            />
-
-                            {/* Badge Cover */}
-                            {isCover && (
-                              <span
-                                style={{
-                                  position: 'absolute',
-                                  top: '4px',
-                                  left: '4px',
-                                  backgroundColor: '#766352',
-                                  color: '#ffffff',
-                                  fontSize: '0.65rem',
-                                  fontWeight: 700,
-                                  padding: '2px 6px',
-                                  borderRadius: '4px',
-                                  boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-                                }}
-                              >
-                                ★ Bìa
-                              </span>
-                            )}
-
-                            {/* Position indicator */}
-                            <span
-                              style={{
-                                position: 'absolute',
-                                bottom: '4px',
-                                left: '4px',
-                                backgroundColor: 'rgba(0,0,0,0.6)',
-                                color: '#ffffff',
-                                fontSize: '0.65rem',
-                                padding: '1px 5px',
-                                borderRadius: '3px',
-                              }}
-                            >
-                              #{idx + 1}
-                            </span>
-                          </div>
-
-                          {/* Quick Actions Footer */}
-                          <div
-                            style={{
-                              padding: '0.35rem 0.4rem',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'space-between',
-                              backgroundColor: '#faf8f5',
-                              borderTop: '1px solid #f0eae1',
-                            }}
-                          >
-                            <div style={{ display: 'flex', gap: '2px' }}>
-                              {!isCover && (
-                                <button
-                                  type="button"
-                                  onClick={() => setCoverImage(imgUrl)}
-                                  style={{
-                                    border: 'none',
-                                    background: 'none',
-                                    cursor: 'pointer',
-                                    color: '#766352',
-                                    padding: '2px',
-                                  }}
-                                  title="Đặt làm ảnh bìa"
-                                >
-                                  <Star size={13} />
-                                </button>
-                              )}
-                              <button
-                                type="button"
-                                disabled={idx === 0}
-                                onClick={() => handleMoveImage(idx, 'up')}
-                                style={{
-                                  border: 'none',
-                                  background: 'none',
-                                  cursor: 'pointer',
-                                  color: '#685e54',
-                                  padding: '2px',
-                                  opacity: idx === 0 ? 0.3 : 1,
-                                }}
-                                title="Đẩy sang trái"
-                              >
-                                <ArrowUp size={13} style={{ transform: 'rotate(-90deg)' }} />
-                              </button>
-                              <button
-                                type="button"
-                                disabled={idx === images.length - 1}
-                                onClick={() => handleMoveImage(idx, 'down')}
-                                style={{
-                                  border: 'none',
-                                  background: 'none',
-                                  cursor: 'pointer',
-                                  color: '#685e54',
-                                  padding: '2px',
-                                  opacity: idx === images.length - 1 ? 0.3 : 1,
-                                }}
-                                title="Đẩy sang phải"
-                              >
-                                <ArrowDown size={13} style={{ transform: 'rotate(-90deg)' }} />
-                              </button>
-                            </div>
-
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveImage(idx)}
-                              style={{
-                                border: 'none',
-                                background: 'none',
-                                cursor: 'pointer',
-                                color: '#c62828',
-                                padding: '2px',
-                              }}
-                              title="Xóa ảnh"
-                            >
-                              <X size={14} />
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
+                  <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#766352', marginTop: '4px' }}>
+                    {formatVND(price || 0)}
                   </div>
                 </div>
-              )}
+              </div>
             </div>
           </div>
         </div>

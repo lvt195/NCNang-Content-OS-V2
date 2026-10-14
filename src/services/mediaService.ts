@@ -18,16 +18,43 @@ export interface DuplicateGroup {
 
 const BUCKET_NAME = 'product-images';
 
+// In-memory cache for media items to prevent reloading every time
+const listCache = new Map<string, { items: StorageItem[]; currentPath: string; timestamp: number }>();
+let recursiveAllFilesCache: { data: StorageItem[]; timestamp: number } | null = null;
+const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes cache
+
 export const mediaService = {
   /**
-   * List files and folders in a given path (folder)
+   * Clear all media cache when changes occur (upload, move, delete)
    */
-  async listItems(folder = ''): Promise<{ items: StorageItem[]; currentPath: string }> {
+  clearCache(): void {
+    listCache.clear();
+    recursiveAllFilesCache = null;
+    try {
+      sessionStorage.removeItem('media_all_files_cache');
+    } catch {
+      // ignore
+    }
+  },
+
+  /**
+   * List files and folders in a given path (folder) with caching
+   */
+  async listItems(folder = '', forceRefresh = false): Promise<{ items: StorageItem[]; currentPath: string }> {
     if (!isSupabaseConfigured || !supabase) {
       throw new Error('Supabase chưa được cấu hình.');
     }
 
     const cleanFolder = folder.replace(/^\/+|\/+$/g, '');
+    const cacheKey = cleanFolder;
+
+    // Check memory cache
+    if (!forceRefresh) {
+      const cached = listCache.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+        return { items: cached.items, currentPath: cached.currentPath };
+      }
+    }
 
     const { data, error } = await supabase.storage.from(BUCKET_NAME).list(cleanFolder, {
       limit: 200,
@@ -69,7 +96,10 @@ export const mediaService = {
       return a.name.localeCompare(b.name);
     });
 
-    return { items, currentPath: cleanFolder };
+    const result = { items, currentPath: cleanFolder };
+    listCache.set(cacheKey, { ...result, timestamp: Date.now() });
+
+    return result;
   },
 
   /**
@@ -103,6 +133,7 @@ export const mediaService = {
     }
 
     const { data: urlData } = supabase.storage.from(BUCKET_NAME).getPublicUrl(fullPath);
+    this.clearCache();
 
     return {
       name: fileName,
@@ -146,6 +177,7 @@ export const mediaService = {
     if (error) {
       throw new Error(`Lỗi tạo thư mục: ${error.message}`);
     }
+    this.clearCache();
   },
 
   /**
@@ -158,6 +190,7 @@ export const mediaService = {
     if (error) {
       throw new Error(`Lỗi xóa file: ${error.message}`);
     }
+    this.clearCache();
   },
 
   /**
@@ -185,6 +218,7 @@ export const mediaService = {
         throw new Error(`Lỗi xóa các file trong thư mục: ${removeError.message}`);
       }
     }
+    this.clearCache();
   },
 
   /**
@@ -203,14 +237,37 @@ export const mediaService = {
     }
 
     const { data: urlData } = supabase.storage.from(BUCKET_NAME).getPublicUrl(cleanTo);
+    this.clearCache();
     return urlData.publicUrl;
   },
 
   /**
-   * List all files recursively across all folders
+   * List all files recursively across all folders with in-memory & session caching
    */
-  async listAllFilesRecursive(rootFolder = '', maxDepth = 4): Promise<StorageItem[]> {
+  async listAllFilesRecursive(rootFolder = '', maxDepth = 4, forceRefresh = false): Promise<StorageItem[]> {
     if (!isSupabaseConfigured || !supabase) return [];
+
+    const isRoot = !rootFolder || rootFolder === '';
+
+    // Check memory cache for root
+    if (isRoot && !forceRefresh) {
+      if (recursiveAllFilesCache && Date.now() - recursiveAllFilesCache.timestamp < CACHE_TTL_MS) {
+        return recursiveAllFilesCache.data;
+      }
+      try {
+        const stored = sessionStorage.getItem('media_all_files_cache');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed && Array.isArray(parsed.data) && Date.now() - parsed.timestamp < CACHE_TTL_MS) {
+            recursiveAllFilesCache = parsed;
+            return parsed.data;
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+
     const results: StorageItem[] = [];
 
     async function traverse(currentPath: string, depth: number) {
@@ -245,6 +302,16 @@ export const mediaService = {
     }
 
     await traverse(rootFolder.replace(/^\/+|\/+$/g, ''), 1);
+
+    if (isRoot) {
+      recursiveAllFilesCache = { data: results, timestamp: Date.now() };
+      try {
+        sessionStorage.setItem('media_all_files_cache', JSON.stringify(recursiveAllFilesCache));
+      } catch {
+        // ignore
+      }
+    }
+
     return results;
   },
 
