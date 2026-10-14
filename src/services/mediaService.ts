@@ -242,6 +242,26 @@ export const mediaService = {
   },
 
   /**
+   * Copy a file in bucket (add to another category / folder)
+   */
+  async copyFile(fromPath: string, toPath: string): Promise<string> {
+    if (!isSupabaseConfigured || !supabase) {
+      throw new Error('Supabase chưa được cấu hình.');
+    }
+    const cleanFrom = fromPath.replace(/^\/+|\/+$/g, '');
+    const cleanTo = toPath.replace(/^\/+|\/+$/g, '');
+
+    const { error } = await supabase.storage.from(BUCKET_NAME).copy(cleanFrom, cleanTo);
+    if (error) {
+      throw new Error(`Lỗi sao chép file: ${error.message}`);
+    }
+
+    const { data: urlData } = supabase.storage.from(BUCKET_NAME).getPublicUrl(cleanTo);
+    this.clearCache();
+    return urlData.publicUrl;
+  },
+
+  /**
    * List all files recursively across all folders with in-memory & session caching
    */
   async listAllFilesRecursive(rootFolder = '', maxDepth = 4, forceRefresh = false): Promise<StorageItem[]> {

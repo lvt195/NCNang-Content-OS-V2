@@ -23,10 +23,60 @@ import {
   MoveRight,
   CheckSquare,
   Package,
+  Layers,
 } from 'lucide-react';
 import { mediaService, StorageItem, DuplicateGroup } from '../services/mediaService';
 import { productService } from '../services/productService';
 import { Category, Product } from '../types/product';
+
+/**
+ * Helper to generate a compact drag ghost whose height precisely matches category items (~34-36px).
+ * Prevents covering up the category list and allows clear visibility when dragging.
+ */
+const createDragGhost = (thumbnailUrl?: string, count: number = 1, label?: string) => {
+  const ghost = document.createElement('div');
+  ghost.style.position = 'fixed';
+  ghost.style.top = '-9999px';
+  ghost.style.left = '-9999px';
+  ghost.style.zIndex = '999999';
+  ghost.style.display = 'flex';
+  ghost.style.alignItems = 'center';
+  ghost.style.gap = '6px';
+  ghost.style.height = '34px'; // Exactly category item height
+  ghost.style.padding = '3px 10px 3px 4px';
+  ghost.style.backgroundColor = '#221e1a';
+  ghost.style.color = '#ffffff';
+  ghost.style.borderRadius = '6px';
+  ghost.style.border = '1.5px solid #b78103';
+  ghost.style.boxShadow = '0 6px 16px rgba(0, 0, 0, 0.4)';
+  ghost.style.pointerEvents = 'none';
+  ghost.style.fontSize = '11px';
+  ghost.style.fontWeight = '700';
+  ghost.style.whiteSpace = 'nowrap';
+
+  if (thumbnailUrl) {
+    const img = document.createElement('img');
+    img.src = thumbnailUrl;
+    img.style.width = '26px';
+    img.style.height = '26px';
+    img.style.borderRadius = '4px';
+    img.style.objectFit = 'cover';
+    ghost.appendChild(img);
+  } else {
+    const icon = document.createElement('span');
+    icon.innerHTML = '📁';
+    icon.style.fontSize = '16px';
+    icon.style.marginLeft = '3px';
+    ghost.appendChild(icon);
+  }
+
+  const text = document.createElement('span');
+  text.innerText = count > 1 ? `${count} ảnh đang kéo` : (label || '1 ảnh');
+  ghost.appendChild(text);
+
+  document.body.appendChild(ghost);
+  return ghost;
+};
 
 export const AdminMediaLibraryPage: React.FC = () => {
   const [currentFolder, setCurrentFolder] = useState<string>('');
@@ -113,6 +163,16 @@ export const AdminMediaLibraryPage: React.FC = () => {
   const [dragOverCategory, setDragOverCategory] = useState<string | null>(null);
   const [isBatchMoving, setIsBatchMoving] = useState<boolean>(false);
   const [isSelectMode, setIsSelectMode] = useState<boolean>(false);
+
+  // Drag Action Mode: 'move' (Chuyển hẳn) | 'copy' (Thêm/Sao chép vào danh mục)
+  const [dragActionMode, setDragActionMode] = useState<'move' | 'copy'>('move');
+
+  // Multi-Category Assignment Modal State
+  const [isMultiCategoryModalOpen, setIsMultiCategoryModalOpen] = useState<boolean>(false);
+  const [multiCategoryTargetPaths, setMultiCategoryTargetPaths] = useState<string[]>([]);
+  const [selectedTargetCategoryIds, setSelectedTargetCategoryIds] = useState<Set<string>>(new Set());
+  const [assignMode, setAssignMode] = useState<'copy' | 'move'>('copy');
+  const [isAssigningCategories, setIsAssigningCategories] = useState<boolean>(false);
 
   // Load categories, products and data
   useEffect(() => {
@@ -482,8 +542,8 @@ export const AdminMediaLibraryPage: React.FC = () => {
     setSelectedPaths(nextSet);
   };
 
-  // Batch move selected items into target category
-  const handleBatchMoveToCategory = async (targetCat: string, specificPaths?: string[]) => {
+  // Batch move or copy selected items into target category
+  const handleBatchMoveToCategory = async (targetCat: string, specificPaths?: string[], isCopy?: boolean) => {
     const paths = specificPaths && specificPaths.length > 0
       ? specificPaths
       : Array.from(selectedPaths);
@@ -491,25 +551,71 @@ export const AdminMediaLibraryPage: React.FC = () => {
 
     setIsBatchMoving(true);
     setErrorMsg('');
+    const shouldCopy = isCopy !== undefined ? isCopy : dragActionMode === 'copy';
     try {
+      let count = 0;
       for (const fromPath of paths) {
         const fileName = fromPath.split('/').pop() || '';
         const destination = targetCat ? `${targetCat}/${fileName}` : fileName;
         if (fromPath !== destination) {
-          await mediaService.moveFile(fromPath, destination);
+          if (shouldCopy) {
+            await mediaService.copyFile(fromPath, destination);
+          } else {
+            await mediaService.moveFile(fromPath, destination);
+          }
+          count++;
         }
       }
-      setSuccessMsg(`Đã chuyển ${paths.length} ảnh sang danh mục "${targetCat || 'Thư mục gốc'}" thành công!`);
+      const catName = categories.find((c) => c.id === targetCat)?.name || (targetCat ? targetCat : 'Thư mục gốc');
+      setSuccessMsg(`Đã ${shouldCopy ? 'thêm (sao chép)' : 'chuyển'} ${count} ảnh vào danh mục "${catName}" thành công!`);
       setSelectedPaths(new Set());
       setDraggedPaths([]);
       setLastSelectedIdx(null);
       setTimeout(() => setSuccessMsg(''), 3000);
       await loadMedia(currentFolder, true);
     } catch (err: unknown) {
-      setErrorMsg(err instanceof Error ? err.message : 'Lỗi khi di chuyển nhiều ảnh');
+      setErrorMsg(err instanceof Error ? err.message : 'Lỗi khi xử lý nhiều ảnh');
     } finally {
       setIsBatchMoving(false);
       setDragOverCategory(null);
+    }
+  };
+
+  // Add or move items to multiple categories simultaneously
+  const handleAssignToMultipleCategories = async () => {
+    const paths = multiCategoryTargetPaths.length > 0 ? multiCategoryTargetPaths : Array.from(selectedPaths);
+    if (paths.length === 0 || selectedTargetCategoryIds.size === 0) return;
+
+    setIsAssigningCategories(true);
+    setErrorMsg('');
+    try {
+      const targetCats = Array.from(selectedTargetCategoryIds);
+      let count = 0;
+      for (const targetCat of targetCats) {
+        for (const fromPath of paths) {
+          const fileName = fromPath.split('/').pop() || '';
+          const destination = targetCat === 'uncategorized' ? fileName : `${targetCat}/${fileName}`;
+          if (fromPath !== destination) {
+            if (assignMode === 'copy') {
+              await mediaService.copyFile(fromPath, destination);
+            } else {
+              await mediaService.moveFile(fromPath, destination);
+            }
+            count++;
+          }
+        }
+      }
+      setSuccessMsg(`Đã ${assignMode === 'copy' ? 'thêm' : 'chuyển'} ${paths.length} ảnh vào ${targetCats.length} danh mục thành công!`);
+      setIsMultiCategoryModalOpen(false);
+      setSelectedPaths(new Set());
+      setMultiCategoryTargetPaths([]);
+      setSelectedTargetCategoryIds(new Set());
+      setTimeout(() => setSuccessMsg(''), 3000);
+      await loadMedia(currentFolder, true);
+    } catch (err: unknown) {
+      setErrorMsg(err instanceof Error ? err.message : 'Lỗi khi gán vào nhiều danh mục');
+    } finally {
+      setIsAssigningCategories(false);
     }
   };
 
@@ -939,23 +1045,28 @@ export const AdminMediaLibraryPage: React.FC = () => {
                       e.preventDefault();
                       let pathsToMove = draggedPaths;
                       try {
-                        const data = e.dataTransfer.getData('text/plain');
-                        if (data) {
-                          const parsed = JSON.parse(data);
-                          if (Array.isArray(parsed) && parsed.length > 0) pathsToMove = parsed;
+                        const raw = e.dataTransfer.getData('text/plain');
+                        if (raw) {
+                          const parsed = JSON.parse(raw);
+                          if (Array.isArray(parsed) && parsed.length > 0) {
+                            pathsToMove = parsed;
+                          } else if (parsed && typeof parsed === 'object' && Array.isArray(parsed.paths)) {
+                            pathsToMove = parsed.paths;
+                          }
                         }
                       } catch (err) {
                         console.warn(err);
                       }
-                      handleBatchMoveToCategory('', pathsToMove);
+                      const isCopy = e.altKey || dragActionMode === 'copy';
+                      handleBatchMoveToCategory('', pathsToMove, isCopy);
                     }}
-                    title={`Chưa phân loại (${categoryCounts['uncategorized'] || 0} ảnh) - Kéo thả ảnh vào đây`}
+                    title={`Chưa phân loại (${categoryCounts['uncategorized'] || 0} ảnh) - Kéo thả ảnh/folder vào đây`}
                     style={{
                       width: '100%',
                       padding: '0.45rem 0.15rem',
                       borderRadius: '6px',
                       border: dragOverCategory === 'uncategorized'
-                        ? '2px dashed #b78103'
+                        ? '2px solid #b78103'
                         : categoryFilter === 'uncategorized'
                         ? '1px solid #766352'
                         : '1px solid transparent',
@@ -964,14 +1075,21 @@ export const AdminMediaLibraryPage: React.FC = () => {
                         : categoryFilter === 'uncategorized'
                         ? '#766352'
                         : 'transparent',
-                      color: categoryFilter === 'uncategorized' && dragOverCategory !== 'uncategorized' ? '#ffffff' : '#2c2825',
+                      color: dragOverCategory === 'uncategorized'
+                        ? '#7a4b00'
+                        : categoryFilter === 'uncategorized'
+                        ? '#ffffff'
+                        : '#2c2825',
+                      boxShadow: dragOverCategory === 'uncategorized'
+                        ? '0 0 0 3px rgba(183, 129, 3, 0.35), 0 4px 12px rgba(183, 129, 3, 0.25)'
+                        : 'none',
                       cursor: 'pointer',
                       display: 'flex',
                       flexDirection: 'column',
                       alignItems: 'center',
                       gap: '2px',
                       position: 'relative',
-                      transform: dragOverCategory === 'uncategorized' ? 'scale(1.08)' : 'none',
+                      transform: dragOverCategory === 'uncategorized' ? 'scale(1.12)' : 'none',
                       transition: 'all 0.15s ease',
                     }}
                   >
@@ -1020,23 +1138,28 @@ export const AdminMediaLibraryPage: React.FC = () => {
                           e.preventDefault();
                           let pathsToMove = draggedPaths;
                           try {
-                            const data = e.dataTransfer.getData('text/plain');
-                            if (data) {
-                              const parsed = JSON.parse(data);
-                              if (Array.isArray(parsed) && parsed.length > 0) pathsToMove = parsed;
+                            const raw = e.dataTransfer.getData('text/plain');
+                            if (raw) {
+                              const parsed = JSON.parse(raw);
+                              if (Array.isArray(parsed) && parsed.length > 0) {
+                                pathsToMove = parsed;
+                              } else if (parsed && typeof parsed === 'object' && Array.isArray(parsed.paths)) {
+                                pathsToMove = parsed.paths;
+                              }
                             }
                           } catch (err) {
                             console.warn(err);
                           }
-                          handleBatchMoveToCategory(c.id, pathsToMove);
+                          const isCopy = e.altKey || dragActionMode === 'copy';
+                          handleBatchMoveToCategory(c.id, pathsToMove, isCopy);
                         }}
-                        title={`Danh mục: ${c.name} (${count} ảnh) - Kéo thả ảnh vào đây để chuyển`}
+                        title={`Danh mục: ${c.name} (${count} ảnh) - Kéo thả ảnh/folder vào đây để ${dragActionMode === 'copy' ? 'thêm' : 'chuyển'}`}
                         style={{
                           width: '100%',
                           padding: '0.45rem 0.15rem',
                           borderRadius: '6px',
                           border: isDragTarget
-                            ? '2px dashed #b78103'
+                            ? '2px solid #b78103'
                             : isSelected
                             ? '1px solid #766352'
                             : '1px solid transparent',
@@ -1045,18 +1168,25 @@ export const AdminMediaLibraryPage: React.FC = () => {
                             : isSelected
                             ? '#766352'
                             : 'transparent',
-                          color: isSelected && !isDragTarget ? '#ffffff' : '#2c2825',
+                          color: isDragTarget
+                            ? '#7a4b00'
+                            : isSelected
+                            ? '#ffffff'
+                            : '#2c2825',
+                          boxShadow: isDragTarget
+                            ? '0 0 0 3px rgba(183, 129, 3, 0.35), 0 4px 12px rgba(183, 129, 3, 0.25)'
+                            : 'none',
                           cursor: 'pointer',
                           display: 'flex',
                           flexDirection: 'column',
                           alignItems: 'center',
                           gap: '2px',
                           position: 'relative',
-                          transform: isDragTarget ? 'scale(1.08)' : 'none',
+                          transform: isDragTarget ? 'scale(1.12)' : 'none',
                           transition: 'all 0.15s ease',
                         }}
                       >
-                        <Folder size={16} color={isSelected && !isDragTarget ? '#ffffff' : '#766352'} />
+                        <Folder size={16} color={isDragTarget ? '#b78103' : isSelected ? '#ffffff' : '#766352'} />
                         <span
                           style={{
                             fontSize: '0.6rem',
@@ -1150,9 +1280,52 @@ export const AdminMediaLibraryPage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Drag Drop Hint */}
-                <div style={{ padding: '0.55rem 0.85rem', backgroundColor: '#fffdf6', borderBottom: '1px solid #f9edd7', fontSize: '0.725rem', color: '#8c6820', lineHeight: 1.4 }}>
-                  💡 <strong>Kéo ảnh thả vào đây:</strong> Kéo ảnh từ bên phải thả vào danh mục để chuyển nhanh.
+                {/* Drag Drop Hint & Move / Copy Mode Switcher */}
+                <div style={{ padding: '0.55rem 0.85rem', backgroundColor: '#fffdf6', borderBottom: '1px solid #f9edd7', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: '0.725rem', color: '#8c6820', fontWeight: 700 }}>Thao tác kéo thả:</span>
+                    <div style={{ display: 'flex', backgroundColor: '#eee7db', borderRadius: '14px', padding: '1px' }}>
+                      <button
+                        type="button"
+                        onClick={() => setDragActionMode('move')}
+                        style={{
+                          border: 'none',
+                          borderRadius: '12px',
+                          padding: '2px 8px',
+                          fontSize: '0.675rem',
+                          fontWeight: dragActionMode === 'move' ? 700 : 500,
+                          backgroundColor: dragActionMode === 'move' ? '#766352' : 'transparent',
+                          color: dragActionMode === 'move' ? '#ffffff' : '#685e54',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease',
+                        }}
+                        title="Di chuyển ảnh hoặc folder sang danh mục mới (xóa ở vị trí cũ)"
+                      >
+                        Chuyển
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDragActionMode('copy')}
+                        style={{
+                          border: 'none',
+                          borderRadius: '12px',
+                          padding: '2px 8px',
+                          fontSize: '0.675rem',
+                          fontWeight: dragActionMode === 'copy' ? 700 : 500,
+                          backgroundColor: dragActionMode === 'copy' ? '#b78103' : 'transparent',
+                          color: dragActionMode === 'copy' ? '#ffffff' : '#685e54',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease',
+                        }}
+                        title="Thêm ảnh/folder vào danh mục mới mà không xóa ở vị trí cũ"
+                      >
+                        Thêm (Copy)
+                      </button>
+                    </div>
+                  </div>
+                  <span style={{ fontSize: '0.7rem', color: '#8c6820', lineHeight: 1.35 }}>
+                    {dragActionMode === 'copy' ? '✨ Chế độ THÊM: Kéo ảnh hoặc folder để nhân bản vào danh mục' : '💡 Chế độ CHUYỂN: Kéo ảnh hoặc cả folder để di chuyển sang danh mục'}
+                  </span>
                 </div>
 
                 {/* Target List */}
@@ -1244,15 +1417,20 @@ export const AdminMediaLibraryPage: React.FC = () => {
                       e.preventDefault();
                       let pathsToMove = draggedPaths;
                       try {
-                        const data = e.dataTransfer.getData('text/plain');
-                        if (data) {
-                          const parsed = JSON.parse(data);
-                          if (Array.isArray(parsed) && parsed.length > 0) pathsToMove = parsed;
+                        const raw = e.dataTransfer.getData('text/plain');
+                        if (raw) {
+                          const parsed = JSON.parse(raw);
+                          if (Array.isArray(parsed) && parsed.length > 0) {
+                            pathsToMove = parsed;
+                          } else if (parsed && typeof parsed === 'object' && Array.isArray(parsed.paths)) {
+                            pathsToMove = parsed.paths;
+                          }
                         }
                       } catch (err) {
                         console.warn(err);
                       }
-                      handleBatchMoveToCategory('', pathsToMove);
+                      const isCopy = e.altKey || dragActionMode === 'copy';
+                      handleBatchMoveToCategory('', pathsToMove, isCopy);
                     }}
                     style={{
                       width: '100%',
@@ -1262,7 +1440,7 @@ export const AdminMediaLibraryPage: React.FC = () => {
                       padding: '0.55rem 0.75rem',
                       borderRadius: '6px',
                       border: dragOverCategory === 'uncategorized'
-                        ? '2px dashed #b78103'
+                        ? '2px solid #b78103'
                         : categoryFilter === 'uncategorized'
                         ? '1px solid #766352'
                         : '1px solid transparent',
@@ -1271,18 +1449,30 @@ export const AdminMediaLibraryPage: React.FC = () => {
                         : categoryFilter === 'uncategorized'
                         ? '#766352'
                         : 'transparent',
-                      color: categoryFilter === 'uncategorized' && dragOverCategory !== 'uncategorized' ? '#ffffff' : '#2c2825',
+                      color: dragOverCategory === 'uncategorized'
+                        ? '#7a4b00'
+                        : categoryFilter === 'uncategorized'
+                        ? '#ffffff'
+                        : '#2c2825',
+                      boxShadow: dragOverCategory === 'uncategorized'
+                        ? '0 0 0 3px rgba(183, 129, 3, 0.35), 0 4px 14px rgba(183, 129, 3, 0.25)'
+                        : 'none',
                       fontSize: '0.825rem',
                       fontWeight: 600,
                       cursor: 'pointer',
                       textAlign: 'left',
+                      transform: dragOverCategory === 'uncategorized' ? 'scale(1.02)' : 'none',
                       transition: 'all 0.15s ease',
                     }}
-                    title="Thả ảnh vào đây để chuyển về Thư mục gốc (Chưa phân loại)"
+                    title="Thả ảnh hoặc folder vào đây để về Thư mục gốc (Chưa phân loại)"
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       <span style={{ fontSize: '0.9rem' }}>⚪</span>
-                      <span>{dragOverCategory === 'uncategorized' ? '👉 Thả về Thư mục gốc' : 'Chưa phân loại'}</span>
+                      <span>
+                        {dragOverCategory === 'uncategorized'
+                          ? (dragActionMode === 'copy' ? '➕ Thêm về Thư mục gốc' : '👉 Chuyển về Thư mục gốc')
+                          : 'Chưa phân loại'}
+                      </span>
                     </div>
                     <span
                       style={{
@@ -1322,15 +1512,20 @@ export const AdminMediaLibraryPage: React.FC = () => {
                           e.preventDefault();
                           let pathsToMove = draggedPaths;
                           try {
-                            const data = e.dataTransfer.getData('text/plain');
-                            if (data) {
-                              const parsed = JSON.parse(data);
-                              if (Array.isArray(parsed) && parsed.length > 0) pathsToMove = parsed;
+                            const raw = e.dataTransfer.getData('text/plain');
+                            if (raw) {
+                              const parsed = JSON.parse(raw);
+                              if (Array.isArray(parsed) && parsed.length > 0) {
+                                pathsToMove = parsed;
+                              } else if (parsed && typeof parsed === 'object' && Array.isArray(parsed.paths)) {
+                                pathsToMove = parsed.paths;
+                              }
                             }
                           } catch (err) {
                             console.warn(err);
                           }
-                          handleBatchMoveToCategory(c.id, pathsToMove);
+                          const isCopy = e.altKey || dragActionMode === 'copy';
+                          handleBatchMoveToCategory(c.id, pathsToMove, isCopy);
                         }}
                         style={{
                           width: '100%',
@@ -1340,7 +1535,7 @@ export const AdminMediaLibraryPage: React.FC = () => {
                           padding: '0.55rem 0.75rem',
                           borderRadius: '6px',
                           border: isDragTarget
-                            ? '2px dashed #b78103'
+                            ? '2px solid #b78103'
                             : isSelected
                             ? '1px solid #766352'
                             : '1px solid transparent',
@@ -1349,19 +1544,29 @@ export const AdminMediaLibraryPage: React.FC = () => {
                             : isSelected
                             ? '#766352'
                             : 'transparent',
-                          color: isSelected && !isDragTarget ? '#ffffff' : '#2c2825',
+                          color: isDragTarget
+                            ? '#7a4b00'
+                            : isSelected
+                            ? '#ffffff'
+                            : '#2c2825',
+                          boxShadow: isDragTarget
+                            ? '0 0 0 3px rgba(183, 129, 3, 0.35), 0 4px 14px rgba(183, 129, 3, 0.25)'
+                            : 'none',
                           fontSize: '0.825rem',
                           fontWeight: 600,
                           cursor: 'pointer',
                           textAlign: 'left',
+                          transform: isDragTarget ? 'scale(1.02)' : 'none',
                           transition: 'all 0.15s ease',
                         }}
-                        title={`Thả ảnh vào đây để chuyển sang danh mục "${c.name}"`}
+                        title={`Thả ảnh hoặc folder vào đây để ${dragActionMode === 'copy' ? 'thêm vào' : 'chuyển sang'} danh mục "${c.name}"`}
                       >
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', overflow: 'hidden' }}>
-                          <Folder size={15} color={isSelected && !isDragTarget ? '#ffffff' : '#766352'} />
+                          <Folder size={15} color={isDragTarget ? '#b78103' : isSelected ? '#ffffff' : '#766352'} />
                           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {isDragTarget ? `👉 Thả vào ${c.name}` : c.name}
+                            {isDragTarget
+                              ? (dragActionMode === 'copy' ? `➕ Thêm vào ${c.name}` : `👉 Chuyển vào ${c.name}`)
+                              : c.name}
                           </span>
                         </div>
                         <span
@@ -1772,6 +1977,29 @@ export const AdminMediaLibraryPage: React.FC = () => {
                     return (
                       <div
                         key={item.name}
+                        draggable
+                        onDragStart={(e) => {
+                          const folderPath = currentFolder ? `${currentFolder}/${item.name}` : item.name;
+                          const folderFiles = allFiles.filter(
+                            (f) => !f.isFolder && (f.fullPath === folderPath || f.fullPath.startsWith(`${folderPath}/`))
+                          );
+                          const paths = folderFiles.map((f) => f.fullPath);
+                          setDraggedPaths(paths);
+                          e.dataTransfer.setData(
+                            'text/plain',
+                            JSON.stringify({ type: 'folder', folderName: item.name, paths })
+                          );
+
+                          const ghost = createDragGhost(undefined, paths.length, `📁 ${item.name}`);
+                          e.dataTransfer.setDragImage(ghost, 15, 17);
+                          setTimeout(() => {
+                            if (ghost && ghost.parentNode) ghost.parentNode.removeChild(ghost);
+                          }, 0);
+                        }}
+                        onDragEnd={() => {
+                          setDraggedPaths([]);
+                          setDragOverCategory(null);
+                        }}
                         onClick={() => handleOpenFolder(item.name)}
                         style={{
                           backgroundColor: '#ffffff',
@@ -1795,6 +2023,7 @@ export const AdminMediaLibraryPage: React.FC = () => {
                           e.currentTarget.style.borderColor = '#e8e1d5';
                           e.currentTarget.style.transform = 'translateY(0)';
                         }}
+                        title={`Thư mục "${item.name}" - Bấm để mở, hoặc Kéo thả vào danh mục bên trái để chuyển toàn bộ ảnh`}
                       >
                         <Folder size={44} color="#bfa382" style={{ marginBottom: '0.5rem' }} />
                         <span
@@ -1809,7 +2038,7 @@ export const AdminMediaLibraryPage: React.FC = () => {
                           {item.name}
                         </span>
                         <span style={{ fontSize: '0.7rem', color: '#9e9387', marginTop: '2px' }}>
-                          Thư mục
+                          Thư mục (Kéo thả được)
                         </span>
 
                         <button
@@ -1853,6 +2082,12 @@ export const AdminMediaLibraryPage: React.FC = () => {
                           : [item.fullPath];
                         setDraggedPaths(toDrag);
                         e.dataTransfer.setData('text/plain', JSON.stringify(toDrag));
+
+                        const ghost = createDragGhost(item.publicUrl, toDrag.length, item.name);
+                        e.dataTransfer.setDragImage(ghost, 15, 17);
+                        setTimeout(() => {
+                          if (ghost && ghost.parentNode) ghost.parentNode.removeChild(ghost);
+                        }, 0);
                       }}
                       onDragEnd={() => {
                         setDraggedPaths([]);
@@ -2050,6 +2285,27 @@ export const AdminMediaLibraryPage: React.FC = () => {
                         </button>
 
                         <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setMultiCategoryTargetPaths([item.fullPath]);
+                              setSelectedTargetCategoryIds(new Set());
+                              setAssignMode('copy');
+                              setIsMultiCategoryModalOpen(true);
+                            }}
+                            style={{
+                              border: 'none',
+                              background: 'none',
+                              cursor: 'pointer',
+                              color: '#b78103',
+                              padding: '3px',
+                            }}
+                            title="Thêm ảnh này vào nhiều danh mục..."
+                          >
+                            <FolderPlus size={13} />
+                          </button>
+
                           <button
                             type="button"
                             onClick={(e) => {
@@ -2753,6 +3009,36 @@ export const AdminMediaLibraryPage: React.FC = () => {
                 : 'Chọn tất cả'}
             </button>
 
+            {/* Multi-Category Assign Button */}
+            <button
+              type="button"
+              onClick={() => {
+                setMultiCategoryTargetPaths(Array.from(selectedPaths));
+                setSelectedTargetCategoryIds(new Set());
+                setAssignMode('copy');
+                setIsMultiCategoryModalOpen(true);
+              }}
+              disabled={isBatchMoving}
+              style={{
+                backgroundColor: '#b78103',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '20px',
+                padding: '0.35rem 0.8rem',
+                fontSize: '0.75rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                boxShadow: '0 2px 6px rgba(183,129,3,0.35)',
+              }}
+              title="Thêm các ảnh đã chọn vào một hoặc nhiều danh mục"
+            >
+              <FolderPlus size={14} />
+              <span>Thêm vào nhiều danh mục...</span>
+            </button>
+
             {/* Batch move dropdown */}
             <select
               defaultValue=""
@@ -2826,6 +3112,254 @@ export const AdminMediaLibraryPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Multi-Category Assignment Modal */}
+      {isMultiCategoryModalOpen &&
+        createPortal(
+          <div
+            style={{
+              position: 'fixed',
+              inset: 0,
+              backgroundColor: 'rgba(0, 0, 0, 0.65)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 99999,
+              padding: '1rem',
+            }}
+            onClick={() => {
+              if (!isAssigningCategories) setIsMultiCategoryModalOpen(false);
+            }}
+          >
+            <div
+              style={{
+                backgroundColor: '#ffffff',
+                borderRadius: '12px',
+                width: '100%',
+                maxWidth: '520px',
+                maxHeight: '90vh',
+                display: 'flex',
+                flexDirection: 'column',
+                overflow: 'hidden',
+                boxShadow: '0 20px 40px rgba(0, 0, 0, 0.25)',
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Modal Header */}
+              <div
+                style={{
+                  padding: '1rem 1.25rem',
+                  borderBottom: '1px solid #e8e1d5',
+                  backgroundColor: '#faf8f5',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Layers size={20} color="#b78103" />
+                  <div>
+                    <h3 style={{ fontSize: '1rem', fontWeight: 700, margin: 0, color: '#2c2825' }}>
+                      Thêm vào nhiều danh mục
+                    </h3>
+                    <p style={{ fontSize: '0.75rem', color: '#685e54', margin: '2px 0 0' }}>
+                      Đang chọn{' '}
+                      <strong>
+                        {multiCategoryTargetPaths.length > 0
+                          ? multiCategoryTargetPaths.length
+                          : selectedPaths.size}
+                      </strong>{' '}
+                      ảnh để gán danh mục
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsMultiCategoryModalOpen(false)}
+                  disabled={isAssigningCategories}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: '#8c8277',
+                    padding: '4px',
+                  }}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div style={{ padding: '1.25rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {/* Mode Selector: Copy vs Move */}
+                <div style={{ backgroundColor: '#fdfbf7', border: '1px solid #e8e1d5', borderRadius: '8px', padding: '0.75rem' }}>
+                  <span style={{ fontSize: '0.775rem', fontWeight: 700, color: '#2c2825', display: 'block', marginBottom: '0.4rem' }}>
+                    Hình thức gán danh mục:
+                  </span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', cursor: 'pointer', fontSize: '0.8rem' }}>
+                      <input
+                        type="radio"
+                        name="assignMode"
+                        checked={assignMode === 'copy'}
+                        onChange={() => setAssignMode('copy')}
+                        style={{ marginTop: '3px' }}
+                      />
+                      <div>
+                        <strong style={{ color: '#2c2825' }}>Thêm vào danh mục (Sao chép bản gốc)</strong>
+                        <div style={{ fontSize: '0.725rem', color: '#685e54' }}>
+                          Ảnh sẽ được nhân bản thêm vào các danh mục đã chọn và vẫn được giữ nguyên ở vị trí cũ.
+                        </div>
+                      </div>
+                    </label>
+
+                    <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', cursor: 'pointer', fontSize: '0.8rem' }}>
+                      <input
+                        type="radio"
+                        name="assignMode"
+                        checked={assignMode === 'move'}
+                        onChange={() => setAssignMode('move')}
+                        style={{ marginTop: '3px' }}
+                      />
+                      <div>
+                        <strong style={{ color: '#2c2825' }}>Di chuyển hẳn (Chuyển thư mục)</strong>
+                        <div style={{ fontSize: '0.725rem', color: '#685e54' }}>
+                          Ảnh sẽ được chuyển sang các danh mục mới và xóa khỏi vị trí cũ.
+                        </div>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Categories Checklist */}
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#2c2825' }}>
+                      Chọn các danh mục muốn thêm ảnh vào ({selectedTargetCategoryIds.size}/{categories.length}):
+                    </span>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedTargetCategoryIds(new Set(categories.map((c) => c.id)))}
+                        style={{ background: 'none', border: 'none', color: '#766352', fontSize: '0.725rem', cursor: 'pointer', textDecoration: 'underline' }}
+                      >
+                        Chọn hết
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedTargetCategoryIds(new Set())}
+                        style={{ background: 'none', border: 'none', color: '#c62828', fontSize: '0.725rem', cursor: 'pointer', textDecoration: 'underline' }}
+                      >
+                        Bỏ chọn
+                      </button>
+                    </div>
+                  </div>
+
+                  {categories.length === 0 ? (
+                    <div style={{ padding: '1.5rem', textAlign: 'center', backgroundColor: '#faf8f5', borderRadius: '8px', border: '1px dashed #dcd3c5' }}>
+                      <p style={{ margin: 0, fontSize: '0.825rem', color: '#685e54' }}>
+                        Hiện chưa có danh mục nào trong hệ thống.
+                      </p>
+                      <p style={{ margin: '4px 0 0', fontSize: '0.75rem', color: '#9e9387' }}>
+                        Vui lòng vào mục "Quản lý danh mục" để tạo danh mục mới trước.
+                      </p>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '220px', overflowY: 'auto' }}>
+                      {categories.map((c) => {
+                        const isChecked = selectedTargetCategoryIds.has(c.id);
+                        const count = categoryCounts[c.id] || 0;
+                        return (
+                          <label
+                            key={c.id}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              padding: '0.5rem 0.75rem',
+                              borderRadius: '6px',
+                              border: isChecked ? '1px solid #766352' : '1px solid #e8e1d5',
+                              backgroundColor: isChecked ? '#f7f4ee' : '#ffffff',
+                              cursor: 'pointer',
+                              transition: 'all 0.15s ease',
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={(e) => {
+                                  const next = new Set(selectedTargetCategoryIds);
+                                  if (e.target.checked) {
+                                    next.add(c.id);
+                                  } else {
+                                    next.delete(c.id);
+                                  }
+                                  setSelectedTargetCategoryIds(next);
+                                }}
+                              />
+                              <Folder size={15} color="#766352" />
+                              <span style={{ fontSize: '0.825rem', fontWeight: 600, color: '#2c2825' }}>
+                                {c.name}
+                              </span>
+                            </div>
+                            <span style={{ fontSize: '0.725rem', color: '#9e9387' }}>
+                              {count} ảnh hiện có
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div
+                style={{
+                  padding: '0.75rem 1.25rem',
+                  borderTop: '1px solid #e8e1d5',
+                  backgroundColor: '#faf8f5',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'flex-end',
+                  gap: '0.5rem',
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setIsMultiCategoryModalOpen(false)}
+                  disabled={isAssigningCategories}
+                  className="btn btn-outline btn-sm"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="button"
+                  onClick={handleAssignToMultipleCategories}
+                  disabled={isAssigningCategories || selectedTargetCategoryIds.size === 0}
+                  className="btn btn-primary btn-sm"
+                  style={{
+                    backgroundColor: '#b78103',
+                    borderColor: '#b78103',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                  }}
+                >
+                  {isAssigningCategories ? <RefreshCw size={14} className="spin" /> : <Check size={14} />}
+                  <span>
+                    {isAssigningCategories
+                      ? 'Đang xử lý...'
+                      : `Thực hiện (${assignMode === 'copy' ? 'Thêm vào' : 'Chuyển vào'} ${selectedTargetCategoryIds.size} danh mục)`}
+                  </span>
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
 
       <style>{`
         @media (max-width: 900px) {

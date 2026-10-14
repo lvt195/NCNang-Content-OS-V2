@@ -67,19 +67,14 @@ export const productService = {
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.warn('Supabase query error, fallback to initial products:', error.message);
-        return INITIAL_PRODUCTS.filter((p) => p.published !== false);
+        console.warn('Supabase query error:', error.message);
+        return [];
       }
 
-      if (!data || data.length === 0) {
-        // If database is empty, provide initial seed products for display
-        return INITIAL_PRODUCTS.filter((p) => p.published !== false);
-      }
-
-      return data.map(mapRowToProduct);
+      return (data || []).map(mapRowToProduct);
     } catch (err) {
-      console.warn('Network error fetching products, using fallback:', err);
-      return INITIAL_PRODUCTS.filter((p) => p.published !== false);
+      console.warn('Network error fetching products:', err);
+      return [];
     }
   },
 
@@ -102,18 +97,12 @@ export const productService = {
         .single();
 
       if (error || !data) {
-        const fallback = INITIAL_PRODUCTS.find(
-          (p) => p.slug === slug || p.id.toLowerCase() === slug.toLowerCase()
-        );
-        return fallback || null;
+        return null;
       }
 
       return mapRowToProduct(data);
     } catch {
-      const fallback = INITIAL_PRODUCTS.find(
-        (p) => p.slug === slug || p.id.toLowerCase() === slug.toLowerCase()
-      );
-      return fallback || null;
+      return null;
     }
   },
 
@@ -249,19 +238,20 @@ export const productService = {
         .select('*')
         .order('display_order', { ascending: true });
 
-      if (error || !data || data.length === 0) {
-        return DEFAULT_CATEGORIES;
+      if (error) {
+        console.warn('Supabase query error fetching categories:', error.message);
+        return [];
       }
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return data.map((row: any) => ({
+      return (data || []).map((row: any) => ({
         id: row.id,
         name: row.name,
         description: row.description,
         displayOrder: row.display_order,
       }));
     } catch {
-      return DEFAULT_CATEGORIES;
+      return [];
     }
   },
 
