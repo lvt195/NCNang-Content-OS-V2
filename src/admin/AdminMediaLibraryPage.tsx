@@ -92,7 +92,7 @@ export const AdminMediaLibraryPage: React.FC = () => {
   // Category Filter: 'all' | 'uncategorized' | categoryId
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [productFilter, setProductFilter] = useState<string>('all');
-  const [viewScope, setViewScope] = useState<'current_folder' | 'all_photos'>('current_folder');
+  const [viewScope, setViewScope] = useState<'current_folder' | 'all_photos'>('all_photos');
   const [products, setProducts] = useState<Product[]>([]);
 
   // Collapsible sidebar state (persisted in localStorage)
