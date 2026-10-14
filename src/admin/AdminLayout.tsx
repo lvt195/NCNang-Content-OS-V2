@@ -12,6 +12,8 @@ import {
   Menu,
   X,
   User,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { SITE_CONFIG } from '../config/site';
@@ -21,6 +23,25 @@ export const AdminLayout: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('admin_sidebar_collapsed') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleSidebar = () => {
+    setSidebarCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('admin_sidebar_collapsed', String(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  };
 
   const handleLogout = async () => {
     await signOut();
@@ -37,7 +58,7 @@ export const AdminLayout: React.FC = () => {
   ];
 
   return (
-    <div className="admin-layout">
+    <div className={`admin-layout ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
       {/* Mobile Drawer Backdrop */}
       {mobileMenuOpen && (
         <div
@@ -46,13 +67,14 @@ export const AdminLayout: React.FC = () => {
         />
       )}
 
-      {/* Sidebar (Desktop permanent, Mobile off-canvas drawer) */}
-      <aside className={`admin-sidebar ${mobileMenuOpen ? 'open' : ''}`}>
+      {/* Sidebar (Desktop permanent fixed, Mobile off-canvas drawer) */}
+      <aside className={`admin-sidebar ${sidebarCollapsed ? 'collapsed' : ''} ${mobileMenuOpen ? 'open' : ''}`}>
         <div className="admin-sidebar-header">
           <Link
             to="/admin"
-            style={{ textDecoration: 'none', color: '#ffffff', display: 'flex', alignItems: 'center', gap: '0.65rem' }}
+            style={{ textDecoration: 'none', color: '#ffffff', display: 'flex', alignItems: 'center', gap: '0.65rem', overflow: 'hidden' }}
             onClick={() => setMobileMenuOpen(false)}
+            title={sidebarCollapsed ? `${SITE_CONFIG.name} Admin` : undefined}
           >
             <div
               style={{
@@ -67,19 +89,35 @@ export const AdminLayout: React.FC = () => {
                 color: '#e5ded5',
                 fontWeight: 700,
                 fontSize: '1rem',
+                flexShrink: 0,
               }}
             >
               N
             </div>
-            <div>
-              <h2 style={{ fontSize: '1.05rem', fontWeight: 600, margin: 0, color: '#ffffff' }}>
-                {SITE_CONFIG.name}
-              </h2>
-              <p style={{ fontSize: '0.725rem', color: '#a3978b', margin: '2px 0 0' }}>
-                Admin Control Panel
-              </p>
-            </div>
+            {!sidebarCollapsed && (
+              <div className="admin-sidebar-brand-text">
+                <h2 style={{ fontSize: '1.05rem', fontWeight: 600, margin: 0, color: '#ffffff', whiteSpace: 'nowrap' }}>
+                  {SITE_CONFIG.name}
+                </h2>
+                <p style={{ fontSize: '0.725rem', color: '#a3978b', margin: '2px 0 0', whiteSpace: 'nowrap' }}>
+                  Admin Control Panel
+                </p>
+              </div>
+            )}
           </Link>
+
+          {/* Desktop Toggle Button */}
+          <button
+            type="button"
+            className="admin-sidebar-toggle-btn"
+            onClick={toggleSidebar}
+            title={sidebarCollapsed ? 'Mở rộng menu (250px)' : 'Thu gọn menu (Ghim & Tiết kiệm diện tích)'}
+            aria-label="Thu gọn hoặc mở rộng menu"
+          >
+            {sidebarCollapsed ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}
+          </button>
+
+          {/* Mobile Drawer Close Button */}
           <button
             type="button"
             className="admin-drawer-close-btn"
@@ -91,9 +129,13 @@ export const AdminLayout: React.FC = () => {
 
         {/* Navigation List */}
         <nav className="admin-nav">
-          <div style={{ fontSize: '0.7rem', color: '#7a7065', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', padding: '0.5rem 0.75rem 0.25rem' }}>
-            Menu Quản Lý
-          </div>
+          {!sidebarCollapsed ? (
+            <div className="admin-nav-section-title">
+              Menu Quản Lý
+            </div>
+          ) : (
+            <div style={{ height: '1px', width: '28px', backgroundColor: 'rgba(255,255,255,0.1)', margin: '0.35rem auto 0.5rem' }} />
+          )}
           {navLinks.map((item) => {
             const Icon = item.icon;
             return (
@@ -102,10 +144,11 @@ export const AdminLayout: React.FC = () => {
                 to={item.to}
                 end={item.end}
                 onClick={() => setMobileMenuOpen(false)}
+                title={item.label}
                 className={({ isActive }) => `admin-nav-item ${isActive ? 'active' : ''}`}
               >
-                <Icon size={18} />
-                <span>{item.label}</span>
+                <Icon size={19} />
+                {!sidebarCollapsed && <span>{item.label}</span>}
               </NavLink>
             );
           })}
@@ -113,7 +156,10 @@ export const AdminLayout: React.FC = () => {
 
         {/* Sidebar Footer */}
         <div className="admin-sidebar-footer">
-          <div className="admin-user-info-card">
+          <div
+            className="admin-user-info-card"
+            title={`Đang đăng nhập: ${user?.email || 'admin@nhacomuinang'}`}
+          >
             <div
               style={{
                 width: '32px',
@@ -129,58 +175,62 @@ export const AdminLayout: React.FC = () => {
             >
               <User size={16} />
             </div>
-            <div style={{ minWidth: 0, flex: 1 }}>
-              <span style={{ display: 'block', fontSize: '0.675rem', color: '#8c8073', fontWeight: 600, textTransform: 'uppercase' }}>
-                Đang đăng nhập
-              </span>
-              <span
-                style={{
-                  display: 'block',
-                  fontSize: '0.775rem',
-                  color: '#e5ded5',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {user?.email || 'admin@nhacomuinang'}
-              </span>
-            </div>
+            {!sidebarCollapsed && (
+              <div style={{ minWidth: 0, flex: 1 }} className="admin-user-info-text">
+                <span style={{ display: 'block', fontSize: '0.675rem', color: '#8c8073', fontWeight: 600, textTransform: 'uppercase' }}>
+                  Đang đăng nhập
+                </span>
+                <span
+                  style={{
+                    display: 'block',
+                    fontSize: '0.775rem',
+                    color: '#e5ded5',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {user?.email || 'admin@nhacomuinang'}
+                </span>
+              </div>
+            )}
           </div>
 
           <Link
             to="/"
             target="_blank"
             rel="noopener noreferrer"
-            className="btn btn-outline btn-sm"
+            className="btn btn-outline btn-sm admin-sidebar-footer-btn"
+            title="Xem website cửa hàng ngoài"
             style={{
               borderColor: 'rgba(255, 255, 255, 0.15)',
               color: '#d4cbbe',
               justifyContent: 'center',
               backgroundColor: 'rgba(255, 255, 255, 0.04)',
-              padding: '0.45rem',
+              padding: sidebarCollapsed ? '0.45rem 0' : '0.45rem',
               fontSize: '0.825rem',
             }}
           >
-            <ExternalLink size={15} />
-            <span>Xem cửa hàng ngoài</span>
+            <ExternalLink size={16} />
+            {!sidebarCollapsed && <span>Xem cửa hàng ngoài</span>}
           </Link>
 
           <button
             type="button"
-            className="btn btn-outline btn-sm"
+            className="btn btn-outline btn-sm admin-sidebar-footer-btn"
             onClick={handleLogout}
+            title="Đăng xuất"
             style={{
               borderColor: 'rgba(255, 100, 100, 0.25)',
               color: '#ff8a80',
               justifyContent: 'center',
               backgroundColor: 'rgba(255, 100, 100, 0.05)',
-              padding: '0.45rem',
+              padding: sidebarCollapsed ? '0.45rem 0' : '0.45rem',
               fontSize: '0.825rem',
             }}
           >
-            <LogOut size={15} />
-            <span>Đăng xuất</span>
+            <LogOut size={16} />
+            {!sidebarCollapsed && <span>Đăng xuất</span>}
           </button>
         </div>
       </aside>
@@ -216,7 +266,18 @@ export const AdminLayout: React.FC = () => {
 
         {/* Desktop Topbar */}
         <header className="admin-desktop-topbar">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', color: '#685e54' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '0.875rem', color: '#685e54' }}>
+            {/* Topbar Toggle for quick 1-click collapse */}
+            <button
+              type="button"
+              className="admin-topbar-sidebar-toggle"
+              onClick={toggleSidebar}
+              title={sidebarCollapsed ? 'Mở rộng menu (250px)' : 'Thu gọn menu (Ghim & Tiết kiệm diện tích)'}
+              aria-label="Thu gọn hoặc mở rộng menu quản lý"
+            >
+              {sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+            </button>
+
             <span style={{ fontWeight: 600, color: '#2c2825' }}>Khu vực Quản trị</span>
             <span>/</span>
             <span>
@@ -226,6 +287,10 @@ export const AdminLayout: React.FC = () => {
                 ? 'Quản lý sản phẩm'
                 : location.pathname === '/admin/products/new'
                 ? 'Thêm sản phẩm mới'
+                : location.pathname === '/admin/products/bulk'
+                ? 'Nhập theo Folder'
+                : location.pathname === '/admin/media'
+                ? 'Kho ảnh'
                 : location.pathname === '/admin/categories'
                 ? 'Danh mục'
                 : 'Chi tiết'}
