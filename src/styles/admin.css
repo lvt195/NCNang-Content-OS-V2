@@ -182,6 +182,16 @@
   justify-content: center;
 }
 
+@media (min-width: 901px) {
+  .admin-sidebar.collapsed .admin-nav-item span,
+  .admin-sidebar.collapsed .admin-sidebar-brand-text,
+  .admin-sidebar.collapsed .admin-user-info-text,
+  .admin-sidebar.collapsed .admin-nav-section-title,
+  .admin-sidebar.collapsed .admin-sidebar-footer-btn span {
+    display: none !important;
+  }
+}
+
 /* ==========================================================================
    Main Content Area & Topbar
    ========================================================================== */

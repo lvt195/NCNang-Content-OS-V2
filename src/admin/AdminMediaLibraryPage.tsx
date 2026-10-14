@@ -95,12 +95,10 @@ export const AdminMediaLibraryPage: React.FC = () => {
   const [viewScope, setViewScope] = useState<'current_folder' | 'all_photos'>('all_photos');
   const [products, setProducts] = useState<Product[]>([]);
 
-  // Collapsible sidebar state (persisted in localStorage, auto-collapsed on mobile by default)
+  // Collapsible sidebar state on desktop (persisted in localStorage)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
     try {
-      const saved = localStorage.getItem('admin_media_sidebar_collapsed');
-      if (saved !== null) return saved === 'true';
-      return typeof window !== 'undefined' && window.innerWidth <= 900;
+      return localStorage.getItem('admin_media_sidebar_collapsed') === 'true';
     } catch {
       return false;
     }
@@ -894,6 +892,48 @@ export const AdminMediaLibraryPage: React.FC = () => {
           <span>{errorMsg}</span>
         </div>
       )}
+
+      {/* Mobile-Only Horizontal Category Filter Pills */}
+      <div className="media-mobile-category-bar">
+        <button
+          type="button"
+          onClick={() => {
+            setCategoryFilter('all');
+            setViewScope('all_photos');
+          }}
+          className={`media-mobile-cat-pill ${categoryFilter === 'all' && viewScope === 'all_photos' ? 'active' : ''}`}
+        >
+          <span>Tất cả ({allFiles.length})</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setCategoryFilter('uncategorized');
+            setViewScope('all_photos');
+          }}
+          className={`media-mobile-cat-pill ${categoryFilter === 'uncategorized' ? 'active' : ''}`}
+        >
+          <span>Gốc ({categoryCounts['uncategorized'] || 0})</span>
+        </button>
+
+        {categories.map((c) => {
+          const count = categoryCounts[c.id] || 0;
+          return (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => {
+                setCategoryFilter(c.id);
+                setViewScope('all_photos');
+              }}
+              className={`media-mobile-cat-pill ${categoryFilter === c.id ? 'active' : ''}`}
+            >
+              <span>{c.name} ({count})</span>
+            </button>
+          );
+        })}
+      </div>
 
       {/* 2-Column Workspace: Left Sidebar (Categories & Drop Targets) + Right Content */}
       <div
@@ -2970,49 +3010,47 @@ export const AdminMediaLibraryPage: React.FC = () => {
 
       {/* Floating Batch Actions Bar */}
       {selectedPaths.size > 0 && (
-        <div
-          className="media-batch-bar"
-          style={{
-            position: 'fixed',
-            bottom: '1.5rem',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            backgroundColor: '#2c2825',
-            color: '#ffffff',
-            borderRadius: '50px',
-            padding: '0.6rem 1.25rem',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '1rem',
-            boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.4)',
-            zIndex: 9999,
-            flexWrap: 'wrap',
-          }}
-        >
-          <span style={{ fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-            <CheckSquare size={16} color="#d4a373" />
-            Đã chọn {selectedPaths.size} ảnh
-          </span>
+        <div className="media-batch-bar">
+          <div className="media-batch-bar-header">
+            <span className="media-batch-count">
+              <CheckSquare size={16} color="#d4a373" />
+              <span>Đã chọn <strong>{selectedPaths.size}</strong> ảnh</span>
+            </span>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <button
-              type="button"
-              onClick={handleSelectAll}
-              style={{
-                backgroundColor: 'rgba(255,255,255,0.15)',
-                color: '#fff',
-                border: 'none',
-                borderRadius: '20px',
-                padding: '0.3rem 0.65rem',
-                fontSize: '0.75rem',
-                cursor: 'pointer',
-              }}
-            >
-              {selectedPaths.size === displayedItems.filter((i) => !i.isFolder).length
-                ? 'Bỏ chọn'
-                : 'Chọn tất cả'}
-            </button>
+            <div className="media-batch-top-actions">
+              <button
+                type="button"
+                onClick={handleSelectAll}
+                className="media-batch-btn media-batch-btn-subtle"
+              >
+                {selectedPaths.size === displayedItems.filter((i) => !i.isFolder).length
+                  ? 'Bỏ chọn'
+                  : 'Chọn tất cả'}
+              </button>
 
+              <button
+                type="button"
+                onClick={handleBatchDeleteSelected}
+                disabled={isBatchMoving}
+                className="media-batch-btn media-batch-btn-danger"
+                title="Xóa các ảnh đã chọn"
+              >
+                <Trash2 size={13} />
+                <span>Xóa</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleClearSelection}
+                className="media-batch-close-btn"
+                title="Đóng / Bỏ chọn"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          </div>
+
+          <div className="media-batch-bar-actions">
             {/* Multi-Category Assign Button */}
             <button
               type="button"
@@ -3023,24 +3061,11 @@ export const AdminMediaLibraryPage: React.FC = () => {
                 setIsMultiCategoryModalOpen(true);
               }}
               disabled={isBatchMoving}
-              style={{
-                backgroundColor: '#b78103',
-                color: '#ffffff',
-                border: 'none',
-                borderRadius: '20px',
-                padding: '0.35rem 0.8rem',
-                fontSize: '0.75rem',
-                fontWeight: 600,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.35rem',
-                boxShadow: '0 2px 6px rgba(183,129,3,0.35)',
-              }}
+              className="media-batch-btn media-batch-btn-gold"
               title="Thêm các ảnh đã chọn vào một hoặc nhiều danh mục"
             >
               <FolderPlus size={14} />
-              <span>Thêm vào nhiều danh mục...</span>
+              <span>Gán danh mục...</span>
             </button>
 
             {/* Batch move dropdown */}
@@ -3053,66 +3078,18 @@ export const AdminMediaLibraryPage: React.FC = () => {
                 }
               }}
               disabled={isBatchMoving}
-              style={{
-                backgroundColor: '#ffffff',
-                color: '#2c2825',
-                borderRadius: '20px',
-                border: 'none',
-                padding: '0.35rem 0.75rem',
-                fontSize: '0.75rem',
-                fontWeight: 600,
-                cursor: 'pointer',
-                outline: 'none',
-              }}
+              className="media-batch-select"
             >
               <option value="" disabled>
-                {isBatchMoving ? 'Đang chuyển...' : 'Chuyển sang danh mục ▾'}
+                {isBatchMoving ? 'Đang chuyển...' : 'Chuyển danh mục ▾'}
               </option>
-              <option value="__ROOT__">Thư mục gốc (Chưa phân loại)</option>
+              <option value="__ROOT__">Gốc (Chưa phân loại)</option>
               {categories.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
                 </option>
               ))}
             </select>
-
-            <button
-              type="button"
-              onClick={handleBatchDeleteSelected}
-              disabled={isBatchMoving}
-              style={{
-                backgroundColor: '#dc2626',
-                color: '#fff',
-                border: 'none',
-                borderRadius: '20px',
-                padding: '0.35rem 0.75rem',
-                fontSize: '0.75rem',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.25rem',
-              }}
-            >
-              <Trash2 size={13} />
-              <span>Xóa</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={handleClearSelection}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: '#cbd5e1',
-                cursor: 'pointer',
-                padding: '2px',
-                display: 'flex',
-                alignItems: 'center',
-              }}
-              title="Đóng / Bỏ chọn"
-            >
-              <X size={16} />
-            </button>
           </div>
         </div>
       )}
@@ -3372,7 +3349,168 @@ export const AdminMediaLibraryPage: React.FC = () => {
           gap: 0.85rem;
         }
 
+        .media-mobile-category-bar {
+          display: none;
+        }
+
+        /* Floating Batch Bar Desktop Styles */
+        .media-batch-bar {
+          position: fixed;
+          bottom: 1.5rem;
+          left: 50%;
+          transform: translateX(-50%);
+          background-color: #221e1a;
+          color: #ffffff;
+          border-radius: 50px;
+          padding: 0.55rem 1.15rem;
+          display: flex;
+          align-items: center;
+          gap: 0.85rem;
+          box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+          z-index: 9999;
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          box-sizing: border-box;
+          max-width: 92vw;
+        }
+
+        .media-batch-bar-header {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+          flex-shrink: 0;
+        }
+
+        .media-batch-count {
+          font-size: 0.85rem;
+          font-weight: 600;
+          display: flex;
+          align-items: center;
+          gap: 0.35rem;
+          white-space: nowrap;
+        }
+
+        .media-batch-top-actions {
+          display: flex;
+          align-items: center;
+          gap: 0.4rem;
+        }
+
+        .media-batch-bar-actions {
+          display: flex;
+          align-items: center;
+          gap: 0.45rem;
+          flex-shrink: 0;
+        }
+
+        .media-batch-btn {
+          border: none;
+          border-radius: 20px;
+          padding: 0.35rem 0.75rem;
+          font-size: 0.75rem;
+          font-weight: 600;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          gap: 0.35rem;
+          white-space: nowrap;
+          transition: all 0.15s ease;
+        }
+
+        .media-batch-btn-subtle {
+          background-color: rgba(255, 255, 255, 0.15);
+          color: #ffffff;
+        }
+
+        .media-batch-btn-subtle:hover {
+          background-color: rgba(255, 255, 255, 0.25);
+        }
+
+        .media-batch-btn-gold {
+          background-color: #b78103;
+          color: #ffffff;
+          box-shadow: 0 2px 6px rgba(183, 129, 3, 0.35);
+        }
+
+        .media-batch-btn-gold:hover {
+          background-color: #966902;
+        }
+
+        .media-batch-btn-danger {
+          background-color: #dc2626;
+          color: #ffffff;
+        }
+
+        .media-batch-btn-danger:hover {
+          background-color: #b91c1c;
+        }
+
+        .media-batch-close-btn {
+          background: transparent;
+          border: none;
+          color: #cbd5e1;
+          cursor: pointer;
+          padding: 4px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 50%;
+          transition: all 0.15s ease;
+        }
+
+        .media-batch-close-btn:hover {
+          color: #ffffff;
+          background-color: rgba(255, 255, 255, 0.15);
+        }
+
+        .media-batch-select {
+          background-color: #ffffff;
+          color: #2c2825;
+          border-radius: 20px;
+          border: none;
+          padding: 0.35rem 0.65rem;
+          font-size: 0.75rem;
+          font-weight: 600;
+          cursor: pointer;
+          outline: none;
+          height: 29px;
+          white-space: nowrap;
+        }
+
         @media (max-width: 900px) {
+          .media-mobile-category-bar {
+            display: flex;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            gap: 0.5rem;
+            padding: 0.25rem 0.2rem 0.6rem;
+            margin-bottom: 0.5rem;
+            scrollbar-width: none;
+            width: 100%;
+            box-sizing: border-box;
+          }
+          .media-mobile-category-bar::-webkit-scrollbar {
+            display: none;
+          }
+          .media-mobile-cat-pill {
+            flex-shrink: 0;
+            padding: 0.4rem 0.85rem;
+            border-radius: 20px;
+            border: 1px solid #dcd3c5;
+            background-color: #ffffff;
+            color: #4a3f35;
+            font-size: 0.775rem;
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.15s ease;
+          }
+          .media-mobile-cat-pill.active {
+            background-color: #766352;
+            color: #ffffff;
+            border-color: #766352;
+            box-shadow: 0 2px 6px rgba(118, 99, 82, 0.25);
+          }
+
           .media-library-layout {
             display: flex !important;
             flex-direction: column !important;
@@ -3381,25 +3519,57 @@ export const AdminMediaLibraryPage: React.FC = () => {
             gap: 0.85rem !important;
           }
           .media-library-layout aside {
-            position: static !important;
-            top: auto !important;
-            max-height: none !important;
-            width: 100% !important;
-            min-width: 0 !important;
-            z-index: 1 !important;
+            display: none !important;
           }
           .media-library-layout main {
             width: 100% !important;
             min-width: 0 !important;
           }
+
+          /* Floating Batch Bar Mobile Layout */
           .media-batch-bar {
-            bottom: calc(58px + env(safe-area-inset-bottom, 0px) + 12px) !important;
-            width: calc(100% - 1.5rem) !important;
-            max-width: 460px !important;
-            padding: 0.5rem 0.85rem !important;
+            bottom: calc(58px + env(safe-area-inset-bottom, 0px) + 8px) !important;
+            left: 50% !important;
+            transform: translateX(-50%) !important;
+            width: calc(100% - 1rem) !important;
+            max-width: 440px !important;
+            border-radius: 14px !important;
+            padding: 0.65rem 0.75rem !important;
+            flex-direction: column !important;
+            align-items: stretch !important;
             gap: 0.5rem !important;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5) !important;
+            overflow: hidden !important;
+          }
+
+          .media-batch-bar-header {
+            width: 100% !important;
             justify-content: space-between !important;
+          }
+
+          .media-batch-count {
             font-size: 0.8rem !important;
+          }
+
+          .media-batch-bar-actions {
+            width: 100% !important;
+            display: flex !important;
+            gap: 0.4rem !important;
+          }
+
+          .media-batch-bar-actions .media-batch-btn-gold,
+          .media-batch-bar-actions .media-batch-select {
+            flex: 1 1 50% !important;
+            min-width: 0 !important;
+            max-width: 50% !important;
+            justify-content: center !important;
+            text-align: center !important;
+            padding: 0.45rem 0.35rem !important;
+            font-size: 0.75rem !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            white-space: nowrap !important;
+            box-sizing: border-box !important;
           }
         }
 

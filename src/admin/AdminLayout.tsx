@@ -94,16 +94,14 @@ export const AdminLayout: React.FC = () => {
             >
               N
             </div>
-            {!sidebarCollapsed && (
-              <div className="admin-sidebar-brand-text">
-                <h2 style={{ fontSize: '1.05rem', fontWeight: 600, margin: 0, color: '#ffffff', whiteSpace: 'nowrap' }}>
-                  {SITE_CONFIG.name}
-                </h2>
-                <p style={{ fontSize: '0.725rem', color: '#a3978b', margin: '2px 0 0', whiteSpace: 'nowrap' }}>
-                  Admin Control Panel
-                </p>
-              </div>
-            )}
+            <div className="admin-sidebar-brand-text">
+              <h2 style={{ fontSize: '1.05rem', fontWeight: 600, margin: 0, color: '#ffffff', whiteSpace: 'nowrap' }}>
+                {SITE_CONFIG.name}
+              </h2>
+              <p style={{ fontSize: '0.725rem', color: '#a3978b', margin: '2px 0 0', whiteSpace: 'nowrap' }}>
+                Admin Control Panel
+              </p>
+            </div>
           </Link>
 
           {/* Desktop Toggle Button */}
@@ -129,13 +127,9 @@ export const AdminLayout: React.FC = () => {
 
         {/* Navigation List */}
         <nav className="admin-nav">
-          {!sidebarCollapsed ? (
-            <div className="admin-nav-section-title">
-              Menu Quản Lý
-            </div>
-          ) : (
-            <div style={{ height: '1px', width: '28px', backgroundColor: 'rgba(255,255,255,0.1)', margin: '0.35rem auto 0.5rem' }} />
-          )}
+          <div className="admin-nav-section-title">
+            Menu Quản Lý
+          </div>
           {navLinks.map((item) => {
             const Icon = item.icon;
             return (
@@ -148,7 +142,7 @@ export const AdminLayout: React.FC = () => {
                 className={({ isActive }) => `admin-nav-item ${isActive ? 'active' : ''}`}
               >
                 <Icon size={19} />
-                {!sidebarCollapsed && <span>{item.label}</span>}
+                <span>{item.label}</span>
               </NavLink>
             );
           })}
@@ -175,25 +169,23 @@ export const AdminLayout: React.FC = () => {
             >
               <User size={16} />
             </div>
-            {!sidebarCollapsed && (
-              <div style={{ minWidth: 0, flex: 1 }} className="admin-user-info-text">
-                <span style={{ display: 'block', fontSize: '0.675rem', color: '#8c8073', fontWeight: 600, textTransform: 'uppercase' }}>
-                  Đang đăng nhập
-                </span>
-                <span
-                  style={{
-                    display: 'block',
-                    fontSize: '0.775rem',
-                    color: '#e5ded5',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {user?.email || 'admin@nhacomuinang'}
-                </span>
-              </div>
-            )}
+            <div style={{ minWidth: 0, flex: 1 }} className="admin-user-info-text">
+              <span style={{ display: 'block', fontSize: '0.675rem', color: '#8c8073', fontWeight: 600, textTransform: 'uppercase' }}>
+                Đang đăng nhập
+              </span>
+              <span
+                style={{
+                  display: 'block',
+                  fontSize: '0.775rem',
+                  color: '#e5ded5',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {user?.email || 'admin@nhacomuinang'}
+              </span>
+            </div>
           </div>
 
           <Link
@@ -212,7 +204,7 @@ export const AdminLayout: React.FC = () => {
             }}
           >
             <ExternalLink size={16} />
-            {!sidebarCollapsed && <span>Xem cửa hàng ngoài</span>}
+            <span>Xem cửa hàng ngoài</span>
           </Link>
 
           <button
@@ -230,7 +222,7 @@ export const AdminLayout: React.FC = () => {
             }}
           >
             <LogOut size={16} />
-            {!sidebarCollapsed && <span>Đăng xuất</span>}
+            <span>Đăng xuất</span>
           </button>
         </div>
       </aside>
