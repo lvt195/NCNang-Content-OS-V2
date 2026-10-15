@@ -51,13 +51,15 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({ images, productN
         style={{
           width: '100%',
           aspectRatio: '1 / 1',
+          minHeight: '480px',
+          maxHeight: '680px',
           backgroundColor: '#faf8f5',
           borderRadius: 'var(--radius-md)',
           overflow: 'hidden',
           border: '1px solid var(--border-subtle)',
           position: 'relative',
           cursor: 'zoom-in',
-          boxShadow: '0 4px 20px rgba(0,0,0,0.04)',
+          boxShadow: '0 4px 24px rgba(0,0,0,0.06)',
         }}
         title="Bấm để phóng to xem chi tiết ảnh"
       >
@@ -211,19 +213,20 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({ images, productN
                 type="button"
                 onClick={() => setSelectedIndex(idx)}
                 style={{
-                  width: '74px',
-                  height: '74px',
+                  width: '82px',
+                  height: '82px',
                   flexShrink: 0,
                   borderRadius: 'var(--radius-sm)',
                   overflow: 'hidden',
                   border: isSelected
-                    ? '2px solid var(--accent-brown)'
+                    ? '2.5px solid var(--accent-brown)'
                     : '1px solid var(--border-subtle)',
                   padding: 0,
                   cursor: 'pointer',
                   backgroundColor: 'var(--bg-muted)',
                   opacity: isSelected ? 1 : 0.65,
                   transition: 'all 0.15s ease',
+                  transform: isSelected ? 'scale(1.02)' : 'scale(1)',
                 }}
                 aria-label={`Xem ảnh ${idx + 1}`}
               >
@@ -321,8 +324,8 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({ images, productN
             <div
               style={{
                 position: 'relative',
-                maxWidth: '92vw',
-                maxHeight: '82vh',
+                maxWidth: '96vw',
+                maxHeight: '88vh',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -334,10 +337,10 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({ images, productN
                 alt={`${productName} phóng to`}
                 style={{
                   maxWidth: '100%',
-                  maxHeight: '82vh',
+                  maxHeight: '86vh',
                   objectFit: 'contain',
-                  borderRadius: '6px',
-                  boxShadow: '0 20px 50px rgba(0,0,0,0.5)',
+                  borderRadius: '8px',
+                  boxShadow: '0 25px 60px rgba(0,0,0,0.6)',
                 }}
               />
 
@@ -417,10 +420,10 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({ images, productN
                     type="button"
                     onClick={() => setSelectedIndex(idx)}
                     style={{
-                      width: '54px',
-                      height: '54px',
+                      width: '64px',
+                      height: '64px',
                       flexShrink: 0,
-                      borderRadius: '4px',
+                      borderRadius: '6px',
                       overflow: 'hidden',
                       border: idx === selectedIndex ? '2px solid #ffffff' : '1px solid rgba(255,255,255,0.3)',
                       padding: 0,

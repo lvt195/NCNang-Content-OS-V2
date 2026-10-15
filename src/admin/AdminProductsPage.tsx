@@ -16,6 +16,8 @@ import {
   LayoutGrid,
   List,
   X,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { Product, Category } from '../types/product';
 import { productService } from '../services/productService';
@@ -913,171 +915,309 @@ export const AdminProductsPage: React.FC = () => {
               onClick={() => setQuickViewProduct(null)}
             />
 
-            {/* Modal Dialog Content */}
-            <div
-              style={{
-                position: 'relative',
-                width: '100%',
-                maxWidth: '860px',
-                maxHeight: '90vh',
-                backgroundColor: '#ffffff',
-                borderRadius: '14px',
-                boxShadow: '0 25px 50px -12px rgba(0,0,0,0.4)',
-                zIndex: 10001,
-                display: 'flex',
-                flexDirection: 'column',
-                overflow: 'hidden',
-              }}
-            >
-              {/* Modal Header */}
-              <div
-                style={{
-                  padding: '1rem 1.5rem',
-                  borderBottom: '1px solid #e8e1d5',
-                  backgroundColor: '#faf8f5',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                  <span
-                    style={{
-                      fontFamily: 'monospace',
-                      fontWeight: 700,
-                      backgroundColor: '#766352',
-                      color: '#ffffff',
-                      padding: '0.2rem 0.55rem',
-                      borderRadius: '4px',
-                      fontSize: '0.85rem',
-                    }}
-                  >
-                    {quickViewProduct.id}
-                  </span>
-                  <h3
-                    style={{
-                      fontSize: '1.15rem',
-                      fontWeight: 600,
-                      color: '#2c2825',
-                      margin: 0,
-                    }}
-                  >
-                    {quickViewProduct.name}
-                  </h3>
-                </div>
+            {/* Modal Dialog Content - Expansive 1280px View */}
+            {(() => {
+              const prodImages = quickViewProduct.images && quickViewProduct.images.length > 0
+                ? quickViewProduct.images
+                : (quickViewProduct.coverImage ? [quickViewProduct.coverImage] : ['/images/placeholder.webp']);
+              const currentImg = activePreviewImg || prodImages[0];
+              const currentIdx = Math.max(0, prodImages.indexOf(currentImg));
+              const handlePrev = (e: React.MouseEvent) => {
+                e.stopPropagation();
+                const nextIdx = currentIdx === 0 ? prodImages.length - 1 : currentIdx - 1;
+                setActivePreviewImg(prodImages[nextIdx]);
+              };
+              const handleNext = (e: React.MouseEvent) => {
+                e.stopPropagation();
+                const nextIdx = currentIdx === prodImages.length - 1 ? 0 : currentIdx + 1;
+                setActivePreviewImg(prodImages[nextIdx]);
+              };
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <Link
-                    to={`/admin/products/${quickViewProduct.id}/edit`}
-                    className="btn btn-primary btn-sm"
-                    style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.35rem 0.75rem' }}
-                  >
-                    <Edit2 size={14} />
-                    <span>Chỉnh sửa SP</span>
-                  </Link>
-
-                  <button
-                    type="button"
-                    onClick={() => setQuickViewProduct(null)}
-                    style={{
-                      border: 'none',
-                      background: 'none',
-                      cursor: 'pointer',
-                      color: '#8c8277',
-                      padding: '4px',
-                    }}
-                  >
-                    <X size={20} />
-                  </button>
-                </div>
-              </div>
-
-              {/* Modal Body: Photo priority on left, details on right */}
-              <div
-                style={{
-                  padding: '1.5rem',
-                  overflowY: 'auto',
-                  display: 'grid',
-                  gridTemplateColumns: 'minmax(320px, 1.2fr) minmax(280px, 1fr)',
-                  gap: '1.5rem',
-                  alignItems: 'start',
-                }}
-              >
-                {/* Left: Image Priority Display */}
-                <div>
-                  {/* Big Active Image */}
+              return (
+                <div
+                  style={{
+                    position: 'relative',
+                    width: '95vw',
+                    maxWidth: '1280px',
+                    maxHeight: '94vh',
+                    backgroundColor: '#ffffff',
+                    borderRadius: '16px',
+                    boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)',
+                    zIndex: 10001,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    overflow: 'hidden',
+                  }}
+                >
+                  {/* Modal Header */}
                   <div
                     style={{
-                      width: '100%',
-                      paddingTop: '80%',
-                      position: 'relative',
-                      borderRadius: '10px',
-                      overflow: 'hidden',
-                      backgroundColor: '#f3eee6',
-                      border: '1px solid #e8e1d5',
-                      boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                      padding: '1rem 1.75rem',
+                      borderBottom: '1px solid #e8e1d5',
+                      backgroundColor: '#faf8f5',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      flexShrink: 0,
                     }}
                   >
-                    <img
-                      src={activePreviewImg || quickViewProduct.coverImage || quickViewProduct.images[0] || '/images/placeholder.webp'}
-                      alt={quickViewProduct.name}
-                      style={{
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        width: '100%',
-                        height: '100%',
-                        objectFit: 'contain',
-                        backgroundColor: '#ffffff',
-                      }}
-                    />
-                  </div>
-
-                  {/* Thumbnail Row */}
-                  {quickViewProduct.images && quickViewProduct.images.length > 0 && (
-                    <div style={{ marginTop: '0.75rem' }}>
-                      <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#685e54', display: 'block', marginBottom: '0.4rem' }}>
-                        Tất cả ảnh của sản phẩm ({quickViewProduct.images.length} ảnh):
-                      </span>
-                      <div
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      <span
                         style={{
-                          display: 'flex',
-                          gap: '0.5rem',
-                          overflowX: 'auto',
-                          paddingBottom: '0.35rem',
+                          fontFamily: 'monospace',
+                          fontWeight: 700,
+                          backgroundColor: '#766352',
+                          color: '#ffffff',
+                          padding: '0.25rem 0.65rem',
+                          borderRadius: '6px',
+                          fontSize: '0.9rem',
                         }}
                       >
-                        {quickViewProduct.images.map((imgUrl, idx) => {
-                          const isSelected = activePreviewImg === imgUrl;
-                          return (
-                            <button
-                              key={idx}
-                              type="button"
-                              onClick={() => setActivePreviewImg(imgUrl)}
-                              style={{
-                                width: '64px',
-                                height: '64px',
-                                borderRadius: '6px',
-                                overflow: 'hidden',
-                                border: isSelected ? '2px solid #766352' : '1px solid #dcd3c5',
-                                padding: 0,
-                                flexShrink: 0,
-                                cursor: 'pointer',
-                                backgroundColor: '#f3eee6',
-                              }}
-                            >
-                              <img
-                                src={imgUrl}
-                                alt={`Ảnh ${idx + 1}`}
-                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                              />
-                            </button>
-                          );
-                        })}
-                      </div>
+                        {quickViewProduct.id}
+                      </span>
+                      <h3
+                        style={{
+                          fontSize: '1.25rem',
+                          fontWeight: 600,
+                          color: '#2c2825',
+                          margin: 0,
+                        }}
+                      >
+                        {quickViewProduct.name}
+                      </h3>
+                      <span style={{ fontSize: '0.8rem', color: '#8c8277' }}>
+                        ({prodImages.length} ảnh)
+                      </span>
                     </div>
-                  )}
-                </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <Link
+                        to={`/admin/products/${quickViewProduct.id}/edit`}
+                        className="btn btn-primary btn-sm"
+                        style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.4rem 0.85rem' }}
+                      >
+                        <Edit2 size={14} />
+                        <span>Chỉnh sửa SP</span>
+                      </Link>
+
+                      <button
+                        type="button"
+                        onClick={() => setQuickViewProduct(null)}
+                        style={{
+                          border: 'none',
+                          background: 'none',
+                          cursor: 'pointer',
+                          color: '#8c8277',
+                          padding: '6px',
+                          borderRadius: '50%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                        aria-label="Đóng"
+                      >
+                        <X size={22} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Modal Body: Dominant Photo View on Left (64%), Details on Right (36%) */}
+                  <div
+                    className="admin-quick-view-grid"
+                    style={{
+                      padding: '1.75rem',
+                      overflowY: 'auto',
+                      display: 'grid',
+                      gridTemplateColumns: '1fr',
+                      gap: '2rem',
+                      alignItems: 'start',
+                    }}
+                  >
+                    {/* Left: Expansive Image Priority Display */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                      {/* Big Active Image Container */}
+                      <div
+                        style={{
+                          width: '100%',
+                          height: '560px',
+                          maxHeight: '62vh',
+                          position: 'relative',
+                          borderRadius: '12px',
+                          overflow: 'hidden',
+                          backgroundColor: '#faf8f5',
+                          border: '1px solid #e8e1d5',
+                          boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <img
+                          src={currentImg}
+                          alt={`${quickViewProduct.name} - Ảnh ${currentIdx + 1}`}
+                          style={{
+                            maxWidth: '100%',
+                            maxHeight: '100%',
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'contain',
+                            transition: 'opacity 0.2s ease',
+                          }}
+                        />
+
+                        {/* Top-Left Counter Badge */}
+                        <div
+                          style={{
+                            position: 'absolute',
+                            top: '12px',
+                            left: '12px',
+                            backgroundColor: 'rgba(44, 40, 37, 0.75)',
+                            backdropFilter: 'blur(6px)',
+                            color: '#ffffff',
+                            padding: '0.25rem 0.75rem',
+                            borderRadius: '20px',
+                            fontSize: '0.8rem',
+                            fontWeight: 600,
+                            letterSpacing: '0.02em',
+                            pointerEvents: 'none',
+                          }}
+                        >
+                          Ảnh {currentIdx + 1} / {prodImages.length}
+                        </div>
+
+                        {/* Top-Right Open Original Link */}
+                        <a
+                          href={currentImg}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            position: 'absolute',
+                            top: '12px',
+                            right: '12px',
+                            backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                            backdropFilter: 'blur(4px)',
+                            color: '#2c2825',
+                            padding: '0.4rem',
+                            borderRadius: '50%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
+                            transition: 'transform 0.15s ease',
+                          }}
+                          title="Mở ảnh gốc độ phân giải cao trong tab mới"
+                        >
+                          <ExternalLink size={15} />
+                        </a>
+
+                        {/* Prev Arrow */}
+                        {prodImages.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={handlePrev}
+                            style={{
+                              position: 'absolute',
+                              left: '14px',
+                              top: '50%',
+                              transform: 'translateY(-50%)',
+                              backgroundColor: 'rgba(255, 255, 255, 0.92)',
+                              color: '#2c2825',
+                              border: 'none',
+                              borderRadius: '50%',
+                              width: '42px',
+                              height: '42px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              cursor: 'pointer',
+                              boxShadow: '0 3px 10px rgba(0,0,0,0.18)',
+                              transition: 'all 0.15s ease',
+                            }}
+                            title="Ảnh trước"
+                          >
+                            <ChevronLeft size={22} />
+                          </button>
+                        )}
+
+                        {/* Next Arrow */}
+                        {prodImages.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={handleNext}
+                            style={{
+                              position: 'absolute',
+                              right: '14px',
+                              top: '50%',
+                              transform: 'translateY(-50%)',
+                              backgroundColor: 'rgba(255, 255, 255, 0.92)',
+                              color: '#2c2825',
+                              border: 'none',
+                              borderRadius: '50%',
+                              width: '42px',
+                              height: '42px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              cursor: 'pointer',
+                              boxShadow: '0 3px 10px rgba(0,0,0,0.18)',
+                              transition: 'all 0.15s ease',
+                            }}
+                            title="Ảnh tiếp theo"
+                          >
+                            <ChevronRight size={22} />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Large Thumbnail Row */}
+                      {prodImages.length > 1 && (
+                        <div>
+                          <div
+                            style={{
+                              display: 'flex',
+                              gap: '0.65rem',
+                              overflowX: 'auto',
+                              paddingBottom: '0.4rem',
+                              scrollbarWidth: 'thin',
+                            }}
+                          >
+                            {prodImages.map((imgUrl, idx) => {
+                              const isSelected = currentImg === imgUrl;
+                              return (
+                                <button
+                                  key={idx}
+                                  type="button"
+                                  onClick={() => setActivePreviewImg(imgUrl)}
+                                  style={{
+                                    width: '78px',
+                                    height: '78px',
+                                    borderRadius: '8px',
+                                    overflow: 'hidden',
+                                    border: isSelected ? '2.5px solid #766352' : '1px solid #dcd3c5',
+                                    padding: 0,
+                                    flexShrink: 0,
+                                    cursor: 'pointer',
+                                    backgroundColor: '#faf8f5',
+                                    opacity: isSelected ? 1 : 0.65,
+                                    transition: 'all 0.15s ease',
+                                    transform: isSelected ? 'scale(1.03)' : 'scale(1)',
+                                    boxShadow: isSelected ? '0 2px 8px rgba(118,99,82,0.3)' : 'none',
+                                  }}
+                                  title={`Xem ảnh ${idx + 1}`}
+                                >
+                                  <img
+                                    src={imgUrl}
+                                    alt={`Ảnh thu nhỏ ${idx + 1}`}
+                                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                    loading="lazy"
+                                  />
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
 
                 {/* Right: Info Breakdown */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -1168,9 +1308,20 @@ export const AdminProductsPage: React.FC = () => {
                 </div>
               </div>
             </div>
+            );
+          })()}
           </div>,
           document.body
         )}
+
+      <style>{`
+        @media (min-width: 900px) {
+          .admin-quick-view-grid {
+            grid-template-columns: minmax(520px, 1.7fr) minmax(320px, 1fr) !important;
+            gap: 2.25rem !important;
+          }
+        }
+      `}</style>
     </div>
   );
 };

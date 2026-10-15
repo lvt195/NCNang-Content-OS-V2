@@ -326,10 +326,12 @@ export const productService = {
       throw new Error(`File ${file.name} vượt quá dung lượng tối đa 5MB.`);
     }
 
-    // Validate type
-    const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/avif'];
-    if (!validTypes.includes(file.type)) {
-      throw new Error(`Định dạng ${file.type} không được hỗ trợ. Vui lòng chọn JPG, PNG hoặc WebP.`);
+    // Validate type (support standard images, jpeg/jpg/png/webp/avif/gif/heic)
+    const isImage =
+      file.type.startsWith('image/') ||
+      /\.(jpe?g|png|webp|avif|gif|heic)$/i.test(file.name);
+    if (!isImage) {
+      throw new Error(`Định dạng file không được hỗ trợ. Vui lòng chọn ảnh JPG, PNG, WebP hoặc AVIF.`);
     }
 
     const ext = file.name.split('.').pop()?.toLowerCase() || 'webp';
@@ -338,7 +340,8 @@ export const productService = {
       .replace(/\.[^/.]+$/, '')
       .replace(/[^a-zA-Z0-9_-]/g, '_')
       .slice(0, 30);
-    const filePath = `${productCode.trim().toUpperCase()}/${timestamp}_${cleanName}.${ext}`;
+    const targetFolder = (productCode || 'SP').trim().toUpperCase();
+    const filePath = `${targetFolder}/${timestamp}_${cleanName}.${ext}`;
 
     const { error: uploadError } = await supabase.storage
       .from('product-images')

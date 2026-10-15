@@ -16,11 +16,11 @@ import {
   ArrowDown,
   FolderPlus,
   Image as ImageIcon,
+  Check,
 } from 'lucide-react';
 import { Product, Category, ProductColor, ComboItem } from '../types/product';
 import { productService } from '../services/productService';
 import { DEFAULT_COLORS } from '../data/colors';
-import { SITE_CONFIG } from '../config/site';
 import { normalizeVietnamese } from '../utils/filterProducts';
 import { ProductCard } from '../components/ProductCard';
 import { MediaPickerModal } from '../components/MediaPickerModal';
@@ -45,6 +45,7 @@ export const AdminProductFormPage: React.FC = () => {
   const [price, setPrice] = useState<number | ''>(350000);
   const [type, setType] = useState<'single' | 'combo'>('single');
   const [selectedColors, setSelectedColors] = useState<ProductColor[]>(['be']);
+  const [customColorInput, setCustomColorInput] = useState('');
   const [selectedSizes, setSelectedSizes] = useState<string[]>(['1m6 x 2m', '1m8 x 2m']);
   const [customSizeInput, setCustomSizeInput] = useState('');
   const [description, setDescription] = useState('');
@@ -120,6 +121,16 @@ export const AdminProductFormPage: React.FC = () => {
     );
   };
 
+  const handleAddCustomColor = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const val = customColorInput.trim();
+    if (!val) return;
+    if (!selectedColors.includes(val)) {
+      setSelectedColors((prev) => [...prev, val]);
+    }
+    setCustomColorInput('');
+  };
+
   // Size Toggle
   const toggleSize = (sizeVal: string) => {
     setSelectedSizes((prev) =>
@@ -127,12 +138,14 @@ export const AdminProductFormPage: React.FC = () => {
     );
   };
 
-  const handleAddCustomSize = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (customSizeInput.trim() && !selectedSizes.includes(customSizeInput.trim())) {
-      setSelectedSizes([...selectedSizes, customSizeInput.trim()]);
-      setCustomSizeInput('');
+  const handleAddCustomSize = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const val = customSizeInput.trim();
+    if (!val) return;
+    if (!selectedSizes.includes(val)) {
+      setSelectedSizes((prev) => [...prev, val]);
     }
+    setCustomSizeInput('');
   };
 
   // Combo items management
@@ -150,36 +163,84 @@ export const AdminProductFormPage: React.FC = () => {
     setComboItems((prev) => prev.filter((_, idx) => idx !== index));
   };
 
+  // Read file as Base64 Data URL (fallback if Storage upload fails)
+  const readFileAsDataUrl = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = () => reject(new Error(`Không thể đọc file ${file.name}`));
+      reader.readAsDataURL(file);
+    });
+  };
+
   // Core upload file logic
   const uploadFiles = async (fileList: FileList | File[]) => {
-    const files = Array.from(fileList).filter((f) => f.type.startsWith('image/'));
+    const files = Array.from(fileList).filter(
+      (f) => f.type.startsWith('image/') || /\.(jpe?g|png|webp|avif|gif|heic)$/i.test(f.name)
+    );
     if (files.length === 0) return;
 
-    if (!code.trim()) {
-      setErrorMsg('Vui lòng nhập Mã sản phẩm (Code) trước khi tải ảnh lên.');
-      return;
+    // Auto-generate provisional code if empty so upload is not blocked
+    let targetCode = code.trim();
+    if (!targetCode) {
+      if (name.trim()) {
+        const cleanName = normalizeVietnamese(name)
+          .replace(/[^a-z0-9]/g, '')
+          .slice(0, 4)
+          .toUpperCase();
+        targetCode = cleanName + Math.floor(100 + Math.random() * 900);
+      } else {
+        targetCode = 'SP' + Math.floor(100 + Math.random() * 900);
+      }
+      setCode(targetCode);
     }
 
     setUploadingImage(true);
     setErrorMsg('');
 
     try {
-      const uploadedUrls: string[] = [];
+      const newUrls: string[] = [];
+      let usedFallbackCount = 0;
+
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        const url = await productService.uploadProductImage(file, code);
-        uploadedUrls.push(url);
+        try {
+          const url = await productService.uploadProductImage(file, targetCode);
+          newUrls.push(url);
+        } catch (uploadErr) {
+          console.warn(`Lỗi khi tải ảnh ${file.name} lên Supabase Storage, chuyển sang lưu Base64:`, uploadErr);
+          const dataUrl = await readFileAsDataUrl(file);
+          newUrls.push(dataUrl);
+          usedFallbackCount++;
+        }
       }
 
       setImages((prev) => {
-        const updated = [...prev, ...uploadedUrls];
+        const existingSet = new Set(prev);
+        const uniqueUrls = newUrls.filter((u) => !existingSet.has(u));
+
+        if (uniqueUrls.length === 0) {
+          setErrorMsg('Tất cả các ảnh vừa chọn đều đã có trong danh sách (trùng lặp).');
+          return prev;
+        }
+
+        const updated = [...prev, ...uniqueUrls];
         if (!coverImage && updated.length > 0) {
           setCoverImage(updated[0]);
         }
+
+        const dupCount = newUrls.length - uniqueUrls.length;
+        if (dupCount > 0) {
+          setSuccessMsg(`Đã thêm ${uniqueUrls.length} ảnh (đã bỏ qua ${dupCount} ảnh trùng lặp).`);
+        } else if (usedFallbackCount > 0) {
+          setSuccessMsg(`Đã tải ${uniqueUrls.length} ảnh vào sản phẩm (lưu trữ trực tiếp).`);
+        } else {
+          setSuccessMsg(`Đã tải lên ${uniqueUrls.length} ảnh thành công.`);
+        }
+        setTimeout(() => setSuccessMsg(''), 3500);
+
         return updated;
       });
-      setSuccessMsg(`Đã tải lên ${uploadedUrls.length} ảnh thành công.`);
-      setTimeout(() => setSuccessMsg(''), 3000);
     } catch (err: unknown) {
       setErrorMsg(err instanceof Error ? err.message : 'Lỗi khi tải ảnh');
     } finally {
@@ -452,13 +513,13 @@ export const AdminProductFormPage: React.FC = () => {
                     : 'Kéo thả ảnh vào đây hoặc bấm để chọn'}
                 </span>
                 <span style={{ fontSize: '0.75rem', color: '#8c8277' }}>
-                  Hỗ trợ kéo thả nhiều ảnh JPG, PNG, WebP (Tối đa 5MB/ảnh)
+                  Hỗ trợ kéo thả nhiều ảnh JPG, PNG, WebP, AVIF, HEIC (Tối đa 5MB/ảnh)
                 </span>
                 <input
                   id="image-upload-input"
                   type="file"
                   multiple
-                  accept="image/jpeg,image/png,image/webp,image/avif"
+                  accept="image/*"
                   style={{ display: 'none' }}
                   onChange={handleFileUpload}
                   disabled={uploadingImage}
@@ -792,8 +853,14 @@ export const AdminProductFormPage: React.FC = () => {
 
               {/* Colors */}
               <div className="form-group">
-                <label className="form-label">Màu sắc có sẵn</label>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem', flexWrap: 'wrap', gap: '0.35rem' }}>
+                  <label className="form-label" style={{ margin: 0 }}>
+                    Màu sắc có sẵn ({selectedColors.length} màu đã chọn)
+                  </label>
+                  <span style={{ fontSize: '0.75rem', color: '#8c8073' }}>Bấm vào để chọn hoặc bỏ chọn màu</span>
+                </div>
+
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem' }}>
                   {DEFAULT_COLORS.map((col) => {
                     const isSelected = selectedColors.includes(col.id);
                     return (
@@ -811,51 +878,220 @@ export const AdminProductFormPage: React.FC = () => {
                             background: col.hex,
                             border: '1px solid rgba(0,0,0,0.15)',
                             display: 'inline-block',
+                            flexShrink: 0,
                           }}
                         />
                         <span>{col.label}</span>
+                        {isSelected && <Check size={13} style={{ marginLeft: '2px' }} />}
                       </button>
                     );
                   })}
-                </div>
-              </div>
 
-              {/* Sizes */}
-              <div className="form-group" style={{ marginTop: '1rem' }}>
-                <label className="form-label">Kích thước</label>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem' }}>
-                  {SITE_CONFIG.standardSizes.map((sz) => {
-                    const isSelected = selectedSizes.includes(sz);
-                    return (
-                      <button
-                        key={sz}
-                        type="button"
-                        onClick={() => toggleSize(sz)}
-                        className={`filter-chip ${isSelected ? 'active' : ''}`}
+                  {/* Render any custom colors added */}
+                  {selectedColors
+                    .filter((colId) => !DEFAULT_COLORS.some((c) => c.id === colId))
+                    .map((customCol) => (
+                      <div
+                        key={customCol}
+                        className="color-filter-pill active"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
                       >
-                        {sz}
-                      </button>
-                    );
-                  })}
+                        <span
+                          style={{
+                            width: '14px',
+                            height: '14px',
+                            borderRadius: '50%',
+                            background: '#c4b9ad',
+                            border: '1px solid rgba(0,0,0,0.15)',
+                            display: 'inline-block',
+                          }}
+                        />
+                        <span>{customCol}</span>
+                        <button
+                          type="button"
+                          onClick={() => toggleColor(customCol)}
+                          style={{
+                            border: 'none',
+                            background: 'none',
+                            color: '#ffffff',
+                            cursor: 'pointer',
+                            padding: 0,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            marginLeft: '2px',
+                          }}
+                          title={`Xóa màu ${customCol}`}
+                        >
+                          <X size={13} />
+                        </button>
+                      </div>
+                    ))}
                 </div>
 
-                {/* Add custom size */}
-                <div style={{ display: 'flex', gap: '0.5rem', maxWidth: '320px' }}>
+                {/* Add custom color */}
+                <div style={{ display: 'flex', gap: '0.5rem', maxWidth: '360px' }}>
                   <input
                     type="text"
-                    placeholder="Thêm cỡ khác (VD: 2m2 x 2m4)..."
-                    value={customSizeInput}
-                    onChange={(e) => setCustomSizeInput(e.target.value)}
+                    placeholder="Thêm màu sắc khác (VD: Xanh navy, Vàng kem)..."
+                    value={customColorInput}
+                    onChange={(e) => setCustomColorInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddCustomColor();
+                      }
+                    }}
                     className="form-input"
                     style={{ padding: '0.4rem 0.65rem', fontSize: '0.85rem' }}
                   />
                   <button
                     type="button"
-                    onClick={handleAddCustomSize}
+                    onClick={() => handleAddCustomColor()}
                     className="btn btn-outline btn-sm"
+                    style={{ whiteSpace: 'nowrap' }}
                   >
-                    Thêm
+                    Thêm màu
                   </button>
+                </div>
+              </div>
+
+              {/* Sizes */}
+              <div className="form-group" style={{ marginTop: '1.5rem', borderTop: '1px solid #f2ede4', paddingTop: '1.25rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem', flexWrap: 'wrap', gap: '0.35rem' }}>
+                  <label className="form-label" style={{ margin: 0 }}>
+                    Kích thước áp dụng cho sản phẩm ({selectedSizes.length} kích thước)
+                  </label>
+                  <span style={{ fontSize: '0.75rem', color: '#8c8073' }}>
+                    Chọn các cỡ khả dụng hoặc tùy chọn may theo yêu cầu
+                  </span>
+                </div>
+
+                {/* Selected Sizes Chips */}
+                <div style={{ marginBottom: '1rem' }}>
+                  {selectedSizes.length === 0 ? (
+                    <div
+                      style={{
+                        padding: '0.65rem 0.85rem',
+                        backgroundColor: '#faf8f5',
+                        borderRadius: '6px',
+                        border: '1px dashed #e8e1d5',
+                        fontSize: '0.825rem',
+                        color: '#8c8277',
+                      }}
+                    >
+                      Chưa chọn kích thước nào. Bạn có thể chọn nhanh các cỡ phổ biến bên dưới hoặc nhập kích thước riêng.
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                      {selectedSizes.map((sz) => (
+                        <span key={sz} className="selected-tag-chip">
+                          <Check size={13} color="#2e7d32" />
+                          <span>{sz}</span>
+                          <button
+                            type="button"
+                            onClick={() => toggleSize(sz)}
+                            title={`Xóa kích thước ${sz}`}
+                          >
+                            <X size={13} />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Common / Special Presets */}
+                <div style={{ marginBottom: '0.75rem' }}>
+                  <span style={{ fontSize: '0.785rem', fontWeight: 600, color: '#685e54', display: 'block', marginBottom: '0.35rem' }}>
+                    Tùy chọn may & kích thước đặc thù:
+                  </span>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.45rem', marginBottom: '0.75rem' }}>
+                    {['May theo kích thước yêu cầu', 'Kích thước cố định (Fix size)', 'Freesize'].map((opt) => {
+                      const isSelected = selectedSizes.includes(opt);
+                      return (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() => toggleSize(opt)}
+                          className={`filter-chip ${isSelected ? 'active' : ''}`}
+                        >
+                          <span>{opt}</span>
+                          {isSelected && <Check size={13} />}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <span style={{ fontSize: '0.785rem', fontWeight: 600, color: '#685e54', display: 'block', marginBottom: '0.35rem' }}>
+                    Kích thước giường / ga phổ biến:
+                  </span>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.45rem', marginBottom: '0.75rem' }}>
+                    {['1m2 x 2m', '1m4 x 2m', '1m6 x 2m', '1m8 x 2m', '2m x 2m2'].map((sz) => {
+                      const isSelected = selectedSizes.includes(sz);
+                      return (
+                        <button
+                          key={sz}
+                          type="button"
+                          onClick={() => toggleSize(sz)}
+                          className={`filter-chip ${isSelected ? 'active' : ''}`}
+                        >
+                          <span>{sz}</span>
+                          {isSelected && <Check size={13} />}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <span style={{ fontSize: '0.785rem', fontWeight: 600, color: '#685e54', display: 'block', marginBottom: '0.35rem' }}>
+                    Kích thước gối phổ biến:
+                  </span>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.45rem', marginBottom: '0.75rem' }}>
+                    {['45x65cm', '50x70cm'].map((sz) => {
+                      const isSelected = selectedSizes.includes(sz);
+                      return (
+                        <button
+                          key={sz}
+                          type="button"
+                          onClick={() => toggleSize(sz)}
+                          className={`filter-chip ${isSelected ? 'active' : ''}`}
+                        >
+                          <span>{sz}</span>
+                          {isSelected && <Check size={13} />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Add custom size input */}
+                <div>
+                  <span style={{ fontSize: '0.785rem', fontWeight: 600, color: '#685e54', display: 'block', marginBottom: '0.35rem' }}>
+                    Thêm kích thước riêng / thông số may:
+                  </span>
+                  <div style={{ display: 'flex', gap: '0.5rem', maxWidth: '380px' }}>
+                    <input
+                      type="text"
+                      placeholder="VD: 2m2 x 2m4, nệm cao 25cm, đệm tròn..."
+                      value={customSizeInput}
+                      onChange={(e) => setCustomSizeInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddCustomSize();
+                        }
+                      }}
+                      className="form-input"
+                      style={{ padding: '0.4rem 0.65rem', fontSize: '0.85rem' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleAddCustomSize()}
+                      className="btn btn-outline btn-sm"
+                      style={{ whiteSpace: 'nowrap' }}
+                    >
+                      Thêm kích thước
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1216,16 +1452,32 @@ export const AdminProductFormPage: React.FC = () => {
       <MediaPickerModal
         isOpen={showMediaPicker}
         onClose={() => setShowMediaPicker(false)}
+        alreadySelectedUrls={images}
         onSelectImages={(newUrls) => {
           setImages((prev) => {
-            const updated = [...prev, ...newUrls];
+            const existingSet = new Set(prev);
+            const uniqueUrls = newUrls.filter((u) => !existingSet.has(u));
+
+            if (uniqueUrls.length === 0) {
+              setErrorMsg('Tất cả các ảnh vừa chọn đều đã có trong danh sách (trùng lặp).');
+              return prev;
+            }
+
+            const updated = [...prev, ...uniqueUrls];
             if (!coverImage && updated.length > 0) {
               setCoverImage(updated[0]);
             }
+
+            const dupCount = newUrls.length - uniqueUrls.length;
+            if (dupCount > 0) {
+              setSuccessMsg(`Đã thêm ${uniqueUrls.length} ảnh (đã bỏ qua ${dupCount} ảnh trùng lặp).`);
+            } else {
+              setSuccessMsg(`Đã thêm ${uniqueUrls.length} ảnh từ Kho online vào sản phẩm!`);
+            }
+            setTimeout(() => setSuccessMsg(''), 3500);
+
             return updated;
           });
-          setSuccessMsg(`Đã thêm ${newUrls.length} ảnh từ Kho online vào sản phẩm!`);
-          setTimeout(() => setSuccessMsg(''), 3000);
         }}
         initialFolder={code || ''}
       />

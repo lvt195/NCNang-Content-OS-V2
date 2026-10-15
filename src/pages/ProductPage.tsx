@@ -123,7 +123,7 @@ export const ProductPage: React.FC = () => {
       <Header />
 
       <main style={{ flex: 1, paddingBottom: '4rem' }}>
-        <div className="container" style={{ paddingTop: '1.5rem' }}>
+        <div className="container" style={{ paddingTop: '1.5rem', maxWidth: '1440px' }}>
           {/* Breadcrumbs Navigation */}
           <nav
             style={{
@@ -413,10 +413,11 @@ export const ProductPage: React.FC = () => {
       <Footer />
 
       <style>{`
-        @media (min-width: 840px) {
+        @media (min-width: 960px) {
           .product-detail-grid {
-            grid-template-columns: 1.1fr 1fr !important;
+            grid-template-columns: 1.45fr 1fr !important;
             gap: 3.5rem !important;
+            align-items: start !important;
           }
         }
       `}</style>

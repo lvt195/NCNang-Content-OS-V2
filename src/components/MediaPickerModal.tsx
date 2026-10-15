@@ -20,6 +20,7 @@ interface MediaPickerModalProps {
   onClose: () => void;
   onSelectImages: (selectedUrls: string[]) => void;
   initialFolder?: string;
+  alreadySelectedUrls?: string[];
 }
 
 export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
@@ -27,6 +28,7 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
   onClose,
   onSelectImages,
   initialFolder = '',
+  alreadySelectedUrls = [],
 }) => {
   const [currentFolder, setCurrentFolder] = useState<string>(initialFolder);
   const [items, setItems] = useState<StorageItem[]>([]);
@@ -79,14 +81,18 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
   }, [isOpen, currentFolder]);
 
   const handleToggleSelect = (url: string) => {
+    if (alreadySelectedUrls.includes(url)) {
+      return; // Prevent duplicate
+    }
     setSelectedUrls((prev) =>
       prev.includes(url) ? prev.filter((u) => u !== url) : [...prev, url]
     );
   };
 
   const handleConfirmSelection = () => {
-    if (selectedUrls.length > 0) {
-      onSelectImages(selectedUrls);
+    const uniqueSelected = selectedUrls.filter((u) => !alreadySelectedUrls.includes(u));
+    if (uniqueSelected.length > 0) {
+      onSelectImages(uniqueSelected);
     }
     onClose();
   };
@@ -145,12 +151,12 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
       <div
         style={{
           position: 'relative',
-          width: '95%',
-          maxWidth: '920px',
-          height: '85vh',
+          width: '95vw',
+          maxWidth: '1280px',
+          height: '88vh',
           backgroundColor: '#ffffff',
-          borderRadius: '12px',
-          boxShadow: '0 25px 50px -12px rgba(0,0,0,0.35)',
+          borderRadius: '14px',
+          boxShadow: '0 25px 50px -12px rgba(0,0,0,0.45)',
           zIndex: 10001,
           display: 'flex',
           flexDirection: 'column',
@@ -418,8 +424,8 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))',
-                gap: '0.75rem',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(165px, 1fr))',
+                gap: '1rem',
               }}
             >
               {displayedItems.map((item) => {
@@ -459,6 +465,7 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
                   );
                 }
 
+                const isAlreadyAdded = item.publicUrl ? alreadySelectedUrls.includes(item.publicUrl) : false;
                 const isSelected = item.publicUrl ? selectedUrls.includes(item.publicUrl) : false;
                 const folderPrefix = item.fullPath.includes('/') ? item.fullPath.split('/')[0] : '';
                 const catObj = categories.find((c) => c.id === folderPrefix);
@@ -466,15 +473,24 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
                 return (
                   <div
                     key={item.fullPath}
-                    onClick={() => item.publicUrl && handleToggleSelect(item.publicUrl)}
+                    onClick={() => {
+                      if (isAlreadyAdded) return;
+                      if (item.publicUrl) handleToggleSelect(item.publicUrl);
+                    }}
                     style={{
-                      border: isSelected ? '2.5px solid #766352' : '1px solid #e8e1d5',
+                      border: isAlreadyAdded
+                        ? '1.5px solid #a5d6a7'
+                        : isSelected
+                        ? '2.5px solid #766352'
+                        : '1px solid #e8e1d5',
                       borderRadius: '6px',
                       overflow: 'hidden',
                       position: 'relative',
-                      cursor: 'pointer',
-                      backgroundColor: '#ffffff',
+                      cursor: isAlreadyAdded ? 'not-allowed' : 'pointer',
+                      backgroundColor: isAlreadyAdded ? '#f6fbf6' : '#ffffff',
+                      opacity: isAlreadyAdded ? 0.75 : 1,
                     }}
+                    title={isAlreadyAdded ? 'Ảnh này đã có trong sản phẩm' : item.name}
                   >
                     <div style={{ width: '100%', paddingTop: '100%', position: 'relative' }}>
                       <img
@@ -510,29 +526,48 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
                         </span>
                       )}
 
-                      {/* Select check badge */}
-                      <div
-                        style={{
-                          position: 'absolute',
-                          top: '6px',
-                          right: '6px',
-                          width: '22px',
-                          height: '22px',
-                          borderRadius: '50%',
-                          backgroundColor: isSelected ? '#766352' : 'rgba(255,255,255,0.85)',
-                          border: isSelected ? 'none' : '1px solid #dcd3c5',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          color: '#ffffff',
-                          boxShadow: '0 2px 4px rgba(0,0,0,0.15)',
-                        }}
-                      >
-                        {isSelected && <Check size={14} />}
-                      </div>
+                      {/* Select check badge or Already added badge */}
+                      {isAlreadyAdded ? (
+                        <div
+                          style={{
+                            position: 'absolute',
+                            top: '6px',
+                            right: '6px',
+                            backgroundColor: '#2e7d32',
+                            color: '#ffffff',
+                            fontSize: '0.65rem',
+                            fontWeight: 600,
+                            padding: '2px 6px',
+                            borderRadius: '4px',
+                            boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                          }}
+                        >
+                          Đã thêm
+                        </div>
+                      ) : (
+                        <div
+                          style={{
+                            position: 'absolute',
+                            top: '6px',
+                            right: '6px',
+                            width: '22px',
+                            height: '22px',
+                            borderRadius: '50%',
+                            backgroundColor: isSelected ? '#766352' : 'rgba(255,255,255,0.85)',
+                            border: isSelected ? 'none' : '1px solid #dcd3c5',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: '#ffffff',
+                            boxShadow: '0 2px 4px rgba(0,0,0,0.15)',
+                          }}
+                        >
+                          {isSelected && <Check size={14} />}
+                        </div>
+                      )}
                     </div>
 
-                    <div style={{ padding: '0.35rem 0.5rem', backgroundColor: isSelected ? '#f5eee6' : '#ffffff' }}>
+                    <div style={{ padding: '0.35rem 0.5rem', backgroundColor: isAlreadyAdded ? '#f0f9f0' : isSelected ? '#f5eee6' : '#ffffff' }}>
                       <span
                         style={{
                           fontSize: '0.7rem',

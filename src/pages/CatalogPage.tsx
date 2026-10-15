@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useSearchParams, Link } from 'react-router-dom';
-import { ArrowUpDown, RefreshCw, X, SlidersHorizontal, ArrowRight, MessageCircle } from 'lucide-react';
+import { ArrowUpDown, RefreshCw, X, SlidersHorizontal, ArrowRight, MessageCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Product, Category, FilterState, SortOption } from '../types/product';
 import { productService } from '../services/productService';
 import { filterProducts } from '../utils/filterProducts';
@@ -455,160 +455,275 @@ export const CatalogPage: React.FC = () => {
               onClick={() => setQuickViewProduct(null)}
             />
 
-            {/* Modal Dialog */}
-            <div
-              style={{
-                position: 'relative',
-                width: '100%',
-                maxWidth: '860px',
-                maxHeight: '90vh',
-                backgroundColor: 'var(--bg-surface)',
-                borderRadius: 'var(--radius-lg)',
-                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
-                zIndex: 10001,
-                overflow: 'hidden',
-                display: 'flex',
-                flexDirection: 'column',
-              }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* Header */}
-              <div
-                style={{
-                  padding: '1rem 1.5rem',
-                  borderBottom: '1px solid var(--border-subtle)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  backgroundColor: 'var(--bg-muted)',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                  <span
-                    style={{
-                      fontFamily: 'monospace',
-                      fontWeight: 700,
-                      backgroundColor: 'var(--accent-brown)',
-                      color: '#ffffff',
-                      padding: '0.2rem 0.55rem',
-                      borderRadius: '4px',
-                      fontSize: '0.8rem',
-                    }}
-                  >
-                    {quickViewProduct.id}
-                  </span>
-                  <h3
-                    className="font-serif"
-                    style={{
-                      fontSize: '1.15rem',
-                      fontWeight: 600,
-                      color: 'var(--text-primary)',
-                      margin: 0,
-                    }}
-                  >
-                    {quickViewProduct.name}
-                  </h3>
-                </div>
+            {/* Modal Dialog Content - Expansive 1280px View */}
+            {(() => {
+              const prodImages = quickViewProduct.images && quickViewProduct.images.length > 0
+                ? quickViewProduct.images
+                : (quickViewProduct.coverImage ? [quickViewProduct.coverImage] : ['/images/placeholder.webp']);
+              const currentImg = activeQuickViewImg || prodImages[0];
+              const currentIdx = Math.max(0, prodImages.indexOf(currentImg));
+              const handlePrev = (e: React.MouseEvent) => {
+                e.stopPropagation();
+                const nextIdx = currentIdx === 0 ? prodImages.length - 1 : currentIdx - 1;
+                setActiveQuickViewImg(prodImages[nextIdx]);
+              };
+              const handleNext = (e: React.MouseEvent) => {
+                e.stopPropagation();
+                const nextIdx = currentIdx === prodImages.length - 1 ? 0 : currentIdx + 1;
+                setActiveQuickViewImg(prodImages[nextIdx]);
+              };
 
-                <button
-                  type="button"
-                  onClick={() => setQuickViewProduct(null)}
+              return (
+                <div
                   style={{
-                    border: 'none',
-                    background: 'none',
-                    cursor: 'pointer',
-                    color: 'var(--text-muted)',
-                    padding: '4px',
+                    position: 'relative',
+                    width: '95vw',
+                    maxWidth: '1280px',
+                    maxHeight: '94vh',
+                    backgroundColor: 'var(--bg-surface)',
+                    borderRadius: 'var(--radius-lg)',
+                    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.45)',
+                    zIndex: 10001,
+                    overflow: 'hidden',
                     display: 'flex',
-                    alignItems: 'center',
+                    flexDirection: 'column',
                   }}
-                  aria-label="Đóng xem nhanh"
+                  onClick={(e) => e.stopPropagation()}
                 >
-                  <X size={20} />
-                </button>
-              </div>
-
-              {/* Body: Two Columns */}
-              <div
-                style={{
-                  padding: '1.5rem',
-                  overflowY: 'auto',
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-                  gap: '1.75rem',
-                  alignItems: 'start',
-                }}
-              >
-                {/* Left: Photos Preview */}
-                <div>
+                  {/* Header */}
                   <div
                     style={{
-                      width: '100%',
-                      aspectRatio: '1 / 1',
-                      borderRadius: 'var(--radius-md)',
-                      overflow: 'hidden',
+                      padding: '1rem 1.75rem',
+                      borderBottom: '1px solid var(--border-subtle)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
                       backgroundColor: 'var(--bg-muted)',
-                      border: '1px solid var(--border-subtle)',
-                      position: 'relative',
-                      boxShadow: '0 2px 10px rgba(0,0,0,0.05)',
+                      flexShrink: 0,
                     }}
                   >
-                    <img
-                      src={activeQuickViewImg || quickViewProduct.coverImage || quickViewProduct.images?.[0] || '/images/placeholder.webp'}
-                      alt={quickViewProduct.name}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      <span
+                        style={{
+                          fontFamily: 'monospace',
+                          fontWeight: 700,
+                          backgroundColor: 'var(--accent-brown)',
+                          color: '#ffffff',
+                          padding: '0.25rem 0.65rem',
+                          borderRadius: '4px',
+                          fontSize: '0.85rem',
+                        }}
+                      >
+                        {quickViewProduct.id}
+                      </span>
+                      <h3
+                        className="font-serif"
+                        style={{
+                          fontSize: '1.25rem',
+                          fontWeight: 600,
+                          color: 'var(--text-primary)',
+                          margin: 0,
+                        }}
+                      >
+                        {quickViewProduct.name}
+                      </h3>
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                        ({prodImages.length} ảnh)
+                      </span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setQuickViewProduct(null)}
                       style={{
-                        width: '100%',
-                        height: '100%',
-                        objectFit: 'cover',
+                        border: 'none',
+                        background: 'none',
+                        cursor: 'pointer',
+                        color: 'var(--text-muted)',
+                        padding: '6px',
+                        borderRadius: '50%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
                       }}
-                    />
+                      aria-label="Đóng xem nhanh"
+                    >
+                      <X size={22} />
+                    </button>
                   </div>
 
-                  {/* Thumbnails */}
-                  {quickViewProduct.images && quickViewProduct.images.length > 1 && (
-                    <div
-                      style={{
-                        display: 'flex',
-                        gap: '0.5rem',
-                        marginTop: '0.75rem',
-                        overflowX: 'auto',
-                        paddingBottom: '0.25rem',
-                      }}
-                    >
-                      {quickViewProduct.images.map((imgUrl, idx) => {
-                        const isSelected = (activeQuickViewImg || quickViewProduct.coverImage) === imgUrl;
-                        return (
+                  {/* Body: Two Columns (Images 62%, Details 38%) */}
+                  <div
+                    className="catalog-quick-view-grid"
+                    style={{
+                      padding: '1.75rem',
+                      overflowY: 'auto',
+                      display: 'grid',
+                      gridTemplateColumns: '1fr',
+                      gap: '2rem',
+                      alignItems: 'start',
+                    }}
+                  >
+                    {/* Left: Photos Preview */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                      {/* Big Active Image */}
+                      <div
+                        style={{
+                          width: '100%',
+                          height: '560px',
+                          maxHeight: '62vh',
+                          borderRadius: 'var(--radius-md)',
+                          overflow: 'hidden',
+                          backgroundColor: '#faf8f5',
+                          border: '1px solid var(--border-subtle)',
+                          position: 'relative',
+                          boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <img
+                          src={currentImg}
+                          alt={`${quickViewProduct.name} - Ảnh ${currentIdx + 1}`}
+                          style={{
+                            maxWidth: '100%',
+                            maxHeight: '100%',
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'contain',
+                            transition: 'opacity 0.2s ease',
+                          }}
+                        />
+
+                        {/* Counter Badge */}
+                        <div
+                          style={{
+                            position: 'absolute',
+                            top: '12px',
+                            left: '12px',
+                            backgroundColor: 'rgba(44, 40, 37, 0.75)',
+                            backdropFilter: 'blur(6px)',
+                            color: '#ffffff',
+                            padding: '0.25rem 0.75rem',
+                            borderRadius: '20px',
+                            fontSize: '0.8rem',
+                            fontWeight: 600,
+                            letterSpacing: '0.02em',
+                            pointerEvents: 'none',
+                          }}
+                        >
+                          Ảnh {currentIdx + 1} / {prodImages.length}
+                        </div>
+
+                        {/* Prev Arrow */}
+                        {prodImages.length > 1 && (
                           <button
-                            key={idx}
                             type="button"
-                            onClick={() => setActiveQuickViewImg(imgUrl)}
+                            onClick={handlePrev}
                             style={{
-                              width: '60px',
-                              height: '60px',
-                              flexShrink: 0,
-                              borderRadius: 'var(--radius-sm)',
-                              overflow: 'hidden',
-                              border: isSelected
-                                ? '2px solid var(--accent-brown)'
-                                : '1px solid var(--border-subtle)',
-                              padding: 0,
+                              position: 'absolute',
+                              left: '14px',
+                              top: '50%',
+                              transform: 'translateY(-50%)',
+                              backgroundColor: 'rgba(255, 255, 255, 0.92)',
+                              color: 'var(--text-primary)',
+                              border: 'none',
+                              borderRadius: '50%',
+                              width: '42px',
+                              height: '42px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
                               cursor: 'pointer',
-                              backgroundColor: 'transparent',
-                              opacity: isSelected ? 1 : 0.6,
+                              boxShadow: '0 3px 10px rgba(0,0,0,0.18)',
                               transition: 'all 0.15s ease',
                             }}
+                            title="Ảnh trước"
                           >
-                            <img
-                              src={imgUrl}
-                              alt=""
-                              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                            />
+                            <ChevronLeft size={22} />
                           </button>
-                        );
-                      })}
+                        )}
+
+                        {/* Next Arrow */}
+                        {prodImages.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={handleNext}
+                            style={{
+                              position: 'absolute',
+                              right: '14px',
+                              top: '50%',
+                              transform: 'translateY(-50%)',
+                              backgroundColor: 'rgba(255, 255, 255, 0.92)',
+                              color: 'var(--text-primary)',
+                              border: 'none',
+                              borderRadius: '50%',
+                              width: '42px',
+                              height: '42px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              cursor: 'pointer',
+                              boxShadow: '0 3px 10px rgba(0,0,0,0.18)',
+                              transition: 'all 0.15s ease',
+                            }}
+                            title="Ảnh tiếp theo"
+                          >
+                            <ChevronRight size={22} />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Large Thumbnails */}
+                      {prodImages.length > 1 && (
+                        <div
+                          style={{
+                            display: 'flex',
+                            gap: '0.65rem',
+                            overflowX: 'auto',
+                            paddingBottom: '0.4rem',
+                            scrollbarWidth: 'thin',
+                          }}
+                        >
+                          {prodImages.map((imgUrl, idx) => {
+                            const isSelected = currentImg === imgUrl;
+                            return (
+                              <button
+                                key={idx}
+                                type="button"
+                                onClick={() => setActiveQuickViewImg(imgUrl)}
+                                style={{
+                                  width: '78px',
+                                  height: '78px',
+                                  flexShrink: 0,
+                                  borderRadius: 'var(--radius-sm)',
+                                  overflow: 'hidden',
+                                  border: isSelected
+                                    ? '2.5px solid var(--accent-brown)'
+                                    : '1px solid var(--border-subtle)',
+                                  padding: 0,
+                                  cursor: 'pointer',
+                                  backgroundColor: '#faf8f5',
+                                  opacity: isSelected ? 1 : 0.65,
+                                  transition: 'all 0.15s ease',
+                                  transform: isSelected ? 'scale(1.03)' : 'scale(1)',
+                                  boxShadow: isSelected ? '0 2px 8px rgba(118,99,82,0.3)' : 'none',
+                                }}
+                                title={`Xem ảnh ${idx + 1}`}
+                              >
+                                <img
+                                  src={imgUrl}
+                                  alt=""
+                                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                  loading="lazy"
+                                />
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
 
                 {/* Right: Info & Actions */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -758,6 +873,8 @@ export const CatalogPage: React.FC = () => {
                 </div>
               </div>
             </div>
+            );
+          })()}
           </div>,
           document.body
         )}
@@ -783,6 +900,13 @@ export const CatalogPage: React.FC = () => {
           }
           .mobile-toolbar-filter-btn {
             display: none !important;
+          }
+        }
+
+        @media (min-width: 900px) {
+          .catalog-quick-view-grid {
+            grid-template-columns: minmax(520px, 1.6fr) minmax(340px, 1fr) !important;
+            gap: 2.25rem !important;
           }
         }
       `}</style>

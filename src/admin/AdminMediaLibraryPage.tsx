@@ -163,6 +163,15 @@ export const AdminMediaLibraryPage: React.FC = () => {
   const [dragOverCategory, setDragOverCategory] = useState<string | null>(null);
   const [isBatchMoving, setIsBatchMoving] = useState<boolean>(false);
   const [isSelectMode, setIsSelectMode] = useState<boolean>(false);
+  const [gridSize, setGridSize] = useState<'normal' | 'large'>(() => {
+    return (localStorage.getItem('media_grid_size') as 'normal' | 'large') || 'large';
+  });
+
+  const handleToggleGridSize = () => {
+    const next = gridSize === 'large' ? 'normal' : 'large';
+    setGridSize(next);
+    localStorage.setItem('media_grid_size', next);
+  };
 
   // Drag Action Mode: 'move' (Chuyển hẳn) | 'copy' (Thêm/Sao chép vào danh mục)
   const [dragActionMode, setDragActionMode] = useState<'move' | 'copy'>('move');
@@ -1881,6 +1890,26 @@ export const AdminMediaLibraryPage: React.FC = () => {
               >
                 <RefreshCw size={14} />
               </button>
+
+              <button
+                type="button"
+                onClick={handleToggleGridSize}
+                className="btn btn-outline btn-sm"
+                style={{
+                  padding: '0.35rem 0.65rem',
+                  fontSize: '0.75rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  backgroundColor: gridSize === 'large' ? '#faf8f5' : '#ffffff',
+                  borderColor: gridSize === 'large' ? '#766352' : '#e8e1d5',
+                  color: '#2c2825',
+                  fontWeight: 600,
+                }}
+                title={gridSize === 'large' ? 'Đang bật Lưới Lớn (230px). Bấm để thu về Lưới Vừa' : 'Đang bật Lưới Vừa (170px). Bấm để phóng to Lưới Lớn'}
+              >
+                <span>{gridSize === 'large' ? '🖼️ Lưới Lớn' : '🔲 Lưới Vừa'}</span>
+              </button>
             </div>
           </div>
 
@@ -2011,8 +2040,10 @@ export const AdminMediaLibraryPage: React.FC = () => {
                 className="media-photo-grid"
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))',
-                  gap: '0.85rem',
+                  gridTemplateColumns: gridSize === 'large'
+                    ? 'repeat(auto-fill, minmax(230px, 1fr))'
+                    : 'repeat(auto-fill, minmax(170px, 1fr))',
+                  gap: gridSize === 'large' ? '1.15rem' : '0.85rem',
                 }}
               >
                 {displayedItems.map((item, idx) => {
@@ -2846,92 +2877,240 @@ export const AdminMediaLibraryPage: React.FC = () => {
           document.body
         )}
 
-      {/* Modal: Full Preview */}
+      {/* Modal: Full Preview (Expansive Theatre Lightbox) */}
       {previewItem &&
         createPortal(
-          <div
-            style={{
-              position: 'fixed',
-              inset: 0,
-              zIndex: 10000,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '1.5rem',
-            }}
-          >
-            <div
-              style={{
-                position: 'fixed',
-                inset: 0,
-                backgroundColor: 'rgba(0,0,0,0.75)',
-                backdropFilter: 'blur(4px)',
-              }}
-              onClick={() => setPreviewItem(null)}
-            />
-            <div
-              style={{
-                position: 'relative',
-                maxWidth: '90vw',
-                maxHeight: '90vh',
-                backgroundColor: '#ffffff',
-                borderRadius: '12px',
-                overflow: 'hidden',
-                zIndex: 10001,
-                display: 'flex',
-                flexDirection: 'column',
-              }}
-            >
+          (() => {
+            const photoList = displayedItems.filter((i) => !i.isFolder && i.publicUrl);
+            const currentIdx = photoList.findIndex((i) => i.fullPath === previewItem.fullPath);
+            const hasMultiple = photoList.length > 1;
+
+            const handlePrevPreview = (e: React.MouseEvent) => {
+              e.stopPropagation();
+              const nextIdx = currentIdx <= 0 ? photoList.length - 1 : currentIdx - 1;
+              setPreviewItem(photoList[nextIdx]);
+            };
+
+            const handleNextPreview = (e: React.MouseEvent) => {
+              e.stopPropagation();
+              const nextIdx = currentIdx >= photoList.length - 1 ? 0 : currentIdx + 1;
+              setPreviewItem(photoList[nextIdx]);
+            };
+
+            return (
               <div
                 style={{
+                  position: 'fixed',
+                  inset: 0,
+                  zIndex: 10000,
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '0.75rem 1rem',
-                  borderBottom: '1px solid #e8e1d5',
+                  justifyContent: 'center',
+                  padding: '1rem',
                 }}
               >
-                <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#2c2825' }}>
-                  {previewItem.name} ({formatFileSize(previewItem.size)})
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <button
-                    type="button"
-                    onClick={() => handleCopyUrl(previewItem.publicUrl || '')}
-                    className="btn btn-outline btn-sm"
-                    style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
-                  >
-                    <Copy size={13} />
-                    <span>Copy link</span>
-                  </button>
-                  <a
-                    href={previewItem.publicUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="btn btn-outline btn-sm"
-                    style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
-                  >
-                    <ExternalLink size={13} />
-                  </a>
-                  <button
-                    type="button"
-                    onClick={() => setPreviewItem(null)}
-                    style={{ border: 'none', background: 'none', cursor: 'pointer', padding: '4px' }}
-                  >
-                    <X size={20} />
-                  </button>
-                </div>
-              </div>
-
-              <div style={{ padding: '1rem', textAlign: 'center', overflow: 'auto', maxHeight: '78vh' }}>
-                <img
-                  src={previewItem.publicUrl}
-                  alt={previewItem.name}
-                  style={{ maxWidth: '100%', maxHeight: '72vh', objectFit: 'contain', borderRadius: '6px' }}
+                <div
+                  style={{
+                    position: 'fixed',
+                    inset: 0,
+                    backgroundColor: 'rgba(18, 15, 12, 0.92)',
+                    backdropFilter: 'blur(6px)',
+                  }}
+                  onClick={() => setPreviewItem(null)}
                 />
+                <div
+                  style={{
+                    position: 'relative',
+                    width: '96vw',
+                    maxWidth: '1360px',
+                    maxHeight: '94vh',
+                    backgroundColor: '#1e1a17',
+                    borderRadius: '16px',
+                    overflow: 'hidden',
+                    zIndex: 10001,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    boxShadow: '0 25px 60px rgba(0,0,0,0.7)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {/* Theatre Header */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '0.85rem 1.5rem',
+                      borderBottom: '1px solid rgba(255,255,255,0.1)',
+                      backgroundColor: 'rgba(0,0,0,0.3)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: '#ffffff' }}>
+                      <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>
+                        {previewItem.name}
+                      </span>
+                      <span style={{ fontSize: '0.75rem', color: '#b4a99a' }}>
+                        ({formatFileSize(previewItem.size)})
+                      </span>
+                      {hasMultiple && currentIdx >= 0 && (
+                        <span
+                          style={{
+                            fontSize: '0.75rem',
+                            backgroundColor: 'rgba(255,255,255,0.15)',
+                            padding: '2px 8px',
+                            borderRadius: '10px',
+                            color: '#e8e1d5',
+                          }}
+                        >
+                          {currentIdx + 1} / {photoList.length}
+                        </span>
+                      )}
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyUrl(previewItem.publicUrl || '')}
+                        className="btn btn-outline btn-sm"
+                        style={{
+                          fontSize: '0.75rem',
+                          padding: '0.3rem 0.65rem',
+                          color: '#ffffff',
+                          borderColor: 'rgba(255,255,255,0.25)',
+                          backgroundColor: 'rgba(255,255,255,0.08)',
+                        }}
+                      >
+                        <Copy size={13} />
+                        <span>Sao chép Link</span>
+                      </button>
+                      <a
+                        href={previewItem.publicUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn btn-outline btn-sm"
+                        style={{
+                          fontSize: '0.75rem',
+                          padding: '0.3rem 0.65rem',
+                          color: '#ffffff',
+                          borderColor: 'rgba(255,255,255,0.25)',
+                          backgroundColor: 'rgba(255,255,255,0.08)',
+                        }}
+                        title="Mở ảnh gốc trong tab mới"
+                      >
+                        <ExternalLink size={13} />
+                        <span>Tab mới</span>
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => setPreviewItem(null)}
+                        style={{
+                          border: 'none',
+                          background: 'none',
+                          cursor: 'pointer',
+                          padding: '6px',
+                          color: '#ffffff',
+                          borderRadius: '50%',
+                          backgroundColor: 'rgba(255,255,255,0.1)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                        aria-label="Đóng xem ảnh"
+                      >
+                        <X size={20} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Expansive Image Area with Prev & Next */}
+                  <div
+                    style={{
+                      position: 'relative',
+                      height: '82vh',
+                      maxHeight: '82vh',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: '1rem',
+                      overflow: 'hidden',
+                    }}
+                  >
+                    <img
+                      src={previewItem.publicUrl}
+                      alt={previewItem.name}
+                      style={{
+                        maxWidth: '100%',
+                        maxHeight: '80vh',
+                        objectFit: 'contain',
+                        borderRadius: '8px',
+                        boxShadow: '0 20px 50px rgba(0,0,0,0.6)',
+                        transition: 'transform 0.2s ease',
+                      }}
+                    />
+
+                    {/* Prev Button */}
+                    {hasMultiple && (
+                      <button
+                        type="button"
+                        onClick={handlePrevPreview}
+                        style={{
+                          position: 'absolute',
+                          left: '20px',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          backgroundColor: 'rgba(0, 0, 0, 0.55)',
+                          backdropFilter: 'blur(4px)',
+                          color: '#ffffff',
+                          border: '1px solid rgba(255,255,255,0.2)',
+                          borderRadius: '50%',
+                          width: '46px',
+                          height: '46px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease',
+                        }}
+                        title="Ảnh trước (Mũi tên trái)"
+                      >
+                        <ChevronLeft size={26} />
+                      </button>
+                    )}
+
+                    {/* Next Button */}
+                    {hasMultiple && (
+                      <button
+                        type="button"
+                        onClick={handleNextPreview}
+                        style={{
+                          position: 'absolute',
+                          right: '20px',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          backgroundColor: 'rgba(0, 0, 0, 0.55)',
+                          backdropFilter: 'blur(4px)',
+                          color: '#ffffff',
+                          border: '1px solid rgba(255,255,255,0.2)',
+                          borderRadius: '50%',
+                          width: '46px',
+                          height: '46px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease',
+                        }}
+                        title="Ảnh tiếp theo (Mũi tên phải)"
+                      >
+                        <ChevronRight size={26} />
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>,
+            );
+          })(),
           document.body
         )}
 
