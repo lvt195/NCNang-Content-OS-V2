@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { Product, Category } from '../types/product';
 import { productService } from '../services/productService';
-import { DEFAULT_COLORS } from '../data/colors';
+import { getColorOption } from '../data/colors';
 import { formatVND } from '../utils/formatCurrency';
 import { normalizeVietnamese } from '../utils/filterProducts';
 
@@ -534,7 +534,7 @@ export const AdminProductsPage: React.FC = () => {
                       {p.colors && p.colors.length > 0 ? (
                         <div style={{ display: 'flex', gap: '3px', alignItems: 'center' }}>
                           {p.colors.slice(0, 4).map((cId) => {
-                            const cDef = DEFAULT_COLORS.find((dc) => dc.id === cId);
+                            const cDef = getColorOption(cId);
                             return (
                               <span
                                 key={cId}

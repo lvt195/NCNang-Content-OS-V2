@@ -21,6 +21,7 @@ export const CatalogPage: React.FC = () => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
+  const [showDesktopFilters, setShowDesktopFilters] = useState(false);
   const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
   const [activeQuickViewImg, setActiveQuickViewImg] = useState<string>('');
 
@@ -203,8 +204,8 @@ export const CatalogPage: React.FC = () => {
 
         {/* Catalog Main Content */}
         <div className="container" style={{ paddingTop: '1.25rem', width: '100%' }}>
-          <div style={{ display: 'flex', gap: '2rem', alignItems: 'flex-start', width: '100%' }}>
-            {/* Desktop Filters Sidebar */}
+          <div style={{ display: 'flex', gap: showDesktopFilters ? '2rem' : '0', alignItems: 'flex-start', width: '100%' }}>
+            {/* Desktop Filters Sidebar (expandable on toggle) */}
             <ProductFilters
               filters={filters}
               onFilterChange={handleFilterChange}
@@ -213,9 +214,10 @@ export const CatalogPage: React.FC = () => {
               isMobileDrawerOpen={isMobileDrawerOpen}
               onCloseMobileDrawer={() => setIsMobileDrawerOpen(false)}
               totalFilteredCount={filteredProducts.length}
+              showDesktopSidebar={showDesktopFilters}
             />
 
-            {/* Product Grid Area */}
+            {/* Product Grid Area - Takes 100% full width when sidebar is collapsed */}
             <div style={{ flex: 1, minWidth: 0, width: '100%' }}>
               {/* Toolbar: Filter Button + Sorting placed TOGETHER */}
               <div
@@ -237,23 +239,30 @@ export const CatalogPage: React.FC = () => {
 
                 {/* Right: Filter button & Sort dropdown side-by-side */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'nowrap' }}>
-                  {/* Filter button for mobile/tablet right here */}
+                  {/* Universal Filter button for desktop & mobile */}
                   <button
                     type="button"
-                    onClick={() => setIsMobileDrawerOpen(true)}
-                    className="btn btn-outline btn-sm mobile-toolbar-filter-btn"
-                    style={{
-                      padding: '0.35rem 0.75rem',
-                      fontSize: '0.825rem',
-                      gap: '0.4rem',
-                      backgroundColor: activeFilterCount > 0 ? 'var(--accent-warm-tint)' : 'transparent',
-                      borderColor: activeFilterCount > 0 ? 'var(--accent-brown)' : 'var(--border-subtle)',
-                      color: activeFilterCount > 0 ? 'var(--accent-brown)' : 'var(--text-primary)',
-                      fontWeight: activeFilterCount > 0 ? 600 : 500,
+                    onClick={() => {
+                      if (typeof window !== 'undefined' && window.innerWidth >= 960) {
+                        setShowDesktopFilters(!showDesktopFilters);
+                      } else {
+                        setIsMobileDrawerOpen(true);
+                      }
                     }}
+                    className="btn btn-outline btn-sm filter-toggle-btn"
+                    style={{
+                      padding: '0.35rem 0.8rem',
+                      fontSize: '0.825rem',
+                      gap: '0.45rem',
+                      backgroundColor: (activeFilterCount > 0 || showDesktopFilters) ? 'var(--accent-warm-tint)' : 'transparent',
+                      borderColor: (activeFilterCount > 0 || showDesktopFilters) ? 'var(--accent-brown)' : 'var(--border-subtle)',
+                      color: (activeFilterCount > 0 || showDesktopFilters) ? 'var(--accent-brown)' : 'var(--text-primary)',
+                      fontWeight: (activeFilterCount > 0 || showDesktopFilters) ? 600 : 500,
+                    }}
+                    title="Bật/Tắt bộ lọc chi tiết (màu sắc, giá, loại)"
                   >
                     <SlidersHorizontal size={14} />
-                    <span>Bộ lọc</span>
+                    <span>{showDesktopFilters ? 'Ẩn bộ lọc' : 'Bộ lọc chi tiết'}</span>
                     {activeFilterCount > 0 && (
                       <span
                         style={{
@@ -457,20 +466,32 @@ export const CatalogPage: React.FC = () => {
 
             {/* Modal Dialog Content - Expansive 1280px View */}
             {(() => {
-              const prodImages = quickViewProduct.images && quickViewProduct.images.length > 0
+              const rawImages = quickViewProduct.images && quickViewProduct.images.length > 0
                 ? quickViewProduct.images
                 : (quickViewProduct.coverImage ? [quickViewProduct.coverImage] : ['/images/placeholder.webp']);
-              const currentImg = activeQuickViewImg || prodImages[0];
-              const currentIdx = Math.max(0, prodImages.indexOf(currentImg));
+
+              const parsedQuickViewImages = rawImages.map((raw, idx) => {
+                const [clean, colorTag] = raw.split('#color=');
+                return {
+                  raw,
+                  clean,
+                  colorId: colorTag ? decodeURIComponent(colorTag) : '',
+                  originalIndex: idx,
+                };
+              });
+
+              const currentImgObj = parsedQuickViewImages.find((p) => p.raw === activeQuickViewImg) || parsedQuickViewImages[0];
+              const currentIdx = currentImgObj.originalIndex;
+
               const handlePrev = (e: React.MouseEvent) => {
                 e.stopPropagation();
-                const nextIdx = currentIdx === 0 ? prodImages.length - 1 : currentIdx - 1;
-                setActiveQuickViewImg(prodImages[nextIdx]);
+                const nextIdx = currentIdx === 0 ? parsedQuickViewImages.length - 1 : currentIdx - 1;
+                setActiveQuickViewImg(parsedQuickViewImages[nextIdx].raw);
               };
               const handleNext = (e: React.MouseEvent) => {
                 e.stopPropagation();
-                const nextIdx = currentIdx === prodImages.length - 1 ? 0 : currentIdx + 1;
-                setActiveQuickViewImg(prodImages[nextIdx]);
+                const nextIdx = currentIdx === parsedQuickViewImages.length - 1 ? 0 : currentIdx + 1;
+                setActiveQuickViewImg(parsedQuickViewImages[nextIdx].raw);
               };
 
               return (
@@ -528,7 +549,7 @@ export const CatalogPage: React.FC = () => {
                         {quickViewProduct.name}
                       </h3>
                       <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                        ({prodImages.length} ảnh)
+                        ({parsedQuickViewImages.length} ảnh)
                       </span>
                     </div>
 
@@ -584,7 +605,7 @@ export const CatalogPage: React.FC = () => {
                         }}
                       >
                         <img
-                          src={currentImg}
+                          src={currentImgObj.clean}
                           alt={`${quickViewProduct.name} - Ảnh ${currentIdx + 1}`}
                           style={{
                             maxWidth: '100%',
@@ -596,11 +617,45 @@ export const CatalogPage: React.FC = () => {
                           }}
                         />
 
+                        {/* Assigned Color Badge */}
+                        {currentImgObj.colorId && (
+                          <div
+                            style={{
+                              position: 'absolute',
+                              top: '12px',
+                              left: '12px',
+                              backgroundColor: 'rgba(44, 40, 37, 0.82)',
+                              backdropFilter: 'blur(6px)',
+                              color: '#ffffff',
+                              padding: '0.3rem 0.75rem',
+                              borderRadius: '20px',
+                              fontSize: '0.8rem',
+                              fontWeight: 600,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.45rem',
+                              zIndex: 3,
+                              boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+                            }}
+                          >
+                            <span
+                              style={{
+                                width: '10px',
+                                height: '10px',
+                                borderRadius: '50%',
+                                backgroundColor: getColorOption(currentImgObj.colorId).hex,
+                                border: '1px solid rgba(255,255,255,0.4)',
+                              }}
+                            />
+                            <span>Màu: {getColorOption(currentImgObj.colorId).label}</span>
+                          </div>
+                        )}
+
                         {/* Counter Badge */}
                         <div
                           style={{
                             position: 'absolute',
-                            top: '12px',
+                            bottom: '12px',
                             left: '12px',
                             backgroundColor: 'rgba(44, 40, 37, 0.75)',
                             backdropFilter: 'blur(6px)',
@@ -613,11 +668,11 @@ export const CatalogPage: React.FC = () => {
                             pointerEvents: 'none',
                           }}
                         >
-                          Ảnh {currentIdx + 1} / {prodImages.length}
+                          Ảnh {currentIdx + 1} / {parsedQuickViewImages.length}
                         </div>
 
                         {/* Prev Arrow */}
-                        {prodImages.length > 1 && (
+                        {parsedQuickViewImages.length > 1 && (
                           <button
                             type="button"
                             onClick={handlePrev}
@@ -646,7 +701,7 @@ export const CatalogPage: React.FC = () => {
                         )}
 
                         {/* Next Arrow */}
-                        {prodImages.length > 1 && (
+                        {parsedQuickViewImages.length > 1 && (
                           <button
                             type="button"
                             onClick={handleNext}
@@ -676,7 +731,7 @@ export const CatalogPage: React.FC = () => {
                       </div>
 
                       {/* Large Thumbnails */}
-                      {prodImages.length > 1 && (
+                      {parsedQuickViewImages.length > 1 && (
                         <div
                           style={{
                             display: 'flex',
@@ -686,13 +741,13 @@ export const CatalogPage: React.FC = () => {
                             scrollbarWidth: 'thin',
                           }}
                         >
-                          {prodImages.map((imgUrl, idx) => {
-                            const isSelected = currentImg === imgUrl;
+                          {parsedQuickViewImages.map((item, idx) => {
+                            const isSelected = currentImgObj.raw === item.raw;
                             return (
                               <button
                                 key={idx}
                                 type="button"
-                                onClick={() => setActiveQuickViewImg(imgUrl)}
+                                onClick={() => setActiveQuickViewImg(item.raw)}
                                 style={{
                                   width: '78px',
                                   height: '78px',
@@ -709,15 +764,30 @@ export const CatalogPage: React.FC = () => {
                                   transition: 'all 0.15s ease',
                                   transform: isSelected ? 'scale(1.03)' : 'scale(1)',
                                   boxShadow: isSelected ? '0 2px 8px rgba(118,99,82,0.3)' : 'none',
+                                  position: 'relative',
                                 }}
                                 title={`Xem ảnh ${idx + 1}`}
                               >
                                 <img
-                                  src={imgUrl}
+                                  src={item.clean}
                                   alt=""
                                   style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                                   loading="lazy"
                                 />
+                                {item.colorId && (
+                                  <span
+                                    style={{
+                                      position: 'absolute',
+                                      top: '3px',
+                                      right: '3px',
+                                      width: '8px',
+                                      height: '8px',
+                                      borderRadius: '50%',
+                                      backgroundColor: getColorOption(item.colorId).hex,
+                                      border: '1px solid #ffffff',
+                                    }}
+                                  />
+                                )}
                               </button>
                             );
                           })}
@@ -748,27 +818,40 @@ export const CatalogPage: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Colors */}
+                  {/* Colors - Clickable to switch photos */}
                   {quickViewProduct.colors && quickViewProduct.colors.length > 0 && (
                     <div>
                       <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '0.35rem' }}>
-                        Màu sắc:
+                        Màu sắc (bấm để xem ảnh):
                       </span>
                       <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                         {quickViewProduct.colors.map((cId) => {
                           const c = getColorOption(cId);
+                          const isColorActive = currentImgObj.colorId && currentImgObj.colorId.toLowerCase() === cId.toLowerCase();
                           return (
-                            <span
+                            <button
                               key={cId}
+                              type="button"
+                              onClick={() => {
+                                const matched = parsedQuickViewImages.find(
+                                  (p) => p.colorId && p.colorId.toLowerCase() === cId.toLowerCase()
+                                );
+                                if (matched) {
+                                  setActiveQuickViewImg(matched.raw);
+                                }
+                              }}
                               style={{
                                 display: 'inline-flex',
                                 alignItems: 'center',
                                 gap: '5px',
-                                padding: '0.2rem 0.55rem',
+                                padding: '0.25rem 0.65rem',
                                 borderRadius: '14px',
-                                border: '1px solid var(--border-subtle)',
+                                border: isColorActive ? '1.5px solid var(--accent-brown)' : '1px solid var(--border-subtle)',
                                 fontSize: '0.75rem',
-                                backgroundColor: 'var(--bg-muted)',
+                                backgroundColor: isColorActive ? 'var(--accent-warm-tint)' : 'var(--bg-muted)',
+                                color: isColorActive ? 'var(--accent-brown)' : 'var(--text-primary)',
+                                fontWeight: isColorActive ? 600 : 400,
+                                cursor: 'pointer',
                               }}
                             >
                               <span
@@ -781,7 +864,7 @@ export const CatalogPage: React.FC = () => {
                                 }}
                               />
                               <span>{c.label.split(' / ')[0]}</span>
-                            </span>
+                            </button>
                           );
                         })}
                       </div>
@@ -897,9 +980,6 @@ export const CatalogPage: React.FC = () => {
         @media (min-width: 768px) {
           .category-scroll-row {
             justify-content: center;
-          }
-          .mobile-toolbar-filter-btn {
-            display: none !important;
           }
         }
 

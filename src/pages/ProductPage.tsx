@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, useSearchParams, Link } from 'react-router-dom';
 import {
   ArrowLeft,
   Copy,
@@ -22,11 +22,17 @@ import { ProductCard } from '../components/ProductCard';
 
 export const ProductPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [product, setProduct] = useState<Product | null>(null);
   const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [copiedCode, setCopiedCode] = useState(false);
+  const [copiedOrderInfo, setCopiedOrderInfo] = useState(false);
+
+  // User-selected options
+  const [selectedColor, setSelectedColor] = useState<string>('');
+  const [selectedSize, setSelectedSize] = useState<string>('');
 
   useEffect(() => {
     let mounted = true;
@@ -41,6 +47,37 @@ export const ProductPage: React.FC = () => {
           if (prod) {
             // Track view analytics
             analyticsService.trackProductView(prod);
+
+            // Update document title and Open Graph tags dynamically
+            document.title = `${prod.name} | Tiệm Chăn Ga Nhà Có Mùi Nắng`;
+            const cleanCover = (prod.coverImage || prod.images?.[0] || '').split('#color=')[0];
+            const setMeta = (prop: string, content: string) => {
+              if (!content) return;
+              let el = document.querySelector(`meta[property="${prop}"]`) as HTMLMetaElement;
+              if (!el) {
+                el = document.createElement('meta');
+                el.setAttribute('property', prop);
+                document.head.appendChild(el);
+              }
+              el.setAttribute('content', content);
+            };
+            setMeta('og:title', `${prod.name} - Nhà Có Mùi Nắng`);
+            setMeta('og:description', prod.description ? prod.description.slice(0, 160) : 'Chăn ga gối tự nhiên Nhà Có Mùi Nắng');
+            setMeta('og:image', cleanCover);
+            setMeta('twitter:image', cleanCover);
+
+            // Initialize selected color from URL query or first available color
+            const queryColor = searchParams.get('color');
+            if (queryColor && prod.colors?.includes(queryColor)) {
+              setSelectedColor(queryColor);
+            } else if (prod.colors && prod.colors.length > 0) {
+              setSelectedColor(prod.colors[0]);
+            }
+
+            // Initialize selected size
+            if (prod.sizes && prod.sizes.length > 0) {
+              setSelectedSize(prod.sizes[0]);
+            }
 
             // Load related products from same category
             const allPublished = await productService.getPublishedProducts();
@@ -67,11 +104,30 @@ export const ProductPage: React.FC = () => {
     };
   }, [slug]);
 
+  const handleColorSelect = (colorId: string) => {
+    setSelectedColor(colorId);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('color', colorId);
+      return next;
+    }, { replace: true });
+  };
+
   const handleCopyCode = () => {
     if (!product) return;
     navigator.clipboard.writeText(product.id);
     setCopiedCode(true);
     setTimeout(() => setCopiedCode(false), 2000);
+  };
+
+  const handleCopyOrderInfo = () => {
+    if (!product) return;
+    const colorLabel = selectedColor ? getColorOption(selectedColor).label : 'Mặc định';
+    const sizeLabel = selectedSize || 'Theo yêu cầu';
+    const text = `Tôi muốn đặt mua: ${product.name} (Mã: ${product.id})\n- Màu sắc: ${colorLabel}\n- Kích thước: ${sizeLabel}\n- Giá tham khảo: ${formatVND(product.price)}`;
+    navigator.clipboard.writeText(text);
+    setCopiedOrderInfo(true);
+    setTimeout(() => setCopiedOrderInfo(false), 2500);
   };
 
   if (loading) {
@@ -122,10 +178,11 @@ export const ProductPage: React.FC = () => {
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       <Header />
 
-      <main style={{ flex: 1, paddingBottom: '4rem' }}>
+      <main className="product-page-main" style={{ flex: 1, paddingBottom: '4rem' }}>
         <div className="container" style={{ paddingTop: '1.5rem', maxWidth: '1440px' }}>
           {/* Breadcrumbs Navigation */}
           <nav
+            className="product-breadcrumbs"
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -154,7 +211,13 @@ export const ProductPage: React.FC = () => {
           >
             {/* Left: Gallery */}
             <div>
-              <ProductGallery images={product.images} productName={product.name} />
+              <ProductGallery
+                images={product.images}
+                productName={product.name}
+                selectedColor={selectedColor}
+                onColorChange={handleColorSelect}
+                colors={product.colors}
+              />
             </div>
 
             {/* Right: Info & Actions */}
@@ -234,26 +297,45 @@ export const ProductPage: React.FC = () => {
                 </span>
               </div>
 
-              {/* Colors Swatches & Vietnamese Labels */}
+              {/* Colors Swatches & Interactive Selection */}
               {product.colors && product.colors.length > 0 && (
-                <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '1rem' }}>
-                  <span style={{ fontSize: '0.85rem', fontWeight: 600, display: 'block', marginBottom: '0.5rem' }}>
-                    Màu sắc có sẵn:
-                  </span>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem' }}>
+                <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '1.25rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
+                    <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>
+                      Màu sắc:{' '}
+                      <span style={{ color: 'var(--accent-brown)', fontWeight: 700 }}>
+                        {selectedColor ? getColorOption(selectedColor).label : 'Chưa chọn'}
+                      </span>
+                    </span>
+                    <span style={{ fontSize: '0.775rem', color: 'var(--text-muted)' }}>
+                      (Bấm màu để xem ảnh tương ứng)
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.65rem' }}>
                     {product.colors.map((colorId) => {
                       const color = getColorOption(colorId);
+                      const isSelected = selectedColor.toLowerCase() === colorId.toLowerCase();
                       return (
-                        <div
+                        <button
                           key={colorId}
+                          type="button"
+                          onClick={() => handleColorSelect(colorId)}
                           style={{
                             display: 'inline-flex',
                             alignItems: 'center',
                             gap: '0.5rem',
-                            padding: '0.35rem 0.65rem',
-                            backgroundColor: 'var(--bg-muted)',
+                            padding: '0.45rem 0.85rem',
+                            backgroundColor: isSelected ? 'var(--accent-warm-tint)' : 'var(--bg-surface)',
                             borderRadius: 'var(--radius-full)',
                             fontSize: '0.85rem',
+                            fontWeight: isSelected ? 600 : 500,
+                            color: isSelected ? 'var(--accent-brown)' : 'var(--text-primary)',
+                            border: isSelected
+                              ? '2px solid var(--accent-brown)'
+                              : '1px solid var(--border-subtle)',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                            boxShadow: isSelected ? '0 2px 6px rgba(118,99,82,0.18)' : 'none',
                           }}
                         >
                           <span
@@ -261,41 +343,73 @@ export const ProductPage: React.FC = () => {
                             style={{
                               background: color.hex,
                               borderColor: color.borderHex || 'rgba(0,0,0,0.1)',
+                              transform: isSelected ? 'scale(1.15)' : 'none',
                             }}
                           />
                           <span>{color.label}</span>
-                        </div>
+                          {isSelected && <Check size={14} style={{ strokeWidth: 2.5 }} />}
+                        </button>
                       );
                     })}
                   </div>
                 </div>
               )}
 
-              {/* Sizes Available */}
+              {/* Sizes Available & Interactive Selection */}
               {product.sizes && product.sizes.length > 0 && (
-                <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '1rem' }}>
-                  <span style={{ fontSize: '0.85rem', fontWeight: 600, display: 'block', marginBottom: '0.5rem' }}>
-                    Kích thước tiêu chuẩn:
-                  </span>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-                    {product.sizes.map((s) => (
-                      <span
-                        key={s}
-                        style={{
-                          padding: '0.35rem 0.75rem',
-                          borderRadius: 'var(--radius-sm)',
-                          backgroundColor: 'var(--bg-surface)',
-                          border: '1px solid var(--border-subtle)',
-                          fontSize: '0.85rem',
-                          color: 'var(--text-primary)',
-                        }}
-                      >
-                        {s}
+                <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '1.25rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
+                    <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>
+                      Kích thước:{' '}
+                      <span style={{ color: 'var(--accent-brown)', fontWeight: 700 }}>
+                        {selectedSize || 'Tiêu chuẩn'}
                       </span>
-                    ))}
+                    </span>
                   </div>
-                  <span style={{ fontSize: '0.775rem', color: 'var(--text-muted)', marginTop: '0.35rem', display: 'block' }}>
-                    * Tiệm có nhận may theo kích thước đệm riêng (đệm cao 20-30cm hoặc nệm Nhật).
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.65rem' }}>
+                    {product.sizes.map((s) => {
+                      const isSelected = selectedSize === s;
+                      return (
+                        <button
+                          key={s}
+                          type="button"
+                          onClick={() => setSelectedSize(s)}
+                          style={{
+                            padding: '0.45rem 0.95rem',
+                            borderRadius: 'var(--radius-sm)',
+                            backgroundColor: isSelected ? 'var(--accent-brown)' : 'var(--bg-surface)',
+                            color: isSelected ? '#ffffff' : 'var(--text-primary)',
+                            border: isSelected
+                              ? '1.5px solid var(--accent-brown)'
+                              : '1px solid var(--border-subtle)',
+                            fontSize: '0.85rem',
+                            fontWeight: isSelected ? 600 : 500,
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                            boxShadow: isSelected ? '0 2px 6px rgba(118,99,82,0.25)' : 'none',
+                          }}
+                        >
+                          {s}
+                        </button>
+                      );
+                    })}
+                    <div
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        padding: '0.45rem 0.85rem',
+                        borderRadius: 'var(--radius-sm)',
+                        backgroundColor: 'var(--bg-muted)',
+                        border: '1px dashed var(--border-subtle)',
+                        fontSize: '0.8rem',
+                        color: 'var(--text-secondary)',
+                      }}
+                    >
+                      ✂️ Nhận may đo theo yêu cầu
+                    </div>
+                  </div>
+                  <span style={{ fontSize: '0.775rem', color: 'var(--text-muted)', marginTop: '0.4rem', display: 'block' }}>
+                    * Tiệm có nhận may theo độ dày đệm riêng (đệm cao 20-30cm hoặc nệm topper/nệm Nhật).
                   </span>
                 </div>
               )}
@@ -354,10 +468,32 @@ export const ProductPage: React.FC = () => {
                   </span>
                 </div>
                 <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                  Website hiển thị danh mục và giá tham khảo. Quý khách vui lòng gửi mã{' '}
-                  <strong style={{ color: 'var(--accent-brown)' }}>[{product.id}]</strong> qua Zalo hoặc
-                  Facebook Messenger để kiểm tra tình trạng vải và chốt đơn:
+                  Website hiển thị danh mục và giá tham khảo. Quý khách có thể sao chép thông tin sản phẩm đã chọn và gửi qua Zalo / Messenger để tiệm kiểm tra vải và giữ hàng nhanh nhất:
                 </p>
+
+                {/* 1-Click Copy Order Details */}
+                <button
+                  type="button"
+                  onClick={handleCopyOrderInfo}
+                  className="btn btn-outline"
+                  style={{
+                    width: '100%',
+                    backgroundColor: '#ffffff',
+                    borderStyle: 'dashed',
+                    color: 'var(--accent-brown)',
+                    borderColor: 'var(--accent-brown)',
+                    fontSize: '0.85rem',
+                    padding: '0.65rem 1rem',
+                    justifyContent: 'center',
+                  }}
+                >
+                  {copiedOrderInfo ? <Check size={16} color="#2e7d32" /> : <Copy size={16} />}
+                  <span>
+                    {copiedOrderInfo
+                      ? '✓ Đã sao chép cấu hình đặt hàng!'
+                      : `Sao chép thông tin đặt (${selectedColor ? getColorOption(selectedColor).label : 'Màu'} • ${selectedSize || 'Size'})`}
+                  </span>
+                </button>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem', marginTop: '0.25rem' }}>
                   <a
@@ -413,11 +549,27 @@ export const ProductPage: React.FC = () => {
       <Footer />
 
       <style>{`
-        @media (min-width: 960px) {
+        /* Desktop & Large Tablet: 2 columns */
+        @media (min-width: 860px) {
           .product-detail-grid {
-            grid-template-columns: 1.45fr 1fr !important;
-            gap: 3.5rem !important;
+            grid-template-columns: minmax(0, 1.25fr) minmax(360px, 1fr) !important;
+            gap: 3rem !important;
             align-items: start !important;
+          }
+        }
+
+        /* Mobile Landscape Orientation (Rotating phone horizontally) */
+        @media (orientation: landscape) and (max-height: 550px) {
+          .product-detail-grid {
+            grid-template-columns: 1fr 1fr !important;
+            gap: 1.5rem !important;
+            align-items: start !important;
+          }
+          .product-page-main {
+            padding-bottom: 2rem !important;
+          }
+          .product-breadcrumbs {
+            margin-bottom: 0.6rem !important;
           }
         }
       `}</style>

@@ -38,7 +38,7 @@ export const AdminBulkImportPage: React.FC = () => {
 
   // Batch tools
   const [batchPrice, setBatchPrice] = useState('');
-  const [batchCategory, setBatchCategory] = useState<ProductCategory>('ga-chun');
+  const [batchCategory, setBatchCategory] = useState<ProductCategory>('');
   const [batchType, setBatchType] = useState<'single' | 'combo'>('single');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -85,23 +85,19 @@ export const AdminBulkImportPage: React.FC = () => {
 
     const norm = normalizeVietnamese(name.toLowerCase() + ' ' + id.toLowerCase());
 
-    // Auto-detect category
-    let category: ProductCategory = 'ga-chun';
-    if (norm.includes('set') || norm.includes('combo') || norm.includes('bo ')) {
-      category = 'combo-set';
-    } else if (norm.includes('chan') || norm.includes('men')) {
-      category = 'chan-he';
-    } else if (norm.includes('goi') || norm.includes('vo goi')) {
-      category = 'vo-goi';
-    } else if (norm.includes('khan') || norm.includes('decor')) {
-      category = 'khan-trai';
-    } else {
-      category = 'ga-chun';
+    // Auto-detect category from actual database categories
+    let category: ProductCategory = categories[0]?.id || '';
+    for (const c of categories) {
+      const cNorm = normalizeVietnamese(c.name.toLowerCase());
+      if (norm.includes(cNorm) || norm.includes(c.id.toLowerCase())) {
+        category = c.id;
+        break;
+      }
     }
 
     // Auto-detect type
     const type: 'single' | 'combo' =
-      category === 'combo-set' || norm.includes('combo') || norm.includes('set')
+      category.includes('combo') || category.includes('set') || norm.includes('combo') || norm.includes('set')
         ? 'combo'
         : 'single';
 

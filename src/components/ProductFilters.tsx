@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { X, RotateCcw } from 'lucide-react';
 import { FilterState, Category } from '../types/product';
 import { SITE_CONFIG } from '../config/site';
-import { DEFAULT_COLORS } from '../data/colors';
+import { getAllColors } from '../data/colors';
 
 interface ProductFiltersProps {
   filters: FilterState;
@@ -13,6 +13,7 @@ interface ProductFiltersProps {
   isMobileDrawerOpen?: boolean;
   onCloseMobileDrawer?: () => void;
   totalFilteredCount: number;
+  showDesktopSidebar?: boolean;
 }
 
 export const ProductFilters: React.FC<ProductFiltersProps> = ({
@@ -23,6 +24,7 @@ export const ProductFilters: React.FC<ProductFiltersProps> = ({
   isMobileDrawerOpen = false,
   onCloseMobileDrawer,
   totalFilteredCount,
+  showDesktopSidebar = false,
 }) => {
   const isAnyFilterActive =
     (filters.category && filters.category !== 'all') ||
@@ -161,7 +163,7 @@ export const ProductFilters: React.FC<ProductFiltersProps> = ({
           >
             Tất cả
           </button>
-          {DEFAULT_COLORS.map((col) => {
+          {getAllColors().map((col) => {
             const isSelected = filters.color === col.id;
             return (
               <button
@@ -207,31 +209,33 @@ export const ProductFilters: React.FC<ProductFiltersProps> = ({
 
   return (
     <>
-      {/* Desktop Sidebar Filter */}
-      <aside className="desktop-filters-sidebar">
-        <div
-          style={{
-            backgroundColor: 'var(--bg-surface)',
-            padding: '1.25rem',
-            borderRadius: 'var(--radius-sm)',
-            border: '1px solid var(--border-subtle)',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
-            <span style={{ fontSize: '0.95rem', fontWeight: 600 }}>Bộ lọc tìm kiếm</span>
-            {isAnyFilterActive && (
-              <button
-                type="button"
-                onClick={onResetFilters}
-                style={{ fontSize: '0.8rem', color: 'var(--accent-brown)', textDecoration: 'underline' }}
-              >
-                Đặt lại
-              </button>
-            )}
+      {/* Desktop Sidebar Filter (only if enabled) */}
+      {showDesktopSidebar && (
+        <aside className="desktop-filters-sidebar">
+          <div
+            style={{
+              backgroundColor: 'var(--bg-surface)',
+              padding: '1.25rem',
+              borderRadius: 'var(--radius-sm)',
+              border: '1px solid var(--border-subtle)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
+              <span style={{ fontSize: '0.95rem', fontWeight: 600 }}>Bộ lọc tìm kiếm</span>
+              {isAnyFilterActive && (
+                <button
+                  type="button"
+                  onClick={onResetFilters}
+                  style={{ fontSize: '0.8rem', color: 'var(--accent-brown)', textDecoration: 'underline' }}
+                >
+                  Đặt lại
+                </button>
+              )}
+            </div>
+            {filterContent}
           </div>
-          {filterContent}
-        </div>
-      </aside>
+        </aside>
+      )}
 
       {/* Mobile Bottom Sheet Drawer rendered to document.body via Portal */}
       {isMobileDrawerOpen &&

@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { Product, Category, ProductColor, ComboItem } from '../types/product';
 import { productService } from '../services/productService';
-import { DEFAULT_COLORS } from '../data/colors';
+import { DEFAULT_COLORS, getColorOption, getAllColors, saveCustomColor, deleteCustomColor } from '../data/colors';
 import { normalizeVietnamese } from '../utils/filterProducts';
 import { ProductCard } from '../components/ProductCard';
 import { MediaPickerModal } from '../components/MediaPickerModal';
@@ -41,11 +41,21 @@ export const AdminProductFormPage: React.FC = () => {
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
-  const [categoryId, setCategoryId] = useState('bo-chan-ga');
+  const [categoryId, setCategoryId] = useState('');
   const [price, setPrice] = useState<number | ''>(350000);
   const [type, setType] = useState<'single' | 'combo'>('single');
   const [selectedColors, setSelectedColors] = useState<ProductColor[]>(['be']);
   const [customColorInput, setCustomColorInput] = useState('');
+  const [customColorHex, setCustomColorHex] = useState('#7e8f7f');
+  const [availableColors, setAvailableColors] = useState(() => getAllColors());
+
+  useEffect(() => {
+    const handler = () => {
+      setAvailableColors(getAllColors());
+    };
+    window.addEventListener('ncnang_colors_updated', handler);
+    return () => window.removeEventListener('ncnang_colors_updated', handler);
+  }, []);
   const [selectedSizes, setSelectedSizes] = useState<string[]>(['1m6 x 2m', '1m8 x 2m']);
   const [customSizeInput, setCustomSizeInput] = useState('');
   const [description, setDescription] = useState('');
@@ -104,6 +114,11 @@ export const AdminProductFormPage: React.FC = () => {
           } else {
             setErrorMsg(`Không tìm thấy sản phẩm với mã: ${id}`);
           }
+        } else {
+          // Creating a new product: default category to first available category in database
+          if (cats.length > 0) {
+            setCategoryId((prev) => (prev && cats.some((c) => c.id === prev) ? prev : cats[0].id));
+          }
         }
       } catch (err: unknown) {
         setErrorMsg(err instanceof Error ? err.message : 'Lỗi tải dữ liệu');
@@ -124,11 +139,35 @@ export const AdminProductFormPage: React.FC = () => {
   const handleAddCustomColor = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const val = customColorInput.trim();
-    if (!val) return;
-    if (!selectedColors.includes(val)) {
-      setSelectedColors((prev) => [...prev, val]);
+    if (!val) {
+      alert('Vui lòng nhập tên cho màu mới (Ví dụ: Xanh Cốm, Cam Cháy, Hồng Phấn, Đỏ Đô...).');
+      return;
     }
+    const cleanHex = customColorHex.trim().startsWith('#')
+      ? customColorHex.trim()
+      : `#${customColorHex.trim()}`;
+
+    const saved = saveCustomColor({
+      label: val,
+      hex: cleanHex,
+    });
+
+    // Synchronously update available colors so the UI renders the new color immediately
+    const all = getAllColors();
+    setAvailableColors(all);
+
+    // Select the new color for this product
+    setSelectedColors((prev) => (prev.includes(saved.id) ? prev : [...prev, saved.id]));
+
+    // Clear input
     setCustomColorInput('');
+  };
+
+  const handleDeleteCustomColorFromStore = (colorId: string, label: string) => {
+    if (window.confirm(`Bạn có chắc muốn xóa màu "${label}" khỏi danh sách màu của tiệm?`)) {
+      deleteCustomColor(colorId);
+      setSelectedColors((prev) => prev.filter((c) => c !== colorId));
+    }
   };
 
   // Size Toggle
@@ -173,6 +212,73 @@ export const AdminProductFormPage: React.FC = () => {
     });
   };
 
+  // Compress image to ensure it stays well under limits and uploads smoothly
+  const compressImage = (
+    file: File,
+    maxDimension = 1600,
+    quality = 0.82
+  ): Promise<{ file: File; dataUrl: string }> => {
+    if (!file.type.startsWith('image/')) {
+      return readFileAsDataUrl(file).then((dataUrl) => ({ file, dataUrl }));
+    }
+
+    return new Promise((resolve) => {
+      const img = new Image();
+      const objectUrl = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(objectUrl);
+        let { width, height } = img;
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = Math.round((height * maxDimension) / width);
+            width = maxDimension;
+          } else {
+            width = Math.round((width * maxDimension) / height);
+            height = maxDimension;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          readFileAsDataUrl(file).then((dataUrl) => resolve({ file, dataUrl }));
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0, width, height);
+        const mimeType = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+        const dataUrl = canvas.toDataURL(mimeType, quality);
+
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) {
+              resolve({ file, dataUrl });
+              return;
+            }
+            const cleanBase = file.name
+              .replace(/\.[^/.]+$/, '')
+              .replace(/[^a-zA-Z0-9_-]/g, '_');
+            const ext = mimeType === 'image/png' ? '.png' : '.jpg';
+            const compressedFile = new File([blob], `${cleanBase}${ext}`, {
+              type: mimeType,
+              lastModified: Date.now(),
+            });
+            resolve({ file: compressedFile, dataUrl });
+          },
+          mimeType,
+          quality
+        );
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        readFileAsDataUrl(file).then((dataUrl) => resolve({ file, dataUrl }));
+      };
+      img.src = objectUrl;
+    });
+  };
+
   // Core upload file logic
   const uploadFiles = async (fileList: FileList | File[]) => {
     const files = Array.from(fileList).filter(
@@ -205,13 +311,17 @@ export const AdminProductFormPage: React.FC = () => {
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
         try {
-          const url = await productService.uploadProductImage(file, targetCode);
-          newUrls.push(url);
-        } catch (uploadErr) {
-          console.warn(`Lỗi khi tải ảnh ${file.name} lên Supabase Storage, chuyển sang lưu Base64:`, uploadErr);
-          const dataUrl = await readFileAsDataUrl(file);
-          newUrls.push(dataUrl);
-          usedFallbackCount++;
+          const { file: fileToUpload, dataUrl } = await compressImage(file);
+          try {
+            const url = await productService.uploadProductImage(fileToUpload, targetCode);
+            newUrls.push(url);
+          } catch (uploadErr) {
+            console.warn(`Lỗi khi tải ảnh ${file.name} lên Supabase Storage:`, uploadErr);
+            newUrls.push(dataUrl);
+            usedFallbackCount++;
+          }
+        } catch (readErr) {
+          console.error(`Không thể xử lý ảnh ${file.name}:`, readErr);
         }
       }
 
@@ -233,7 +343,7 @@ export const AdminProductFormPage: React.FC = () => {
         if (dupCount > 0) {
           setSuccessMsg(`Đã thêm ${uniqueUrls.length} ảnh (đã bỏ qua ${dupCount} ảnh trùng lặp).`);
         } else if (usedFallbackCount > 0) {
-          setSuccessMsg(`Đã tải ${uniqueUrls.length} ảnh vào sản phẩm (lưu trữ trực tiếp).`);
+          setSuccessMsg(`Đã tải ${uniqueUrls.length} ảnh vào sản phẩm.`);
         } else {
           setSuccessMsg(`Đã tải lên ${uniqueUrls.length} ảnh thành công.`);
         }
@@ -296,6 +406,18 @@ export const AdminProductFormPage: React.FC = () => {
       return;
     }
 
+    const effectiveCategory = categoryId || (categories.length > 0 ? categories[0].id : '');
+    if (!effectiveCategory) {
+      setErrorMsg('Vui lòng chọn danh mục cho sản phẩm.');
+      return;
+    }
+
+    const categoryExists = categories.some((c) => c.id === effectiveCategory);
+    if (!categoryExists && categories.length > 0) {
+      setErrorMsg(`Danh mục đã chọn ("${effectiveCategory}") không tồn tại trong hệ thống. Vui lòng chọn lại danh mục.`);
+      return;
+    }
+
     const finalSlug =
       slug.trim() ||
       normalizeVietnamese(name)
@@ -308,14 +430,20 @@ export const AdminProductFormPage: React.FC = () => {
       id: code.trim().toUpperCase(),
       name: name.trim(),
       slug: finalSlug,
-      category: categoryId,
+      category: effectiveCategory,
       price: Number(price),
       currency: 'VND',
       type,
       colors: selectedColors,
       sizes: selectedSizes,
       description: description.trim(),
-      comboItems: type === 'combo' ? comboItems : [],
+      comboItems:
+        type === 'combo'
+          ? comboItems.map((item) => ({
+              ...item,
+              quantity: Math.max(1, Number(item.quantity) || 1),
+            }))
+          : [],
       images,
       coverImage: finalCover,
       featured,
@@ -333,6 +461,7 @@ export const AdminProductFormPage: React.FC = () => {
       }
       setTimeout(() => navigate('/admin/products'), 1200);
     } catch (err: unknown) {
+      console.error('❌ Lỗi khi lưu sản phẩm:', err);
       setErrorMsg(err instanceof Error ? err.message : 'Lỗi khi lưu sản phẩm');
     } finally {
       setSaving(false);
@@ -544,7 +673,9 @@ export const AdminProductFormPage: React.FC = () => {
                     }}
                   >
                     {images.map((imgUrl, idx) => {
-                      const isCover = (coverImage || images[0]) === imgUrl;
+                      const [cleanUrl, colorTag] = imgUrl.split('#color=');
+                      const currentAssignedColor = colorTag ? decodeURIComponent(colorTag) : '';
+                      const isCover = (coverImage || images[0]) === imgUrl || (coverImage && coverImage.split('#color=')[0] === cleanUrl && idx === 0);
                       const isDraggingThis = draggedImgIdx === idx;
                       return (
                         <div
@@ -588,7 +719,7 @@ export const AdminProductFormPage: React.FC = () => {
                           {/* Image preview */}
                           <div style={{ width: '100%', paddingTop: '85%', position: 'relative', backgroundColor: '#f3eee6' }}>
                             <img
-                              src={imgUrl}
+                              src={cleanUrl}
                               alt={`Ảnh ${idx + 1}`}
                               style={{
                                 position: 'absolute',
@@ -614,9 +745,42 @@ export const AdminProductFormPage: React.FC = () => {
                                   padding: '2px 6px',
                                   borderRadius: '4px',
                                   boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                                  zIndex: 2,
                                 }}
                               >
                                 ★ Bìa
+                              </span>
+                            )}
+
+                            {/* Assigned Color Badge */}
+                            {currentAssignedColor && (
+                              <span
+                                style={{
+                                  position: 'absolute',
+                                  top: '4px',
+                                  right: '4px',
+                                  backgroundColor: 'rgba(44,40,37,0.85)',
+                                  color: '#ffffff',
+                                  fontSize: '0.65rem',
+                                  fontWeight: 600,
+                                  padding: '2px 6px',
+                                  borderRadius: '10px',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '3px',
+                                  boxShadow: '0 1px 4px rgba(0,0,0,0.3)',
+                                  zIndex: 2,
+                                }}
+                              >
+                                <span
+                                  style={{
+                                    width: '6px',
+                                    height: '6px',
+                                    borderRadius: '50%',
+                                    backgroundColor: getColorOption(currentAssignedColor).hex,
+                                  }}
+                                />
+                                {getColorOption(currentAssignedColor).label}
                               </span>
                             )}
 
@@ -631,10 +795,50 @@ export const AdminProductFormPage: React.FC = () => {
                                 fontSize: '0.65rem',
                                 padding: '1px 5px',
                                 borderRadius: '3px',
+                                zIndex: 2,
                               }}
                             >
                               #{idx + 1}
                             </span>
+                          </div>
+
+                          {/* Color Assignment Selector */}
+                          <div style={{ padding: '4px 6px', backgroundColor: '#faf8f5', borderTop: '1px solid #f0eae1' }}>
+                            <select
+                              value={currentAssignedColor}
+                              onChange={(e) => {
+                                const newColor = e.target.value;
+                                const updatedUrl = newColor ? `${cleanUrl}#color=${encodeURIComponent(newColor)}` : cleanUrl;
+                                const list = [...images];
+                                list[idx] = updatedUrl;
+                                setImages(list);
+                                if (coverImage === imgUrl) {
+                                  setCoverImage(updatedUrl);
+                                }
+                              }}
+                              style={{
+                                width: '100%',
+                                fontSize: '0.72rem',
+                                padding: '2px 4px',
+                                borderRadius: '4px',
+                                border: currentAssignedColor ? '1.5px solid #766352' : '1px solid #d5cbbf',
+                                backgroundColor: currentAssignedColor ? '#f8f4ed' : '#ffffff',
+                                color: currentAssignedColor ? '#766352' : '#555',
+                                fontWeight: currentAssignedColor ? 600 : 400,
+                                cursor: 'pointer',
+                              }}
+                              title="Gán ảnh cho màu sắc (khách bấm màu sẽ đổi sang ảnh này)"
+                            >
+                              <option value="">Ảnh chung / Tất cả màu</option>
+                              {selectedColors.map((colorId) => {
+                                const opt = getColorOption(colorId);
+                                return (
+                                  <option key={colorId} value={colorId}>
+                                    Màu: {opt.label}
+                                  </option>
+                                );
+                              })}
+                            </select>
                           </div>
 
                           {/* Quick Actions Footer */}
@@ -800,14 +1004,18 @@ export const AdminProductFormPage: React.FC = () => {
                   <select
                     id="p-category"
                     className="form-select"
-                    value={categoryId}
+                    value={categoryId || (categories.length > 0 ? categories[0].id : '')}
                     onChange={(e) => setCategoryId(e.target.value)}
                   >
-                    {categories.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
+                    {categories.length === 0 ? (
+                      <option value="">-- Đang tải danh mục... --</option>
+                    ) : (
+                      categories.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))
+                    )}
                   </select>
                 </div>
               </div>
@@ -853,105 +1061,292 @@ export const AdminProductFormPage: React.FC = () => {
 
               {/* Colors */}
               <div className="form-group">
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem', flexWrap: 'wrap', gap: '0.35rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem', flexWrap: 'wrap', gap: '0.35rem' }}>
                   <label className="form-label" style={{ margin: 0 }}>
-                    Màu sắc có sẵn ({selectedColors.length} màu đã chọn)
+                    Màu sắc áp dụng cho sản phẩm ({selectedColors.length} màu đã chọn)
                   </label>
                   <span style={{ fontSize: '0.75rem', color: '#8c8073' }}>Bấm vào để chọn hoặc bỏ chọn màu</span>
                 </div>
 
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem' }}>
-                  {DEFAULT_COLORS.map((col) => {
+                {/* Available colors list */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1rem' }}>
+                  {availableColors.map((col) => {
                     const isSelected = selectedColors.includes(col.id);
+                    const isDefault = DEFAULT_COLORS.some((c) => c.id === col.id);
                     return (
-                      <button
-                        key={col.id}
-                        type="button"
-                        onClick={() => toggleColor(col.id)}
-                        className={`color-filter-pill ${isSelected ? 'active' : ''}`}
-                      >
-                        <span
-                          style={{
-                            width: '14px',
-                            height: '14px',
-                            borderRadius: '50%',
-                            background: col.hex,
-                            border: '1px solid rgba(0,0,0,0.15)',
-                            display: 'inline-block',
-                            flexShrink: 0,
-                          }}
-                        />
-                        <span>{col.label}</span>
-                        {isSelected && <Check size={13} style={{ marginLeft: '2px' }} />}
-                      </button>
-                    );
-                  })}
-
-                  {/* Render any custom colors added */}
-                  {selectedColors
-                    .filter((colId) => !DEFAULT_COLORS.some((c) => c.id === colId))
-                    .map((customCol) => (
                       <div
-                        key={customCol}
-                        className="color-filter-pill active"
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+                        key={col.id}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          borderRadius: '20px',
+                          border: isSelected ? '1.5px solid #766352' : '1px solid #dcd3c5',
+                          backgroundColor: isSelected ? '#f8f4ed' : '#ffffff',
+                          padding: '0.25rem 0.65rem 0.25rem 0.45rem',
+                          gap: '0.45rem',
+                          boxShadow: isSelected ? '0 1px 4px rgba(118,99,82,0.18)' : 'none',
+                          transition: 'all 0.15s ease',
+                        }}
                       >
-                        <span
-                          style={{
-                            width: '14px',
-                            height: '14px',
-                            borderRadius: '50%',
-                            background: '#c4b9ad',
-                            border: '1px solid rgba(0,0,0,0.15)',
-                            display: 'inline-block',
-                          }}
-                        />
-                        <span>{customCol}</span>
                         <button
                           type="button"
-                          onClick={() => toggleColor(customCol)}
+                          onClick={() => toggleColor(col.id)}
                           style={{
                             border: 'none',
                             background: 'none',
-                            color: '#ffffff',
-                            cursor: 'pointer',
-                            padding: 0,
                             display: 'inline-flex',
                             alignItems: 'center',
-                            marginLeft: '2px',
+                            gap: '0.45rem',
+                            cursor: 'pointer',
+                            padding: 0,
+                            color: isSelected ? '#766352' : '#2c2825',
+                            fontWeight: isSelected ? 600 : 400,
+                            fontSize: '0.825rem',
                           }}
-                          title={`Xóa màu ${customCol}`}
                         >
-                          <X size={13} />
+                          <span
+                            style={{
+                              width: '15px',
+                              height: '15px',
+                              borderRadius: '50%',
+                              background: col.hex,
+                              border: col.borderHex ? `1px solid ${col.borderHex}` : '1px solid rgba(0,0,0,0.15)',
+                              display: 'inline-block',
+                              flexShrink: 0,
+                            }}
+                          />
+                          <span>{col.label}</span>
+                          {isSelected && <Check size={13} style={{ strokeWidth: 2.5 }} />}
                         </button>
+
+                        {/* If custom color added by admin, allow deleting from store */}
+                        {!isDefault && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteCustomColorFromStore(col.id, col.label);
+                            }}
+                            style={{
+                              border: 'none',
+                              background: 'none',
+                              color: '#a89d91',
+                              cursor: 'pointer',
+                              padding: '2px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              borderRadius: '50%',
+                              marginLeft: '2px',
+                            }}
+                            title={`Xóa vĩnh viễn màu "${col.label}" khỏi hệ thống`}
+                          >
+                            <X size={13} />
+                          </button>
+                        )}
                       </div>
-                    ))}
+                    );
+                  })}
+
+                  {/* Any custom color on this product not in availableColors */}
+                  {selectedColors
+                    .filter((colId) => !availableColors.some((c) => c.id.toLowerCase() === colId.toLowerCase()))
+                    .map((unknownCol) => {
+                      const opt = getColorOption(unknownCol);
+                      return (
+                        <div
+                          key={unknownCol}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            borderRadius: '20px',
+                            border: '1.5px solid #766352',
+                            backgroundColor: '#f8f4ed',
+                            padding: '0.25rem 0.65rem 0.25rem 0.45rem',
+                            gap: '0.45rem',
+                            boxShadow: '0 1px 4px rgba(118,99,82,0.18)',
+                          }}
+                        >
+                          <span
+                            style={{
+                              width: '15px',
+                              height: '15px',
+                              borderRadius: '50%',
+                              background: opt.hex,
+                              border: opt.borderHex ? `1px solid ${opt.borderHex}` : '1px solid rgba(0,0,0,0.15)',
+                              display: 'inline-block',
+                              flexShrink: 0,
+                            }}
+                          />
+                          <span style={{ fontSize: '0.825rem', fontWeight: 600, color: '#766352' }}>
+                            {opt.label}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => toggleColor(unknownCol)}
+                            style={{
+                              border: 'none',
+                              background: 'none',
+                              color: '#a89d91',
+                              cursor: 'pointer',
+                              padding: 0,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              marginLeft: '2px',
+                            }}
+                            title={`Bỏ chọn màu ${opt.label}`}
+                          >
+                            <X size={13} />
+                          </button>
+                        </div>
+                      );
+                    })}
                 </div>
 
-                {/* Add custom color */}
-                <div style={{ display: 'flex', gap: '0.5rem', maxWidth: '360px' }}>
-                  <input
-                    type="text"
-                    placeholder="Thêm màu sắc khác (VD: Xanh navy, Vàng kem)..."
-                    value={customColorInput}
-                    onChange={(e) => setCustomColorInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        handleAddCustomColor();
-                      }
-                    }}
-                    className="form-input"
-                    style={{ padding: '0.4rem 0.65rem', fontSize: '0.85rem' }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => handleAddCustomColor()}
-                    className="btn btn-outline btn-sm"
-                    style={{ whiteSpace: 'nowrap' }}
-                  >
-                    Thêm màu
-                  </button>
+                {/* Add new custom color box */}
+                <div
+                  style={{
+                    backgroundColor: '#faf8f5',
+                    border: '1px dashed #d8cebe',
+                    borderRadius: '8px',
+                    padding: '0.85rem 1rem',
+                  }}
+                >
+                  <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#6a5e52', display: 'block', marginBottom: '0.5rem' }}>
+                    + Thêm màu mới vào bảng màu của tiệm:
+                  </span>
+
+                  {/* Quick color preset suggestions */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
+                    <span style={{ fontSize: '0.725rem', color: '#8c8073', marginRight: '2px' }}>Gợi ý nhanh:</span>
+                    {[
+                      { label: 'Xanh Rêu', hex: '#5b7058' },
+                      { label: 'Xanh Bơ', hex: '#8da87b' },
+                      { label: 'Xanh Navy', hex: '#23384c' },
+                      { label: 'Hồng Đất', hex: '#c4978c' },
+                      { label: 'Hồng Phấn', hex: '#e8b4b8' },
+                      { label: 'Cam Cháy', hex: '#bd5e3b' },
+                      { label: 'Nâu Tây', hex: '#7c533e' },
+                      { label: 'Vàng Bơ', hex: '#ead9a8' },
+                      { label: 'Đỏ Đô', hex: '#872626' },
+                      { label: 'Tím Khói', hex: '#9e8f9e' },
+                      { label: 'Xám Ghi', hex: '#8e9194' },
+                    ].map((preset) => (
+                      <button
+                        key={preset.label}
+                        type="button"
+                        onClick={() => {
+                          setCustomColorHex(preset.hex);
+                          if (!customColorInput.trim()) {
+                            setCustomColorInput(preset.label);
+                          }
+                        }}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          padding: '2px 7px',
+                          borderRadius: '12px',
+                          border: customColorHex === preset.hex ? '1.5px solid #766352' : '1px solid #d5cbbf',
+                          backgroundColor: customColorHex === preset.hex ? '#f8f4ed' : '#ffffff',
+                          cursor: 'pointer',
+                          fontSize: '0.72rem',
+                          color: '#444',
+                        }}
+                        title={`Chọn nhanh màu ${preset.label} (${preset.hex})`}
+                      >
+                        <span
+                          style={{
+                            width: '10px',
+                            height: '10px',
+                            borderRadius: '50%',
+                            background: preset.hex,
+                            display: 'inline-block',
+                          }}
+                        />
+                        <span>{preset.label}</span>
+                      </button>
+                    ))}
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                    {/* Color picker & Hex input */}
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.45rem',
+                        backgroundColor: '#ffffff',
+                        border: '1px solid #d5cbbf',
+                        borderRadius: '6px',
+                        padding: '0.2rem 0.5rem',
+                      }}
+                      title="Bấm ô màu để mở bảng chọn trực quan, hoặc nhập mã Hex vào ô bên cạnh"
+                    >
+                      <input
+                        type="color"
+                        value={customColorHex.startsWith('#') && customColorHex.length === 7 ? customColorHex : '#7e8f7f'}
+                        onChange={(e) => setCustomColorHex(e.target.value)}
+                        style={{
+                          width: '26px',
+                          height: '26px',
+                          border: 'none',
+                          borderRadius: '4px',
+                          padding: 0,
+                          cursor: 'pointer',
+                          backgroundColor: 'transparent',
+                        }}
+                        title="Bấm để chọn màu"
+                      />
+                      <input
+                        type="text"
+                        value={customColorHex}
+                        onChange={(e) => setCustomColorHex(e.target.value)}
+                        placeholder="#7e8f7f"
+                        maxLength={7}
+                        style={{
+                          width: '74px',
+                          border: 'none',
+                          outline: 'none',
+                          fontSize: '0.8rem',
+                          fontFamily: 'monospace',
+                          color: '#2c2825',
+                          fontWeight: 600,
+                          background: 'transparent',
+                          padding: '2px',
+                        }}
+                        title="Nhập mã màu Hex trực tiếp"
+                      />
+                    </div>
+
+                    {/* Name input */}
+                    <input
+                      type="text"
+                      placeholder="Tên màu (VD: Xanh Cốm, Cam Cháy, Tím Than)..."
+                      value={customColorInput}
+                      onChange={(e) => setCustomColorInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddCustomColor();
+                        }
+                      }}
+                      className="form-input"
+                      style={{ padding: '0.4rem 0.65rem', fontSize: '0.85rem', flex: '1 1 200px', maxWidth: '320px' }}
+                    />
+
+                    {/* Submit button */}
+                    <button
+                      type="button"
+                      onClick={() => handleAddCustomColor()}
+                      className="btn btn-primary btn-sm"
+                      style={{ whiteSpace: 'nowrap', padding: '0.45rem 0.85rem', fontSize: '0.825rem' }}
+                    >
+                      <span>Lưu & Chọn màu</span>
+                    </button>
+                  </div>
+                  <span style={{ fontSize: '0.725rem', color: '#8c8073', marginTop: '0.35rem', display: 'block' }}>
+                    * Màu mới sẽ hiển thị đúng mã màu bạn chọn trên website, trong danh mục gán ảnh và bộ lọc của khách.
+                  </span>
                 </div>
               </div>
 
@@ -1139,17 +1534,101 @@ export const AdminProductFormPage: React.FC = () => {
                           className="form-input"
                           style={{ padding: '0.4rem 0.65rem', fontSize: '0.85rem' }}
                         />
-                        <input
-                          type="number"
-                          min="1"
-                          placeholder="SL"
-                          value={item.quantity}
-                          onChange={(e) =>
-                            handleUpdateComboItem(idx, { quantity: Number(e.target.value) || 1 })
-                          }
-                          className="form-input"
-                          style={{ padding: '0.4rem 0.65rem', fontSize: '0.85rem' }}
-                        />
+                        <div
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            border: '1px solid #d5cbbf',
+                            borderRadius: '6px',
+                            backgroundColor: '#ffffff',
+                            overflow: 'hidden',
+                            height: '34px',
+                          }}
+                        >
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleUpdateComboItem(idx, {
+                                quantity: Math.max(1, (Number(item.quantity) || 1) - 1),
+                              })
+                            }
+                            style={{
+                              border: 'none',
+                              background: '#f5f0e8',
+                              width: '26px',
+                              height: '100%',
+                              cursor: 'pointer',
+                              fontSize: '1rem',
+                              fontWeight: 600,
+                              color: '#6a5e52',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              userSelect: 'none',
+                            }}
+                            title="Giảm 1"
+                          >
+                            -
+                          </button>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            value={item.quantity === ('' as any) ? '' : (item.quantity ?? 1)}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (val === '') {
+                                handleUpdateComboItem(idx, { quantity: '' as any });
+                              } else {
+                                const clean = val.replace(/[^0-9]/g, '');
+                                handleUpdateComboItem(idx, {
+                                  quantity: clean === '' ? ('' as any) : Math.max(1, parseInt(clean, 10)),
+                                });
+                              }
+                            }}
+                            onBlur={() => {
+                              if (!item.quantity || Number(item.quantity) < 1) {
+                                handleUpdateComboItem(idx, { quantity: 1 });
+                              }
+                            }}
+                            style={{
+                              width: '38px',
+                              textAlign: 'center',
+                              border: 'none',
+                              outline: 'none',
+                              fontSize: '0.875rem',
+                              fontWeight: 600,
+                              padding: 0,
+                              background: 'transparent',
+                            }}
+                            title="Nhập số lượng"
+                          />
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleUpdateComboItem(idx, {
+                                quantity: (Number(item.quantity) || 1) + 1,
+                              })
+                            }
+                            style={{
+                              border: 'none',
+                              background: '#f5f0e8',
+                              width: '26px',
+                              height: '100%',
+                              cursor: 'pointer',
+                              fontSize: '1rem',
+                              fontWeight: 600,
+                              color: '#6a5e52',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              userSelect: 'none',
+                            }}
+                            title="Tăng 1"
+                          >
+                            +
+                          </button>
+                        </div>
                         <input
                           type="text"
                           placeholder="Ghi chú (VD: 1m8 x 2m)"

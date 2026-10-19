@@ -164,10 +164,17 @@ export const productService = {
       .single();
 
     if (error) {
+      console.error('❌ [productService.createProduct] Supabase error:', error, { payload });
       if (error.code === '23505') {
-        throw new Error(`Mã sản phẩm hoặc slug đã tồn tại (${product.id}). Vui lòng chọn mã khác.`);
+        throw new Error(`Mã sản phẩm hoặc slug "${product.id}" đã tồn tại. Vui lòng chọn mã hoặc tên khác.`);
       }
-      throw new Error(error.message);
+      if (error.code === '23503') {
+        throw new Error(`Danh mục sản phẩm "${product.category}" không tồn tại trong hệ thống. Vui lòng chọn lại danh mục.`);
+      }
+      if (error.code === '42501') {
+        throw new Error('Lỗi quyền hạn (RLS 42501): Phiên đăng nhập Admin hết hạn hoặc tài khoản chưa có quyền quản trị. Vui lòng đăng xuất và đăng nhập lại.');
+      }
+      throw new Error(`Lỗi CSDL (${error.code || 'ERR'}): ${error.message}`);
     }
 
     return mapRowToProduct(data);
@@ -192,7 +199,20 @@ export const productService = {
       .select()
       .single();
 
-    if (error) throw new Error(error.message);
+    if (error) {
+      console.error('❌ [productService.updateProduct] Supabase error:', error, { payload });
+      if (error.code === '23505') {
+        throw new Error(`Mã sản phẩm hoặc slug "${id}" bị trùng lặp.`);
+      }
+      if (error.code === '23503') {
+        throw new Error(`Danh mục sản phẩm "${updates.category}" không tồn tại trong hệ thống.`);
+      }
+      if (error.code === '42501') {
+        throw new Error('Lỗi quyền hạn (RLS 42501): Phiên đăng nhập Admin hết hạn. Vui lòng đăng nhập lại.');
+      }
+      throw new Error(`Lỗi cập nhật (${error.code || 'ERR'}): ${error.message}`);
+    }
+
     return mapRowToProduct(data);
   },
 
@@ -351,6 +371,7 @@ export const productService = {
       });
 
     if (uploadError) {
+      console.error('❌ [productService.uploadProductImage] Storage error:', uploadError);
       throw new Error(`Lỗi tải ảnh lên Storage: ${uploadError.message}`);
     }
 
