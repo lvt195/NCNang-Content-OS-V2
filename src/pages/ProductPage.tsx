@@ -12,7 +12,7 @@ import {
 import { Product } from '../types/product';
 import { productService } from '../services/productService';
 import { formatVND } from '../utils/formatCurrency';
-import { getColorOption } from '../data/colors';
+import { getColorOption, slugifyColor } from '../data/colors';
 import { SITE_CONFIG } from '../config/site';
 import { analyticsService } from '../services/analyticsService';
 import { Header } from '../components/Header';
@@ -111,6 +111,40 @@ export const ProductPage: React.FC = () => {
       next.set('color', colorId);
       return next;
     }, { replace: true });
+  };
+
+  const getColorThumbnail = (colorId: string): string | null => {
+    if (!product || !product.images || product.images.length === 0) return null;
+    const targetSlug = slugifyColor(colorId).toLowerCase();
+
+    // 1. Tag match
+    const tagMatch = product.images.find((img) => {
+      const [_, tag] = img.split('#color=');
+      if (!tag) return false;
+      return (
+        slugifyColor(decodeURIComponent(tag)).toLowerCase() === targetSlug ||
+        decodeURIComponent(tag).toLowerCase() === colorId.toLowerCase()
+      );
+    });
+    if (tagMatch) return tagMatch.split('#color=')[0];
+
+    // 2. URL match
+    const urlMatch = product.images.find((img) => img.toLowerCase().includes(targetSlug));
+    if (urlMatch) return urlMatch.split('#color=')[0];
+
+    // 3. Distribution match
+    if (product.colors && product.colors.length > 1) {
+      const cIdx = product.colors.indexOf(colorId);
+      if (cIdx !== -1) {
+        const idx = Math.min(
+          Math.floor((cIdx * product.images.length) / product.colors.length),
+          product.images.length - 1
+        );
+        return product.images[idx].split('#color=')[0];
+      }
+    }
+
+    return product.images[0].split('#color=')[0];
   };
 
   const handleCopyCode = () => {
@@ -297,57 +331,51 @@ export const ProductPage: React.FC = () => {
                 </span>
               </div>
 
-              {/* Colors Swatches & Interactive Selection */}
+              {/* Colors Swatches & Interactive Selection - Shopee Style */}
               {product.colors && product.colors.length > 0 && (
                 <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '1.25rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
                     <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>
-                      Màu sắc:{' '}
+                      Màu sắc ({product.colors.length} màu):{' '}
                       <span style={{ color: 'var(--accent-brown)', fontWeight: 700 }}>
                         {selectedColor ? getColorOption(selectedColor).label : 'Chưa chọn'}
                       </span>
                     </span>
                     <span style={{ fontSize: '0.775rem', color: 'var(--text-muted)' }}>
-                      (Bấm màu để xem ảnh tương ứng)
+                      (Bấm màu để chuyển xem ảnh)
                     </span>
                   </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.65rem' }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.55rem' }}>
                     {product.colors.map((colorId) => {
                       const color = getColorOption(colorId);
                       const isSelected = selectedColor.toLowerCase() === colorId.toLowerCase();
+                      const thumbUrl = getColorThumbnail(colorId);
                       return (
                         <button
                           key={colorId}
                           type="button"
                           onClick={() => handleColorSelect(colorId)}
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.5rem',
-                            padding: '0.45rem 0.85rem',
-                            backgroundColor: isSelected ? 'var(--accent-warm-tint)' : 'var(--bg-surface)',
-                            borderRadius: 'var(--radius-full)',
-                            fontSize: '0.85rem',
-                            fontWeight: isSelected ? 600 : 500,
-                            color: isSelected ? 'var(--accent-brown)' : 'var(--text-primary)',
-                            border: isSelected
-                              ? '2px solid var(--accent-brown)'
-                              : '1px solid var(--border-subtle)',
-                            cursor: 'pointer',
-                            transition: 'all 0.15s ease',
-                            boxShadow: isSelected ? '0 2px 6px rgba(118,99,82,0.18)' : 'none',
-                          }}
+                          className={`shopee-var-btn ${isSelected ? 'active' : ''}`}
+                          title={`Xem mẫu màu ${color.label}`}
                         >
-                          <span
-                            className="color-dot"
-                            style={{
-                              background: color.hex,
-                              borderColor: color.borderHex || 'rgba(0,0,0,0.1)',
-                              transform: isSelected ? 'scale(1.15)' : 'none',
-                            }}
-                          />
-                          <span>{color.label}</span>
-                          {isSelected && <Check size={14} style={{ strokeWidth: 2.5 }} />}
+                          {thumbUrl ? (
+                            <img
+                              src={thumbUrl}
+                              alt={color.label}
+                              className="var-thumb-img"
+                            />
+                          ) : (
+                            <span
+                              className="var-color-circle"
+                              style={{ backgroundColor: color.hex }}
+                            />
+                          )}
+                          <span className="var-label">{color.label}</span>
+                          {isSelected && (
+                            <div className="var-check-badge">
+                              <Check size={11} strokeWidth={3} />
+                            </div>
+                          )}
                         </button>
                       );
                     })}
@@ -527,6 +555,57 @@ export const ProductPage: React.FC = () => {
             </div>
           </div>
 
+          {/* Shopee-style Lookbook / Detailed Full-Resolution Photos */}
+          {product.images && product.images.length > 0 && (
+            <section className="product-visual-lookbook">
+              <div className="lookbook-header">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                  <Sparkles size={20} color="var(--accent-brown)" />
+                  <h2 className="font-serif" style={{ fontSize: '1.4rem', color: 'var(--text-primary)', margin: 0 }}>
+                    Hình ảnh chi tiết & Chất vải thực tế ({product.images.length} ảnh)
+                  </h2>
+                </div>
+                <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', margin: '0.35rem 0 0 0' }}>
+                  Tất cả hình ảnh được tiệm chụp từ sản phẩm thật dưới ánh sáng tự nhiên.
+                </p>
+              </div>
+
+              <div className="lookbook-grid">
+                {product.images.map((rawImg, idx) => {
+                  const [cleanUrl, colorTag] = rawImg.split('#color=');
+                  const colorOption = colorTag ? getColorOption(decodeURIComponent(colorTag)) : null;
+                  return (
+                    <div key={idx} className="lookbook-card">
+                      <div className="lookbook-img-box">
+                        <img
+                          src={cleanUrl}
+                          alt={`${product.name} - Chi tiết ${idx + 1}`}
+                          className="lookbook-img"
+                          loading="lazy"
+                        />
+                        {colorOption && (
+                          <div className="lookbook-color-badge">
+                            <span
+                              style={{
+                                width: '9px',
+                                height: '9px',
+                                borderRadius: '50%',
+                                backgroundColor: colorOption.hex,
+                                border: '1px solid #ffffff',
+                              }}
+                            />
+                            <span>Màu: {colorOption.label}</span>
+                          </div>
+                        )}
+                        <span className="lookbook-counter">#{idx + 1}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
           {/* Related Products */}
           {relatedProducts.length > 0 && (
             <section style={{ marginTop: '4.5rem', borderTop: '1px solid var(--border-subtle)', paddingTop: '2.5rem' }}>
@@ -571,6 +650,146 @@ export const ProductPage: React.FC = () => {
           .product-breadcrumbs {
             margin-bottom: 0.6rem !important;
           }
+        }
+
+        /* Shopee-style Variations Button in PDP */
+        .shopee-var-btn {
+          position: relative;
+          display: inline-flex;
+          align-items: center;
+          gap: 0.5rem;
+          padding: 0.25rem 0.75rem 0.25rem 0.25rem;
+          border-radius: var(--radius-sm);
+          font-size: 0.84rem;
+          font-weight: 500;
+          background-color: #ffffff;
+          color: var(--text-primary);
+          border: 1.5px solid var(--border-subtle);
+          cursor: pointer;
+          transition: all 0.15s ease;
+          user-select: none;
+        }
+        .shopee-var-btn:hover {
+          border-color: var(--accent-brown);
+          background-color: #faf8f5;
+        }
+        .shopee-var-btn.active {
+          border-color: var(--accent-brown);
+          background-color: var(--accent-warm-tint);
+          color: var(--accent-brown);
+          font-weight: 600;
+          box-shadow: 0 2px 8px rgba(118,99,82,0.18);
+        }
+        .var-thumb-img {
+          width: 36px;
+          height: 36px;
+          border-radius: 4px;
+          object-fit: cover;
+          flex-shrink: 0;
+          border: 1px solid rgba(0,0,0,0.08);
+        }
+        .var-color-circle {
+          width: 24px;
+          height: 24px;
+          border-radius: 4px;
+          flex-shrink: 0;
+          border: 1px solid rgba(0,0,0,0.12);
+        }
+        .var-label {
+          line-height: 1.2;
+        }
+        .var-check-badge {
+          position: absolute;
+          bottom: -1px;
+          right: -1px;
+          background-color: var(--accent-brown);
+          color: #ffffff;
+          border-radius: 4px 0 3px 0;
+          width: 14px;
+          height: 14px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        /* Lookbook / Detailed Full-Resolution Photos Section */
+        .product-visual-lookbook {
+          margin-top: 3.5rem;
+          border-top: 1px solid var(--border-subtle);
+          padding-top: 2.25rem;
+        }
+        .lookbook-header {
+          margin-bottom: 1.5rem;
+        }
+        .lookbook-grid {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 1.25rem;
+        }
+        @media (max-width: 640px) {
+          .lookbook-grid {
+            grid-template-columns: 1fr;
+            gap: 1rem;
+          }
+        }
+        .lookbook-card {
+          border-radius: var(--radius-md);
+          overflow: hidden;
+          background-color: #faf8f5;
+          border: 1px solid var(--border-subtle);
+          box-shadow: 0 4px 15px rgba(0,0,0,0.04);
+          transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .lookbook-card:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+        }
+        .lookbook-img-box {
+          position: relative;
+          width: 100%;
+          aspect-ratio: 4 / 3;
+          background-color: #faf8f5;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          overflow: hidden;
+        }
+        .lookbook-img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          transition: transform 0.3s ease;
+        }
+        .lookbook-card:hover .lookbook-img {
+          transform: scale(1.03);
+        }
+        .lookbook-color-badge {
+          position: absolute;
+          top: 10px;
+          left: 10px;
+          background-color: rgba(38, 34, 30, 0.85);
+          backdrop-filter: blur(6px);
+          color: #ffffff;
+          padding: 0.28rem 0.7rem;
+          border-radius: 16px;
+          font-size: 0.75rem;
+          font-weight: 600;
+          display: flex;
+          align-items: center;
+          gap: 0.35rem;
+          box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+        }
+        .lookbook-counter {
+          position: absolute;
+          bottom: 10px;
+          right: 10px;
+          background-color: rgba(0,0,0,0.6);
+          color: #ffffff;
+          padding: 0.2rem 0.55rem;
+          border-radius: 12px;
+          font-size: 0.72rem;
+          font-weight: 500;
+          backdrop-filter: blur(4px);
         }
       `}</style>
     </div>
