@@ -60,8 +60,8 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
     setErrorMsg('');
     try {
       const [res, recursive] = await Promise.all([
-        mediaService.listItems(folder),
-        mediaService.listAllFilesRecursive(),
+        mediaService.listItems(folder, true),
+        mediaService.listAllFilesRecursive('', 4, true),
       ]);
       const visible = res.items.filter((i) => !i.name.startsWith('.'));
       setItems(visible);

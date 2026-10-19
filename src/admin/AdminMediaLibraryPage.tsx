@@ -218,8 +218,14 @@ export const AdminMediaLibraryPage: React.FC = () => {
     }
   };
 
+  const isFirstMount = useRef(true);
   useEffect(() => {
-    loadMedia(currentFolder);
+    if (isFirstMount.current) {
+      isFirstMount.current = false;
+      loadMedia(currentFolder, true);
+    } else {
+      loadMedia(currentFolder);
+    }
   }, [currentFolder]);
 
   // Navigate folder
@@ -366,7 +372,7 @@ export const AdminMediaLibraryPage: React.FC = () => {
       }
       setSuccessMsg(`Đã tải lên ${filesToUpload.length} ảnh thành công!`);
       setTimeout(() => setSuccessMsg(''), 3000);
-      await loadMedia(currentFolder);
+      await loadMedia(currentFolder, true);
     } catch (err: unknown) {
       setErrorMsg(err instanceof Error ? err.message : 'Lỗi khi tải ảnh');
     } finally {
@@ -426,7 +432,7 @@ export const AdminMediaLibraryPage: React.FC = () => {
       setTimeout(() => setSuccessMsg(''), 3000);
       // Update local state
       setDuplicateGroups((prev) => prev.filter((g) => g.size !== group.size));
-      await loadMedia(currentFolder);
+      await loadMedia(currentFolder, true);
     } catch (err: unknown) {
       setErrorMsg(err instanceof Error ? err.message : 'Lỗi khi xóa bản sao');
     }
@@ -445,7 +451,7 @@ export const AdminMediaLibraryPage: React.FC = () => {
       setShowNewFolderModal(false);
       setNewFolderName('');
       setTimeout(() => setSuccessMsg(''), 3000);
-      await loadMedia(currentFolder);
+      await loadMedia(currentFolder, true);
     } catch (err: unknown) {
       setErrorMsg(err instanceof Error ? err.message : 'Lỗi khi tạo thư mục');
     } finally {
@@ -468,7 +474,7 @@ export const AdminMediaLibraryPage: React.FC = () => {
       setSuccessMsg(`Đã chuyển ảnh sang ${targetCategory ? `danh mục "${targetCategory}"` : 'Thư mục gốc'}!`);
       setItemToMove(null);
       setTimeout(() => setSuccessMsg(''), 3000);
-      await loadMedia(currentFolder);
+      await loadMedia(currentFolder, true);
     } catch (err: unknown) {
       setErrorMsg(err instanceof Error ? err.message : 'Lỗi khi chuyển ảnh');
     } finally {
@@ -489,7 +495,7 @@ export const AdminMediaLibraryPage: React.FC = () => {
       setSuccessMsg(`Đã xóa "${itemToDelete.name}" thành công.`);
       setItemToDelete(null);
       setTimeout(() => setSuccessMsg(''), 3000);
-      await loadMedia(currentFolder);
+      await loadMedia(currentFolder, true);
     } catch (err: unknown) {
       setErrorMsg(err instanceof Error ? err.message : 'Lỗi khi xóa');
     } finally {
@@ -1883,10 +1889,13 @@ export const AdminMediaLibraryPage: React.FC = () => {
 
               <button
                 type="button"
-                onClick={() => loadMedia(currentFolder)}
+                onClick={() => {
+                  mediaService.clearCache();
+                  loadMedia(currentFolder, true);
+                }}
                 className="btn btn-outline btn-sm"
                 style={{ padding: '0.35rem 0.6rem' }}
-                title="Làm mới danh sách"
+                title="Làm mới danh sách từ máy chủ"
               >
                 <RefreshCw size={14} />
               </button>

@@ -21,7 +21,17 @@ const BUCKET_NAME = 'product-images';
 // In-memory cache for media items to prevent reloading every time
 const listCache = new Map<string, { items: StorageItem[]; currentPath: string; timestamp: number }>();
 let recursiveAllFilesCache: { data: StorageItem[]; timestamp: number } | null = null;
-const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes cache
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes cache
+const ALL_FILES_CACHE_KEY = 'media_all_files_cache_v4';
+
+// Immediately wipe legacy stale caches on load
+try {
+  sessionStorage.removeItem('media_all_files_cache');
+  sessionStorage.removeItem('media_all_files_cache_v2');
+  sessionStorage.removeItem('media_all_files_cache_v3');
+} catch {
+  // ignore
+}
 
 export const mediaService = {
   /**
@@ -31,7 +41,16 @@ export const mediaService = {
     listCache.clear();
     recursiveAllFilesCache = null;
     try {
+      sessionStorage.removeItem(ALL_FILES_CACHE_KEY);
       sessionStorage.removeItem('media_all_files_cache');
+      sessionStorage.removeItem('media_all_files_cache_v2');
+      sessionStorage.removeItem('media_all_files_cache_v3');
+      sessionStorage.removeItem('media_all_files_cache_v4');
+      Object.keys(sessionStorage).forEach((k) => {
+        if (k.startsWith('img_fp_') || k.startsWith('media_')) {
+          sessionStorage.removeItem(k);
+        }
+      });
     } catch {
       // ignore
     }
@@ -47,6 +66,10 @@ export const mediaService = {
 
     const cleanFolder = folder.replace(/^\/+|\/+$/g, '');
     const cacheKey = cleanFolder;
+
+    if (forceRefresh) {
+      listCache.delete(cacheKey);
+    }
 
     // Check memory cache
     if (!forceRefresh) {
@@ -269,13 +292,17 @@ export const mediaService = {
 
     const isRoot = !rootFolder || rootFolder === '';
 
+    if (forceRefresh) {
+      this.clearCache();
+    }
+
     // Check memory cache for root
     if (isRoot && !forceRefresh) {
       if (recursiveAllFilesCache && Date.now() - recursiveAllFilesCache.timestamp < CACHE_TTL_MS) {
         return recursiveAllFilesCache.data;
       }
       try {
-        const stored = sessionStorage.getItem('media_all_files_cache');
+        const stored = sessionStorage.getItem(ALL_FILES_CACHE_KEY);
         if (stored) {
           const parsed = JSON.parse(stored);
           if (parsed && Array.isArray(parsed.data) && Date.now() - parsed.timestamp < CACHE_TTL_MS) {
@@ -326,7 +353,7 @@ export const mediaService = {
     if (isRoot) {
       recursiveAllFilesCache = { data: results, timestamp: Date.now() };
       try {
-        sessionStorage.setItem('media_all_files_cache', JSON.stringify(recursiveAllFilesCache));
+        sessionStorage.setItem(ALL_FILES_CACHE_KEY, JSON.stringify(recursiveAllFilesCache));
       } catch {
         // ignore
       }
