@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useSearchParams, Link } from 'react-router-dom';
-import { ArrowUpDown, RefreshCw, X, SlidersHorizontal, ArrowRight, MessageCircle, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowUpDown, RefreshCw, X, SlidersHorizontal, ArrowRight, MessageCircle, ChevronLeft, ChevronRight, ChevronDown, ChevronUp } from 'lucide-react';
 import { Product, Category, FilterState, SortOption } from '../types/product';
 import { productService } from '../services/productService';
 import { filterProducts } from '../utils/filterProducts';
@@ -20,8 +20,7 @@ export const CatalogPage: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
-  const [showDesktopFilters, setShowDesktopFilters] = useState(false);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
   const [activeQuickViewImg, setActiveQuickViewImg] = useState<string>('');
 
@@ -162,125 +161,68 @@ export const CatalogPage: React.FC = () => {
               Chăn ga, gối đũi wash mềm và linen tự nhiên thoáng khí cho phòng ngủ mộc mạc.
             </p>
 
-            {/* Quick Category Navigation Pills (Horizontally scrollable on mobile) */}
-            <div
-              style={{
-                display: 'flex',
-                gap: '0.4rem',
-                overflowX: 'auto',
-                paddingTop: '0.85rem',
-                paddingBottom: '0.25rem',
-                justifyContent: 'flex-start',
-                scrollbarWidth: 'none',
-                WebkitOverflowScrolling: 'touch',
-              }}
-              className="category-scroll-row"
-            >
-              <button
-                type="button"
-                className={`filter-chip ${filters.category === 'all' ? 'active' : ''}`}
-                style={{ flexShrink: 0, fontSize: '0.8rem', padding: '0.3rem 0.7rem' }}
-                onClick={() => handleFilterChange({ category: 'all' })}
-              >
-                Tất cả ({products.length})
-              </button>
-              {categories.map((cat) => {
-                const count = products.filter((p) => p.category === cat.id).length;
-                return (
-                  <button
-                    key={cat.id}
-                    type="button"
-                    className={`filter-chip ${filters.category === cat.id ? 'active' : ''}`}
-                    style={{ flexShrink: 0, fontSize: '0.8rem', padding: '0.3rem 0.7rem' }}
-                    onClick={() => handleFilterChange({ category: cat.id })}
-                  >
-                    {cat.name} ({count})
-                  </button>
-                );
-              })}
-            </div>
           </div>
         </section>
 
         {/* Catalog Main Content */}
         <div className="container" style={{ paddingTop: '1.25rem', width: '100%' }}>
-          <div style={{ display: 'flex', gap: showDesktopFilters ? '2rem' : '0', alignItems: 'flex-start', width: '100%' }}>
-            {/* Desktop Filters Sidebar (expandable on toggle) */}
-            <ProductFilters
-              filters={filters}
-              onFilterChange={handleFilterChange}
-              onResetFilters={handleResetFilters}
-              categories={categories}
-              isMobileDrawerOpen={isMobileDrawerOpen}
-              onCloseMobileDrawer={() => setIsMobileDrawerOpen(false)}
-              totalFilteredCount={filteredProducts.length}
-              showDesktopSidebar={showDesktopFilters}
-            />
+          {/* Toolbar: Filter Button + Sorting placed TOGETHER */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '0.65rem',
+              paddingBottom: '0.75rem',
+              borderBottom: '1px solid var(--border-subtle)',
+              marginBottom: '1rem',
+              flexWrap: 'wrap',
+            }}
+          >
+            {/* Left: Product count */}
+            <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+              <strong style={{ color: 'var(--text-primary)' }}>{filteredProducts.length}</strong> sản phẩm
+            </div>
 
-            {/* Product Grid Area - Takes 100% full width when sidebar is collapsed */}
-            <div style={{ flex: 1, minWidth: 0, width: '100%' }}>
-              {/* Toolbar: Filter Button + Sorting placed TOGETHER */}
-              <div
+            {/* Right: Filter button & Sort dropdown side-by-side */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'nowrap' }}>
+              {/* Universal Filter button for desktop & mobile */}
+              <button
+                type="button"
+                onClick={() => setIsFilterOpen(!isFilterOpen)}
+                className="btn btn-outline btn-sm filter-toggle-btn"
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: '0.65rem',
-                  paddingBottom: '0.75rem',
-                  borderBottom: '1px solid var(--border-subtle)',
-                  marginBottom: '1rem',
-                  flexWrap: 'wrap',
+                  padding: '0.35rem 0.8rem',
+                  fontSize: '0.825rem',
+                  gap: '0.45rem',
+                  backgroundColor: (activeFilterCount > 0 || isFilterOpen) ? 'var(--accent-warm-tint)' : 'transparent',
+                  borderColor: (activeFilterCount > 0 || isFilterOpen) ? 'var(--accent-brown)' : 'var(--border-subtle)',
+                  color: (activeFilterCount > 0 || isFilterOpen) ? 'var(--accent-brown)' : 'var(--text-primary)',
+                  fontWeight: (activeFilterCount > 0 || isFilterOpen) ? 600 : 500,
                 }}
+                title={isFilterOpen ? 'Thu lại bộ lọc' : 'Bung ra bộ lọc chi tiết (danh mục, màu sắc, giá, loại)'}
               >
-                {/* Left: Product count */}
-                <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                  <strong style={{ color: 'var(--text-primary)' }}>{filteredProducts.length}</strong> sản phẩm
-                </div>
-
-                {/* Right: Filter button & Sort dropdown side-by-side */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'nowrap' }}>
-                  {/* Universal Filter button for desktop & mobile */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (typeof window !== 'undefined' && window.innerWidth >= 960) {
-                        setShowDesktopFilters(!showDesktopFilters);
-                      } else {
-                        setIsMobileDrawerOpen(true);
-                      }
-                    }}
-                    className="btn btn-outline btn-sm filter-toggle-btn"
+                <SlidersHorizontal size={14} />
+                <span>{isFilterOpen ? 'Thu lại bộ lọc' : 'Bộ lọc chi tiết'}</span>
+                {isFilterOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                {activeFilterCount > 0 && (
+                  <span
                     style={{
-                      padding: '0.35rem 0.8rem',
-                      fontSize: '0.825rem',
-                      gap: '0.45rem',
-                      backgroundColor: (activeFilterCount > 0 || showDesktopFilters) ? 'var(--accent-warm-tint)' : 'transparent',
-                      borderColor: (activeFilterCount > 0 || showDesktopFilters) ? 'var(--accent-brown)' : 'var(--border-subtle)',
-                      color: (activeFilterCount > 0 || showDesktopFilters) ? 'var(--accent-brown)' : 'var(--text-primary)',
-                      fontWeight: (activeFilterCount > 0 || showDesktopFilters) ? 600 : 500,
+                      width: '18px',
+                      height: '18px',
+                      borderRadius: '50%',
+                      backgroundColor: 'var(--accent-brown)',
+                      color: '#ffffff',
+                      fontSize: '0.7rem',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
                     }}
-                    title="Bật/Tắt bộ lọc chi tiết (màu sắc, giá, loại)"
                   >
-                    <SlidersHorizontal size={14} />
-                    <span>{showDesktopFilters ? 'Ẩn bộ lọc' : 'Bộ lọc chi tiết'}</span>
-                    {activeFilterCount > 0 && (
-                      <span
-                        style={{
-                          width: '18px',
-                          height: '18px',
-                          borderRadius: '50%',
-                          backgroundColor: 'var(--accent-brown)',
-                          color: '#ffffff',
-                          fontSize: '0.7rem',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                        }}
-                      >
-                        {activeFilterCount}
-                      </span>
-                    )}
-                  </button>
+                    {activeFilterCount}
+                  </span>
+                )}
+              </button>
 
                   {/* Sort selector */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
@@ -376,6 +318,18 @@ export const CatalogPage: React.FC = () => {
                 </div>
               )}
 
+              {/* Collapsible Filter Panel (Bung ra / Thu lại) */}
+              <ProductFilters
+                filters={filters}
+                onFilterChange={handleFilterChange}
+                onResetFilters={handleResetFilters}
+                categories={categories}
+                isOpen={isFilterOpen}
+                onClose={() => setIsFilterOpen(false)}
+                totalFilteredCount={filteredProducts.length}
+                products={products}
+              />
+
               {/* Product Grid / Loading / Empty States */}
               {loading ? (
                 <div
@@ -434,8 +388,6 @@ export const CatalogPage: React.FC = () => {
                   </button>
                 </div>
               )}
-            </div>
-          </div>
         </div>
       </main>
 

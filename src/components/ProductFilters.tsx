@@ -1,7 +1,6 @@
-import React, { useEffect } from 'react';
-import { createPortal } from 'react-dom';
-import { X, RotateCcw } from 'lucide-react';
-import { FilterState, Category } from '../types/product';
+import React from 'react';
+import { RotateCcw, SlidersHorizontal, ChevronUp, Check } from 'lucide-react';
+import { FilterState, Category, Product } from '../types/product';
 import { SITE_CONFIG } from '../config/site';
 import { getAllColors } from '../data/colors';
 
@@ -10,10 +9,10 @@ interface ProductFiltersProps {
   onFilterChange: (updates: Partial<FilterState>) => void;
   onResetFilters: () => void;
   categories: Category[];
-  isMobileDrawerOpen?: boolean;
-  onCloseMobileDrawer?: () => void;
+  isOpen: boolean;
+  onClose: () => void;
   totalFilteredCount: number;
-  showDesktopSidebar?: boolean;
+  products?: Product[];
 }
 
 export const ProductFilters: React.FC<ProductFiltersProps> = ({
@@ -21,10 +20,10 @@ export const ProductFilters: React.FC<ProductFiltersProps> = ({
   onFilterChange,
   onResetFilters,
   categories,
-  isMobileDrawerOpen = false,
-  onCloseMobileDrawer,
+  isOpen,
+  onClose,
   totalFilteredCount,
-  showDesktopSidebar = false,
+  products = [],
 }) => {
   const isAnyFilterActive =
     (filters.category && filters.category !== 'all') ||
@@ -33,397 +32,367 @@ export const ProductFilters: React.FC<ProductFiltersProps> = ({
     (filters.type && filters.type !== 'all') ||
     Boolean(filters.searchQuery);
 
-  useEffect(() => {
-    if (isMobileDrawerOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
-    return () => {
-      document.body.style.overflow = '';
-    };
-  }, [isMobileDrawerOpen]);
-
-  const filterContent = (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-      {/* 1. Category Filter */}
-      <div>
-        <h4
-          style={{
-            fontSize: '0.85rem',
-            fontWeight: 600,
-            color: 'var(--text-primary)',
-            textTransform: 'uppercase',
-            letterSpacing: '0.05em',
-            marginBottom: '0.75rem',
-          }}
-        >
-          Danh mục sản phẩm
-        </h4>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-          <button
-            type="button"
-            className={`filter-item-btn ${filters.category === 'all' || !filters.category ? 'active' : ''}`}
-            onClick={() => onFilterChange({ category: 'all' })}
-          >
-            <span>Tất cả danh mục</span>
-          </button>
-          {categories.map((cat) => (
-            <button
-              key={cat.id}
-              type="button"
-              className={`filter-item-btn ${filters.category === cat.id ? 'active' : ''}`}
-              onClick={() => onFilterChange({ category: cat.id })}
-            >
-              <span>{cat.name}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* 2. Product Type Filter */}
-      <div>
-        <h4
-          style={{
-            fontSize: '0.85rem',
-            fontWeight: 600,
-            color: 'var(--text-primary)',
-            textTransform: 'uppercase',
-            letterSpacing: '0.05em',
-            marginBottom: '0.75rem',
-          }}
-        >
-          Loại sản phẩm
-        </h4>
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-          {[
-            { id: 'all', label: 'Tất cả' },
-            { id: 'single', label: 'Món lẻ' },
-            { id: 'combo', label: 'Bộ Combo' },
-          ].map((typeItem) => (
-            <button
-              key={typeItem.id}
-              type="button"
-              className={`filter-chip ${filters.type === typeItem.id ? 'active' : ''}`}
-              onClick={() => onFilterChange({ type: typeItem.id })}
-            >
-              {typeItem.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* 3. Price Range Filter */}
-      <div>
-        <h4
-          style={{
-            fontSize: '0.85rem',
-            fontWeight: 600,
-            color: 'var(--text-primary)',
-            textTransform: 'uppercase',
-            letterSpacing: '0.05em',
-            marginBottom: '0.75rem',
-          }}
-        >
-          Mức giá
-        </h4>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-          {SITE_CONFIG.priceRanges.map((range) => (
-            <button
-              key={range.id}
-              type="button"
-              className={`filter-item-btn ${filters.priceRangeId === range.id ? 'active' : ''}`}
-              onClick={() => onFilterChange({ priceRangeId: range.id })}
-            >
-              <span>{range.label}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* 4. Color Swatches Filter */}
-      <div>
-        <h4
-          style={{
-            fontSize: '0.85rem',
-            fontWeight: 600,
-            color: 'var(--text-primary)',
-            textTransform: 'uppercase',
-            letterSpacing: '0.05em',
-            marginBottom: '0.75rem',
-          }}
-        >
-          Tone màu tự nhiên
-        </h4>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-          <button
-            type="button"
-            className={`color-filter-pill ${filters.color === 'all' || !filters.color ? 'active' : ''}`}
-            onClick={() => onFilterChange({ color: 'all' })}
-          >
-            Tất cả
-          </button>
-          {getAllColors().map((col) => {
-            const isSelected = filters.color === col.id;
-            return (
-              <button
-                key={col.id}
-                type="button"
-                className={`color-filter-pill ${isSelected ? 'active' : ''}`}
-                onClick={() => onFilterChange({ color: isSelected ? 'all' : col.id })}
-                title={col.label}
-              >
-                <span
-                  style={{
-                    width: '14px',
-                    height: '14px',
-                    borderRadius: '50%',
-                    background: col.hex,
-                    border: '1px solid rgba(0,0,0,0.15)',
-                    display: 'inline-block',
-                  }}
-                />
-                <span>{col.label.split(' / ')[0]}</span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Reset Action */}
-      {isAnyFilterActive && (
-        <div style={{ paddingTop: '0.5rem', borderTop: '1px solid var(--border-subtle)' }}>
-          <button
-            type="button"
-            className="btn btn-outline btn-sm"
-            style={{ width: '100%', gap: '0.5rem' }}
-            onClick={onResetFilters}
-          >
-            <RotateCcw size={14} />
-            <span>Xóa tất cả bộ lọc</span>
-          </button>
-        </div>
-      )}
-    </div>
-  );
+  if (!isOpen) return null;
 
   return (
-    <>
-      {/* Desktop Sidebar Filter (only if enabled) */}
-      {showDesktopSidebar && (
-        <aside className="desktop-filters-sidebar">
-          <div
-            style={{
-              backgroundColor: 'var(--bg-surface)',
-              padding: '1.25rem',
-              borderRadius: 'var(--radius-sm)',
-              border: '1px solid var(--border-subtle)',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
-              <span style={{ fontSize: '0.95rem', fontWeight: 600 }}>Bộ lọc tìm kiếm</span>
-              {isAnyFilterActive && (
-                <button
-                  type="button"
-                  onClick={onResetFilters}
-                  style={{ fontSize: '0.8rem', color: 'var(--accent-brown)', textDecoration: 'underline' }}
-                >
-                  Đặt lại
-                </button>
-              )}
-            </div>
-            {filterContent}
-          </div>
-        </aside>
-      )}
-
-      {/* Mobile Bottom Sheet Drawer rendered to document.body via Portal */}
-      {isMobileDrawerOpen &&
-        typeof document !== 'undefined' &&
-        createPortal(
-          <div className="mobile-drawer-portal-wrapper">
-            <div
-              className="drawer-backdrop"
-              onClick={onCloseMobileDrawer}
-              aria-hidden="true"
-            />
-            <div
-              className="drawer-content mobile-bottom-sheet"
-              role="dialog"
-              aria-modal="true"
-              aria-label="Bộ lọc sản phẩm"
+    <div className="collapsible-filters-card">
+      {/* Header bar of filter panel */}
+      <div className="filters-card-header">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <SlidersHorizontal size={16} color="var(--accent-brown)" />
+          <span style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--text-primary)' }}>
+            Bộ lọc tìm kiếm chi tiết
+          </span>
+          {isAnyFilterActive && (
+            <span
+              style={{
+                fontSize: '0.725rem',
+                fontWeight: 600,
+                color: 'var(--accent-brown)',
+                backgroundColor: 'var(--accent-warm-tint)',
+                padding: '0.15rem 0.5rem',
+                borderRadius: '12px',
+                border: '1px solid #ebd9c2',
+              }}
             >
-              {/* Drag handle */}
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'center',
-                  paddingTop: '10px',
-                  paddingBottom: '4px',
-                  cursor: 'pointer',
-                }}
-                onClick={onCloseMobileDrawer}
-              >
-                <div
-                  style={{
-                    width: '40px',
-                    height: '4px',
-                    borderRadius: '2px',
-                    backgroundColor: 'var(--border-subtle)',
-                  }}
-                />
-              </div>
+              Đang áp dụng
+            </span>
+          )}
+        </div>
 
-              {/* Drawer Header */}
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '0.75rem 1.25rem',
-                  borderBottom: '1px solid var(--border-subtle)',
-                }}
-              >
-                <h3 style={{ fontSize: '1rem', fontWeight: 600, margin: 0 }}>
-                  Bộ lọc ({totalFilteredCount} sản phẩm)
-                </h3>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          {isAnyFilterActive && (
+            <button
+              type="button"
+              onClick={onResetFilters}
+              className="filters-reset-link"
+              title="Đặt lại tất cả lựa chọn"
+            >
+              <RotateCcw size={13} />
+              <span>Đặt lại</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="filters-collapse-btn"
+            title="Thu lại bộ lọc"
+          >
+            <span>Thu lại</span>
+            <ChevronUp size={16} />
+          </button>
+        </div>
+      </div>
+
+      {/* Grid of 3 filter groups */}
+      <div className="filters-card-grid">
+        {/* Column 1: Danh mục sản phẩm */}
+        <div className="filter-group-col">
+          <h4 className="filter-group-heading">Danh mục sản phẩm</h4>
+          <div className="filter-options-list">
+            <button
+              type="button"
+              className={`filter-item-btn ${filters.category === 'all' || !filters.category ? 'active' : ''}`}
+              onClick={() => onFilterChange({ category: 'all' })}
+            >
+              <span>Tất cả danh mục</span>
+              <span className="filter-count-badge">({products.length})</span>
+            </button>
+
+            {categories.map((cat) => {
+              const count = products.filter((p) => p.category === cat.id).length;
+              const isActive = filters.category === cat.id;
+              return (
                 <button
+                  key={cat.id}
                   type="button"
-                  onClick={onCloseMobileDrawer}
-                  style={{
-                    padding: '0.35rem',
-                    color: 'var(--text-muted)',
-                    borderRadius: '50%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                  aria-label="Đóng bộ lọc"
+                  className={`filter-item-btn ${isActive ? 'active' : ''}`}
+                  onClick={() => onFilterChange({ category: cat.id })}
                 >
-                  <X size={20} />
+                  <span>{cat.name}</span>
+                  <span className="filter-count-badge">({count})</span>
                 </button>
-              </div>
+              );
+            })}
+          </div>
+        </div>
 
-              {/* Drawer Scrollable Body */}
-              <div
-                style={{
-                  padding: '1.25rem',
-                  overflowY: 'auto',
-                  flex: 1,
-                  WebkitOverflowScrolling: 'touch',
-                }}
+        {/* Column 2: Loại sản phẩm & Mức giá */}
+        <div className="filter-group-col">
+          <h4 className="filter-group-heading">Loại sản phẩm</h4>
+          <div className="filter-chips-wrap">
+            {[
+              { id: 'all', label: 'Tất cả' },
+              { id: 'single', label: 'Món lẻ / Set đơn' },
+              { id: 'combo', label: 'Bộ Combo' },
+            ].map((typeItem) => (
+              <button
+                key={typeItem.id}
+                type="button"
+                className={`filter-chip ${filters.type === typeItem.id ? 'active' : ''}`}
+                onClick={() => onFilterChange({ type: typeItem.id })}
               >
-                {filterContent}
-              </div>
+                {typeItem.label}
+              </button>
+            ))}
+          </div>
 
-              {/* Drawer Footer CTA */}
-              <div
-                style={{
-                  padding: '0.85rem 1.25rem',
-                  borderTop: '1px solid var(--border-subtle)',
-                  backgroundColor: 'var(--bg-surface)',
-                  display: 'flex',
-                  gap: '0.75rem',
-                }}
+          <h4 className="filter-group-heading" style={{ marginTop: '1.25rem' }}>
+            Mức giá tham khảo
+          </h4>
+          <div className="filter-options-list">
+            {SITE_CONFIG.priceRanges.map((range) => (
+              <button
+                key={range.id}
+                type="button"
+                className={`filter-item-btn ${filters.priceRangeId === range.id ? 'active' : ''}`}
+                onClick={() => onFilterChange({ priceRangeId: range.id })}
               >
-                {isAnyFilterActive && (
-                  <button
-                    type="button"
-                    className="btn btn-outline"
-                    style={{ flex: 1 }}
-                    onClick={onResetFilters}
-                  >
-                    Xóa lọc
-                  </button>
-                )}
+                <span>{range.label}</span>
+                {filters.priceRangeId === range.id && <Check size={13} color="var(--accent-brown)" />}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Column 3: Tone màu tự nhiên */}
+        <div className="filter-group-col filter-group-col-wide">
+          <h4 className="filter-group-heading">Tone màu tự nhiên</h4>
+          <div className="filter-colors-grid">
+            <button
+              type="button"
+              className={`color-filter-pill ${filters.color === 'all' || !filters.color ? 'active' : ''}`}
+              onClick={() => onFilterChange({ color: 'all' })}
+            >
+              Tất cả màu
+            </button>
+            {getAllColors().map((col) => {
+              const isSelected = filters.color === col.id;
+              return (
                 <button
+                  key={col.id}
                   type="button"
-                  className="btn btn-primary"
-                  style={{ flex: 2 }}
-                  onClick={onCloseMobileDrawer}
+                  className={`color-filter-pill ${isSelected ? 'active' : ''}`}
+                  onClick={() => onFilterChange({ color: isSelected ? 'all' : col.id })}
+                  title={col.label}
                 >
-                  Xem {totalFilteredCount} sản phẩm
+                  <span
+                    style={{
+                      width: '13px',
+                      height: '13px',
+                      borderRadius: '50%',
+                      background: col.hex,
+                      border: '1px solid rgba(0,0,0,0.15)',
+                      display: 'inline-block',
+                      flexShrink: 0,
+                    }}
+                  />
+                  <span>{col.label.split(' / ')[0]}</span>
+                  {isSelected && <Check size={12} />}
                 </button>
-              </div>
-            </div>
-          </div>,
-          document.body
-        )}
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Footer bar with summary count and quick close */}
+      <div className="filters-card-footer">
+        <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+          Đang lọc thấy <strong style={{ color: 'var(--accent-brown)' }}>{totalFilteredCount}</strong> sản phẩm phù hợp
+        </span>
+        <button
+          type="button"
+          className="btn btn-primary btn-sm"
+          onClick={onClose}
+          style={{ gap: '0.35rem' }}
+        >
+          <span>Xem kết quả</span>
+          <ChevronUp size={15} />
+        </button>
+      </div>
 
       <style>{`
-        .desktop-filters-sidebar {
-          display: none;
-          width: 260px;
-          flex-shrink: 0;
+        .collapsible-filters-card {
+          background-color: #ffffff;
+          border: 1px solid var(--border-subtle);
+          border-radius: var(--radius-md);
+          box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+          padding: 1.25rem 1.5rem;
+          margin-bottom: 1.5rem;
+          animation: slideDownFade 0.2s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
-        @media (min-width: 960px) {
-          .desktop-filters-sidebar {
-            display: block;
+        @keyframes slideDownFade {
+          from {
+            opacity: 0;
+            transform: translateY(-8px);
           }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        .filters-card-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding-bottom: 0.85rem;
+          border-bottom: 1px solid var(--border-subtle);
+          margin-bottom: 1.25rem;
+        }
+
+        .filters-reset-link {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.35rem;
+          background: none;
+          border: none;
+          color: var(--accent-brown);
+          font-size: 0.825rem;
+          font-weight: 500;
+          cursor: pointer;
+          text-decoration: underline;
+        }
+        .filters-reset-link:hover {
+          color: var(--text-primary);
+        }
+
+        .filters-collapse-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.35rem;
+          background-color: var(--bg-muted);
+          border: 1px solid var(--border-subtle);
+          border-radius: var(--radius-sm);
+          padding: 0.3rem 0.65rem;
+          font-size: 0.8rem;
+          color: var(--text-secondary);
+          cursor: pointer;
+          transition: all 0.15s ease;
+        }
+        .filters-collapse-btn:hover {
+          background-color: #ffffff;
+          color: var(--text-primary);
+        }
+
+        .filters-card-grid {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 1.75rem;
+        }
+
+        @media (max-width: 860px) {
+          .filters-card-grid {
+            grid-template-columns: 1fr;
+            gap: 1.25rem;
+          }
+        }
+
+        .filter-group-col {
+          display: flex;
+          flex-direction: column;
+        }
+
+        .filter-group-heading {
+          font-size: 0.825rem;
+          font-weight: 600;
+          color: var(--text-muted);
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+          margin-bottom: 0.65rem;
+        }
+
+        .filter-options-list {
+          display: flex;
+          flex-direction: column;
+          gap: 0.3rem;
+          max-height: 220px;
+          overflow-y: auto;
+          padding-right: 0.25rem;
+          scrollbar-width: thin;
         }
 
         .filter-item-btn {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          padding: 0.45rem 0.65rem;
+          padding: 0.4rem 0.65rem;
           border-radius: var(--radius-sm);
-          font-size: 0.875rem;
+          font-size: 0.85rem;
           color: var(--text-secondary);
           text-align: left;
-          width: 100%;
-          transition: background-color 0.15s ease;
+          background: transparent;
+          border: none;
+          cursor: pointer;
+          transition: background-color 0.15s ease, color 0.15s ease;
         }
-
         .filter-item-btn:hover {
           background-color: var(--bg-muted);
           color: var(--text-primary);
         }
-
         .filter-item-btn.active {
           background-color: var(--accent-warm-tint);
           color: var(--accent-brown);
           font-weight: 600;
         }
-
-        .filter-chip {
-          padding: 0.35rem 0.75rem;
-          border-radius: var(--radius-full);
-          border: 1px solid var(--border-subtle);
-          background-color: transparent;
-          font-size: 0.825rem;
-          color: var(--text-secondary);
-          transition: all 0.15s ease;
+        .filter-count-badge {
+          font-size: 0.775rem;
+          color: var(--text-muted);
+        }
+        .filter-item-btn.active .filter-count-badge {
+          color: var(--accent-brown);
         }
 
-        .filter-chip.active {
-          background-color: var(--accent-brown);
-          border-color: var(--accent-brown);
-          color: #ffffff;
-          font-weight: 500;
+        .filter-chips-wrap {
+          display: flex;
+          gap: 0.4rem;
+          flex-wrap: wrap;
+        }
+
+        .filter-colors-grid {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.45rem;
+          max-height: 220px;
+          overflow-y: auto;
+          scrollbar-width: thin;
         }
 
         .color-filter-pill {
           display: inline-flex;
           align-items: center;
           gap: 0.4rem;
-          padding: 0.35rem 0.65rem;
+          padding: 0.32rem 0.65rem;
           border-radius: var(--radius-full);
           border: 1px solid var(--border-subtle);
           font-size: 0.8rem;
           color: var(--text-secondary);
           background-color: transparent;
+          cursor: pointer;
           transition: all 0.15s ease;
         }
-
+        .color-filter-pill:hover {
+          border-color: var(--accent-brown);
+        }
         .color-filter-pill.active {
           border-color: var(--accent-brown);
           background-color: var(--accent-warm-tint);
           color: var(--accent-brown);
-          font-weight: 500;
+          font-weight: 600;
+        }
+
+        .filters-card-footer {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding-top: 1rem;
+          border-top: 1px solid var(--border-subtle);
+          margin-top: 1.25rem;
         }
       `}</style>
-    </>
+    </div>
   );
 };
