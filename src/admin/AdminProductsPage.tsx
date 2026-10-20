@@ -421,10 +421,10 @@ export const AdminProductsPage: React.FC = () => {
             step={10}
             value={zoomSize}
             onChange={(e) => handleZoomChange(Number(e.target.value))}
+            className="zoom-slider"
             style={{
-              accentColor: '#9c6644',
-              cursor: 'pointer',
               width: '120px',
+              verticalAlign: 'middle',
             }}
             title={`Kích thước: ${zoomSize}px`}
           />

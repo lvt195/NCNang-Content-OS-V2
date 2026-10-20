@@ -12,9 +12,8 @@ import {
   ChevronRight,
   ChevronDown,
   ChevronUp,
-  Grid2X2,
-  Grid3X3,
-  Image as ImageIcon,
+  ZoomIn,
+  ZoomOut,
 } from 'lucide-react';
 import { Product, Category, FilterState, SortOption } from '../types/product';
 import { productService } from '../services/productService';
@@ -38,14 +37,16 @@ export const CatalogPage: React.FC = () => {
   const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
   const [activeQuickViewImg, setActiveQuickViewImg] = useState<string>('');
 
-  // Grid Density / Zoom: 'compact' | 'normal' | 'large'
-  const [gridDensity, setGridDensity] = useState<'compact' | 'normal' | 'large'>(() => {
-    return (localStorage.getItem('catalog_grid_density') as 'compact' | 'normal' | 'large') || 'normal';
+  // User Draggable Zoom Size (min card width in px, adjustable via slider)
+  const [catalogZoom, setCatalogZoom] = useState<number>(() => {
+    const saved = localStorage.getItem('catalog_zoom_size');
+    return saved ? Math.max(140, Math.min(420, parseInt(saved, 10))) : 240;
   });
 
-  const handleSetGridDensity = (density: 'compact' | 'normal' | 'large') => {
-    setGridDensity(density);
-    localStorage.setItem('catalog_grid_density', density);
+  const handleCatalogZoomChange = (size: number) => {
+    const clamped = Math.max(140, Math.min(420, size));
+    setCatalogZoom(clamped);
+    localStorage.setItem('catalog_zoom_size', clamped.toString());
   };
 
   // Read initial query params from URL if present
@@ -208,8 +209,8 @@ export const CatalogPage: React.FC = () => {
               <strong style={{ color: 'var(--text-primary)' }}>{filteredProducts.length}</strong> sản phẩm
             </div>
 
-            {/* Right: Filter button & Sort dropdown side-by-side */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'nowrap' }}>
+            {/* Right: Filter button, Zoom slider & Sort dropdown */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
               {/* Universal Filter button for desktop & mobile */}
               <button
                 type="button"
@@ -248,87 +249,85 @@ export const CatalogPage: React.FC = () => {
                 )}
               </button>
 
-                  {/* Grid Density / Zoom switcher */}
+                  {/* Draggable Zoom Slider Bar */}
                   <div
                     style={{
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '2px',
+                      gap: '0.4rem',
                       backgroundColor: 'var(--bg-muted)',
                       borderRadius: '6px',
-                      padding: '2px',
+                      padding: '0.25rem 0.55rem',
                       border: '1px solid var(--border-subtle)',
                     }}
-                    title="Thu phóng chia lưới hiển thị sản phẩm"
+                    title="Kéo thanh trượt để tự điều chỉnh cỡ ảnh và chia số cột"
                   >
                     <button
                       type="button"
-                      onClick={() => handleSetGridDensity('compact')}
+                      onClick={() => handleCatalogZoomChange(catalogZoom - 30)}
+                      disabled={catalogZoom <= 140}
                       style={{
-                        padding: '0.25rem 0.45rem',
-                        borderRadius: '4px',
+                        background: 'none',
                         border: 'none',
-                        backgroundColor: gridDensity === 'compact' ? 'var(--bg-surface)' : 'transparent',
-                        color: gridDensity === 'compact' ? 'var(--accent-brown)' : 'var(--text-muted)',
-                        fontWeight: gridDensity === 'compact' ? 600 : 400,
-                        fontSize: '0.75rem',
-                        cursor: 'pointer',
+                        padding: '2px',
+                        cursor: catalogZoom <= 140 ? 'not-allowed' : 'pointer',
+                        color: catalogZoom <= 140 ? 'var(--border-subtle)' : 'var(--text-secondary)',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '3px',
-                        boxShadow: gridDensity === 'compact' ? '0 1px 2px rgba(0,0,0,0.06)' : 'none',
                       }}
-                      title="Thu nhỏ lưới (nhiều sản phẩm hơn)"
+                      title="Thu nhỏ ảnh / Tăng số cột"
+                      aria-label="Thu nhỏ ảnh"
                     >
-                      <Grid3X3 size={13} />
-                      <span className="hidden-mobile">Nhỏ</span>
+                      <ZoomOut size={13} />
                     </button>
+
+                    <input
+                      type="range"
+                      min={140}
+                      max={420}
+                      step={10}
+                      value={catalogZoom}
+                      onChange={(e) => handleCatalogZoomChange(Number(e.target.value))}
+                      className="zoom-slider"
+                      style={{
+                        width: '85px',
+                        verticalAlign: 'middle',
+                      }}
+                      title={`Kéo chỉnh cỡ ảnh: ${catalogZoom}px`}
+                      aria-label="Thanh kéo thu phóng kích thước sản phẩm"
+                    />
 
                     <button
                       type="button"
-                      onClick={() => handleSetGridDensity('normal')}
+                      onClick={() => handleCatalogZoomChange(catalogZoom + 30)}
+                      disabled={catalogZoom >= 420}
                       style={{
-                        padding: '0.25rem 0.45rem',
-                        borderRadius: '4px',
+                        background: 'none',
                         border: 'none',
-                        backgroundColor: gridDensity === 'normal' ? 'var(--bg-surface)' : 'transparent',
-                        color: gridDensity === 'normal' ? 'var(--accent-brown)' : 'var(--text-muted)',
-                        fontWeight: gridDensity === 'normal' ? 600 : 400,
-                        fontSize: '0.75rem',
-                        cursor: 'pointer',
+                        padding: '2px',
+                        cursor: catalogZoom >= 420 ? 'not-allowed' : 'pointer',
+                        color: catalogZoom >= 420 ? 'var(--border-subtle)' : 'var(--text-secondary)',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '3px',
-                        boxShadow: gridDensity === 'normal' ? '0 1px 2px rgba(0,0,0,0.06)' : 'none',
                       }}
-                      title="Lưới chuẩn"
+                      title="Phóng to ảnh / Giảm số cột"
+                      aria-label="Phóng to ảnh"
                     >
-                      <Grid2X2 size={13} />
-                      <span className="hidden-mobile">Chuẩn</span>
+                      <ZoomIn size={13} />
                     </button>
 
-                    <button
-                      type="button"
-                      onClick={() => handleSetGridDensity('large')}
+                    <span
                       style={{
-                        padding: '0.25rem 0.45rem',
-                        borderRadius: '4px',
-                        border: 'none',
-                        backgroundColor: gridDensity === 'large' ? 'var(--bg-surface)' : 'transparent',
-                        color: gridDensity === 'large' ? 'var(--accent-brown)' : 'var(--text-muted)',
-                        fontWeight: gridDensity === 'large' ? 600 : 400,
-                        fontSize: '0.75rem',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '3px',
-                        boxShadow: gridDensity === 'large' ? '0 1px 2px rgba(0,0,0,0.06)' : 'none',
+                        fontSize: '0.725rem',
+                        fontWeight: 600,
+                        color: 'var(--accent-brown)',
+                        minWidth: '38px',
+                        textAlign: 'center',
                       }}
-                      title="Phóng to ảnh lớn (xem chi tiết ảnh)"
+                      className="hidden-mobile"
                     >
-                      <ImageIcon size={13} />
-                      <span className="hidden-mobile">Ảnh lớn</span>
-                    </button>
+                      {catalogZoom}px
+                    </span>
                   </div>
 
                   {/* Sort selector */}
@@ -454,7 +453,15 @@ export const CatalogPage: React.FC = () => {
                   <p style={{ fontSize: '0.9rem' }}>Đang tải danh mục sản phẩm...</p>
                 </div>
               ) : filteredProducts.length > 0 ? (
-                <div className={`product-grid density-${gridDensity}`} style={{ width: '100%' }}>
+                <div
+                  className="product-grid"
+                  style={{
+                    width: '100%',
+                    display: 'grid',
+                    gridTemplateColumns: `repeat(auto-fill, minmax(min(100%, ${catalogZoom}px), 1fr))`,
+                    gap: catalogZoom > 280 ? '1.5rem' : (catalogZoom > 200 ? '1.15rem' : '0.75rem'),
+                  }}
+                >
                   {filteredProducts.map((product) => (
                     <ProductCard
                       key={product.id}

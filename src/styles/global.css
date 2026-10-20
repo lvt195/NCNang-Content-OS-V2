@@ -288,6 +288,53 @@ img {
   opacity: 1;
 }
 
+/* Custom Draggable Zoom Range Slider */
+.zoom-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  background: #e8e1d5;
+  border-radius: 999px;
+  outline: none;
+  transition: background 0.2s;
+  cursor: pointer;
+}
+.zoom-slider:hover {
+  background: #ded5c5;
+}
+.zoom-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #9c6644;
+  border: 2px solid #ffffff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+  cursor: grab;
+  transition: transform 0.15s ease, background-color 0.15s ease;
+}
+.zoom-slider::-webkit-slider-thumb:active {
+  cursor: grabbing;
+  transform: scale(1.25);
+  background: #7f4f24;
+}
+.zoom-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #9c6644;
+  border: 2px solid #ffffff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+  cursor: grab;
+  transition: transform 0.15s ease, background-color 0.15s ease;
+}
+.zoom-slider::-moz-range-thumb:active {
+  cursor: grabbing;
+  transform: scale(1.25);
+  background: #7f4f24;
+}
+
 @media (max-width: 639px) {
   .hidden-mobile {
     display: none !important;
