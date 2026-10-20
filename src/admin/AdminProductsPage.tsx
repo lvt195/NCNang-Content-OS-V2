@@ -223,16 +223,16 @@ export const AdminProductsPage: React.FC = () => {
           backgroundColor: '#ffffff',
           border: '1px solid #e8e1d5',
           borderRadius: '8px',
-          padding: '1rem',
-          marginBottom: '1.25rem',
+          padding: '0.85rem',
+          marginBottom: '1rem',
           display: 'flex',
-          gap: '1rem',
+          gap: '0.65rem',
           flexWrap: 'wrap',
           alignItems: 'center',
         }}
       >
         {/* Search */}
-        <div style={{ flex: '1', minWidth: '240px', position: 'relative' }}>
+        <div style={{ flex: '1 1 200px', minWidth: '0', position: 'relative' }}>
           <Search
             size={16}
             style={{
@@ -254,7 +254,7 @@ export const AdminProductsPage: React.FC = () => {
         </div>
 
         {/* Category filter */}
-        <div style={{ minWidth: '180px' }}>
+        <div style={{ flex: '1 1 140px', minWidth: '0' }}>
           <select
             className="form-select"
             value={categoryFilter}
@@ -270,7 +270,7 @@ export const AdminProductsPage: React.FC = () => {
         </div>
 
         {/* Status filter */}
-        <div style={{ minWidth: '160px' }}>
+        <div style={{ flex: '1 1 130px', minWidth: '0' }}>
           <select
             className="form-select"
             value={statusFilter}
@@ -289,7 +289,7 @@ export const AdminProductsPage: React.FC = () => {
           title="Tải lại dữ liệu"
         >
           <RefreshCw size={15} />
-          <span>Làm mới</span>
+          <span className="hidden-mobile">Làm mới</span>
         </button>
 
         {/* View Mode Toggle: Gallery / Grid / Table */}
@@ -310,7 +310,7 @@ export const AdminProductsPage: React.FC = () => {
               display: 'flex',
               alignItems: 'center',
               gap: '0.35rem',
-              padding: '0.4rem 0.75rem',
+              padding: '0.35rem 0.65rem',
               borderRadius: '4px',
               border: 'none',
               fontSize: '0.8rem',
@@ -322,8 +322,9 @@ export const AdminProductsPage: React.FC = () => {
             }}
             title="Xem theo thư viện ảnh sản phẩm"
           >
-            <ImageIcon size={15} />
-            <span>Xem theo ảnh</span>
+            <ImageIcon size={14} />
+            <span className="desktop-only">Xem theo ảnh</span>
+            <span className="mobile-only">Ảnh</span>
           </button>
           <button
             type="button"
@@ -332,7 +333,7 @@ export const AdminProductsPage: React.FC = () => {
               display: 'flex',
               alignItems: 'center',
               gap: '0.35rem',
-              padding: '0.4rem 0.75rem',
+              padding: '0.35rem 0.65rem',
               borderRadius: '4px',
               border: 'none',
               fontSize: '0.8rem',
@@ -344,8 +345,9 @@ export const AdminProductsPage: React.FC = () => {
             }}
             title="Xem dạng lưới thẻ thông tin"
           >
-            <LayoutGrid size={15} />
-            <span>Lưới thẻ</span>
+            <LayoutGrid size={14} />
+            <span className="desktop-only">Lưới thẻ</span>
+            <span className="mobile-only">Lưới</span>
           </button>
           <button
             type="button"
@@ -354,7 +356,7 @@ export const AdminProductsPage: React.FC = () => {
               display: 'flex',
               alignItems: 'center',
               gap: '0.35rem',
-              padding: '0.4rem 0.75rem',
+              padding: '0.35rem 0.65rem',
               borderRadius: '4px',
               border: 'none',
               fontSize: '0.8rem',
@@ -366,8 +368,9 @@ export const AdminProductsPage: React.FC = () => {
             }}
             title="Xem bảng dữ liệu chi tiết"
           >
-            <List size={15} />
-            <span>Bảng chi tiết</span>
+            <List size={14} />
+            <span className="desktop-only">Bảng chi tiết</span>
+            <span className="mobile-only">Bảng</span>
           </button>
         </div>
       </div>
@@ -379,11 +382,11 @@ export const AdminProductsPage: React.FC = () => {
             backgroundColor: '#ffffff',
             border: '1px solid #ebdccb',
             borderRadius: '8px',
-            padding: '0.45rem 0.85rem',
+            padding: '0.4rem 0.75rem',
             marginBottom: '1.25rem',
             display: 'flex',
             alignItems: 'center',
-            gap: '0.65rem',
+            gap: '0.5rem',
             flexWrap: 'wrap',
           }}
         >
@@ -391,14 +394,18 @@ export const AdminProductsPage: React.FC = () => {
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '0.4rem',
+              gap: '0.35rem',
               fontSize: '0.8rem',
               fontWeight: 600,
               color: '#685e54',
             }}
           >
-            <Maximize2 size={14} style={{ color: '#9c6644' }} />
-            <span>Thu phóng chia lưới ({viewMode === 'gallery' ? 'Ảnh' : 'Thẻ'}: {zoomSize}px):</span>
+            <Maximize2 size={13} style={{ color: '#9c6644' }} />
+            <span>Thu phóng:</span>
+            <span className="desktop-only">({viewMode === 'gallery' ? 'Ảnh' : 'Thẻ'}: {zoomSize}px)</span>
+            <span className="mobile-only" style={{ color: '#9c6644', fontWeight: 700 }}>
+              {zoomSize > 240 ? '1 cột (To)' : '2 cột'}
+            </span>
           </div>
 
           {/* Zoom Out Button */}
@@ -423,7 +430,8 @@ export const AdminProductsPage: React.FC = () => {
             onChange={(e) => handleZoomChange(Number(e.target.value))}
             className="zoom-slider"
             style={{
-              width: '120px',
+              flex: '1 1 80px',
+              maxWidth: '180px',
               verticalAlign: 'middle',
             }}
             title={`Kích thước: ${zoomSize}px`}
@@ -441,8 +449,8 @@ export const AdminProductsPage: React.FC = () => {
             <ZoomIn size={13} />
           </button>
 
-          {/* Preset Buttons */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginLeft: 'auto', flexWrap: 'wrap' }}>
+          {/* Preset Buttons (Hidden on mobile phones to prevent layout wrapping) */}
+          <div className="hidden-mobile" style={{ display: 'flex', alignItems: 'center', gap: '4px', marginLeft: 'auto', flexWrap: 'wrap' }}>
             {[
               { label: 'Nhỏ (160px)', val: 160 },
               { label: 'Vừa (220px)', val: 220 },
@@ -501,10 +509,10 @@ export const AdminProductsPage: React.FC = () => {
       ) : viewMode === 'gallery' ? (
         /* Gallery View - Photo-centric layout like Media Library */
         <div
+          className={`admin-gallery-grid ${zoomSize > 240 ? 'mobile-cols-1' : 'mobile-cols-2'}`}
           style={{
-            display: 'grid',
-            gridTemplateColumns: `repeat(auto-fill, minmax(min(100%, ${zoomSize}px), 1fr))`,
-            gap: zoomSize > 250 ? '1.25rem' : '0.85rem',
+            ['--admin-zoom-size' as string]: `${zoomSize}px`,
+            ['--admin-gap-size' as string]: zoomSize > 250 ? '1.25rem' : '0.85rem',
           }}
         >
           {filteredProducts.map((p) => {
@@ -754,10 +762,10 @@ export const AdminProductsPage: React.FC = () => {
       ) : viewMode === 'grid' ? (
         /* Visual Card Grid View */
         <div
+          className={`admin-gallery-grid ${zoomSize > 240 ? 'mobile-cols-1' : 'mobile-cols-2'}`}
           style={{
-            display: 'grid',
-            gridTemplateColumns: `repeat(auto-fill, minmax(min(100%, ${Math.max(220, zoomSize)}px), 1fr))`,
-            gap: '1.25rem',
+            ['--admin-zoom-size' as string]: `${Math.max(220, zoomSize)}px`,
+            ['--admin-gap-size' as string]: '1.25rem',
           }}
         >
           {filteredProducts.map((p) => {

@@ -14,6 +14,7 @@ import {
   ChevronUp,
   ZoomIn,
   ZoomOut,
+  Maximize2,
 } from 'lucide-react';
 import { Product, Category, FilterState, SortOption } from '../types/product';
 import { productService } from '../services/productService';
@@ -192,169 +193,132 @@ export const CatalogPage: React.FC = () => {
         {/* Catalog Main Content */}
         <div className="container" style={{ paddingTop: '1.25rem', width: '100%' }}>
           {/* Toolbar: Filter Button + Sorting placed TOGETHER */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '0.65rem',
-              paddingBottom: '0.75rem',
-              borderBottom: '1px solid var(--border-subtle)',
-              marginBottom: '1rem',
-              flexWrap: 'wrap',
-            }}
-          >
-            {/* Left: Product count */}
-            <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              <strong style={{ color: 'var(--text-primary)' }}>{filteredProducts.length}</strong> sản phẩm
-            </div>
+          {/* Responsive Toolbar: Filter, Sort & Draggable Zoom Slider */}
+          <div className="catalog-toolbar-wrap">
+            {/* Top row: Product Count + Filter + Sort */}
+            <div className="catalog-toolbar-top">
+              <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                <strong style={{ color: 'var(--text-primary)' }}>{filteredProducts.length}</strong> sản phẩm
+              </div>
 
-            {/* Right: Filter button, Zoom slider & Sort dropdown */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-              {/* Universal Filter button for desktop & mobile */}
-              <button
-                type="button"
-                onClick={() => setIsFilterOpen(!isFilterOpen)}
-                className="btn btn-outline btn-sm filter-toggle-btn"
-                style={{
-                  padding: '0.35rem 0.8rem',
-                  fontSize: '0.825rem',
-                  gap: '0.45rem',
-                  backgroundColor: (activeFilterCount > 0 || isFilterOpen) ? 'var(--accent-warm-tint)' : 'transparent',
-                  borderColor: (activeFilterCount > 0 || isFilterOpen) ? 'var(--accent-brown)' : 'var(--border-subtle)',
-                  color: (activeFilterCount > 0 || isFilterOpen) ? 'var(--accent-brown)' : 'var(--text-primary)',
-                  fontWeight: (activeFilterCount > 0 || isFilterOpen) ? 600 : 500,
-                }}
-                title={isFilterOpen ? 'Thu lại bộ lọc' : 'Bung ra bộ lọc chi tiết (danh mục, màu sắc, giá, loại)'}
-              >
-                <SlidersHorizontal size={14} />
-                <span>{isFilterOpen ? 'Thu lại bộ lọc' : 'Bộ lọc chi tiết'}</span>
-                {isFilterOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                {activeFilterCount > 0 && (
-                  <span
-                    style={{
-                      width: '18px',
-                      height: '18px',
-                      borderRadius: '50%',
-                      backgroundColor: 'var(--accent-brown)',
-                      color: '#ffffff',
-                      fontSize: '0.7rem',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    {activeFilterCount}
-                  </span>
-                )}
-              </button>
-
-                  {/* Draggable Zoom Slider Bar */}
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.4rem',
-                      backgroundColor: 'var(--bg-muted)',
-                      borderRadius: '6px',
-                      padding: '0.25rem 0.55rem',
-                      border: '1px solid var(--border-subtle)',
-                    }}
-                    title="Kéo thanh trượt để tự điều chỉnh cỡ ảnh và chia số cột"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => handleCatalogZoomChange(catalogZoom - 30)}
-                      disabled={catalogZoom <= 140}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        padding: '2px',
-                        cursor: catalogZoom <= 140 ? 'not-allowed' : 'pointer',
-                        color: catalogZoom <= 140 ? 'var(--border-subtle)' : 'var(--text-secondary)',
-                        display: 'flex',
-                        alignItems: 'center',
-                      }}
-                      title="Thu nhỏ ảnh / Tăng số cột"
-                      aria-label="Thu nhỏ ảnh"
-                    >
-                      <ZoomOut size={13} />
-                    </button>
-
-                    <input
-                      type="range"
-                      min={140}
-                      max={420}
-                      step={10}
-                      value={catalogZoom}
-                      onChange={(e) => handleCatalogZoomChange(Number(e.target.value))}
-                      className="zoom-slider"
-                      style={{
-                        width: '85px',
-                        verticalAlign: 'middle',
-                      }}
-                      title={`Kéo chỉnh cỡ ảnh: ${catalogZoom}px`}
-                      aria-label="Thanh kéo thu phóng kích thước sản phẩm"
-                    />
-
-                    <button
-                      type="button"
-                      onClick={() => handleCatalogZoomChange(catalogZoom + 30)}
-                      disabled={catalogZoom >= 420}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        padding: '2px',
-                        cursor: catalogZoom >= 420 ? 'not-allowed' : 'pointer',
-                        color: catalogZoom >= 420 ? 'var(--border-subtle)' : 'var(--text-secondary)',
-                        display: 'flex',
-                        alignItems: 'center',
-                      }}
-                      title="Phóng to ảnh / Giảm số cột"
-                      aria-label="Phóng to ảnh"
-                    >
-                      <ZoomIn size={13} />
-                    </button>
-
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                {/* Universal Filter button for desktop & mobile */}
+                <button
+                  type="button"
+                  onClick={() => setIsFilterOpen(!isFilterOpen)}
+                  className="btn btn-outline btn-sm filter-toggle-btn"
+                  style={{
+                    padding: '0.35rem 0.65rem',
+                    fontSize: '0.8rem',
+                    gap: '0.35rem',
+                    backgroundColor: (activeFilterCount > 0 || isFilterOpen) ? 'var(--accent-warm-tint)' : 'transparent',
+                    borderColor: (activeFilterCount > 0 || isFilterOpen) ? 'var(--accent-brown)' : 'var(--border-subtle)',
+                    color: (activeFilterCount > 0 || isFilterOpen) ? 'var(--accent-brown)' : 'var(--text-primary)',
+                    fontWeight: (activeFilterCount > 0 || isFilterOpen) ? 600 : 500,
+                  }}
+                  title={isFilterOpen ? 'Thu lại bộ lọc' : 'Bung ra bộ lọc chi tiết'}
+                >
+                  <SlidersHorizontal size={13} />
+                  <span>Bộ lọc</span>
+                  {isFilterOpen ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                  {activeFilterCount > 0 && (
                     <span
                       style={{
-                        fontSize: '0.725rem',
-                        fontWeight: 600,
-                        color: 'var(--accent-brown)',
-                        minWidth: '38px',
-                        textAlign: 'center',
+                        width: '18px',
+                        height: '18px',
+                        borderRadius: '50%',
+                        backgroundColor: 'var(--accent-brown)',
+                        color: '#ffffff',
+                        fontSize: '0.7rem',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
                       }}
-                      className="hidden-mobile"
                     >
-                      {catalogZoom}px
+                      {activeFilterCount}
                     </span>
-                  </div>
+                  )}
+                </button>
 
-                  {/* Sort selector */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                    <ArrowUpDown size={14} style={{ color: 'var(--text-muted)' }} />
-                    <select
-                      id="sort-select"
-                      value={filters.sortBy}
-                      onChange={(e) => handleFilterChange({ sortBy: e.target.value as SortOption })}
-                      className="form-select"
-                      style={{
-                        padding: '0.35rem 0.55rem',
-                        fontSize: '0.825rem',
-                        width: 'auto',
-                        backgroundColor: 'var(--bg-surface)',
-                        cursor: 'pointer',
-                      }}
-                      aria-label="Sắp xếp sản phẩm"
-                    >
-                      <option value="featured">Nổi bật nhất</option>
-                      <option value="price-asc">Giá: Thấp đến cao</option>
-                      <option value="price-desc">Giá: Cao đến thấp</option>
-                      <option value="name-asc">Tên: A – Z</option>
-                    </select>
-                  </div>
+                {/* Sort selector */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                  <ArrowUpDown size={13} style={{ color: 'var(--text-muted)' }} />
+                  <select
+                    id="sort-select"
+                    value={filters.sortBy}
+                    onChange={(e) => handleFilterChange({ sortBy: e.target.value as SortOption })}
+                    className="form-select"
+                    style={{
+                      padding: '0.35rem 0.5rem',
+                      fontSize: '0.8rem',
+                      width: 'auto',
+                      backgroundColor: 'var(--bg-surface)',
+                      cursor: 'pointer',
+                    }}
+                    aria-label="Sắp xếp sản phẩm"
+                  >
+                    <option value="featured">Nổi bật</option>
+                    <option value="price-asc">Giá: Thấp - Cao</option>
+                    <option value="price-desc">Giá: Cao - Thấp</option>
+                    <option value="name-asc">Tên: A – Z</option>
+                  </select>
                 </div>
               </div>
+            </div>
+
+            {/* Draggable Zoom Slider Bar */}
+            <div className="catalog-zoom-bar">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.78rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                <Maximize2 size={13} style={{ color: 'var(--accent-brown)' }} />
+                <span className="hidden-mobile">Chia lưới:</span>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => handleCatalogZoomChange(catalogZoom - 30)}
+                disabled={catalogZoom <= 140}
+                className="zoom-btn"
+                title="Thu nhỏ ảnh / Tăng số cột"
+                aria-label="Thu nhỏ ảnh"
+              >
+                <ZoomOut size={13} />
+              </button>
+
+              <input
+                type="range"
+                min={140}
+                max={420}
+                step={10}
+                value={catalogZoom}
+                onChange={(e) => handleCatalogZoomChange(Number(e.target.value))}
+                className="zoom-slider"
+                style={{
+                  flex: 1,
+                  minWidth: '70px',
+                  maxWidth: '140px',
+                  verticalAlign: 'middle',
+                }}
+                title={`Kéo chỉnh cỡ ảnh: ${catalogZoom}px`}
+                aria-label="Thanh kéo thu phóng kích thước sản phẩm"
+              />
+
+              <button
+                type="button"
+                onClick={() => handleCatalogZoomChange(catalogZoom + 30)}
+                disabled={catalogZoom >= 420}
+                className="zoom-btn"
+                title="Phóng to ảnh / Giảm số cột"
+                aria-label="Phóng to ảnh"
+              >
+                <ZoomIn size={13} />
+              </button>
+
+              <span className="zoom-mode-badge">
+                <span className="mobile-only">{catalogZoom > 240 ? '1 cột (To)' : '2 cột (Nhỏ)'}</span>
+                <span className="desktop-only">{catalogZoom}px</span>
+              </span>
+            </div>
+          </div>
 
               {/* Active Filter Tags */}
               {activeFilterCount > 0 && (
@@ -454,12 +418,10 @@ export const CatalogPage: React.FC = () => {
                 </div>
               ) : filteredProducts.length > 0 ? (
                 <div
-                  className="product-grid"
+                  className={`catalog-products-grid ${catalogZoom > 240 ? 'mobile-cols-1' : 'mobile-cols-2'}`}
                   style={{
-                    width: '100%',
-                    display: 'grid',
-                    gridTemplateColumns: `repeat(auto-fill, minmax(min(100%, ${catalogZoom}px), 1fr))`,
-                    gap: catalogZoom > 280 ? '1.5rem' : (catalogZoom > 200 ? '1.15rem' : '0.75rem'),
+                    ['--grid-zoom-size' as string]: `${catalogZoom}px`,
+                    ['--grid-gap-size' as string]: catalogZoom > 280 ? '1.5rem' : (catalogZoom > 200 ? '1.15rem' : '0.75rem'),
                   }}
                 >
                   {filteredProducts.map((product) => (
