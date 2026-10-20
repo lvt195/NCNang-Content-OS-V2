@@ -227,6 +227,73 @@ img {
   }
 }
 
+/* Grid Density Modifiers (Zoom to / nhỏ để chia lưới) */
+.product-grid.density-compact {
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.65rem;
+}
+@media (min-width: 640px) {
+  .product-grid.density-compact {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.85rem;
+  }
+}
+@media (min-width: 840px) {
+  .product-grid.density-compact {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+  }
+}
+@media (min-width: 1120px) {
+  .product-grid.density-compact {
+    grid-template-columns: repeat(5, 1fr);
+    gap: 1.15rem;
+  }
+}
+
+.product-grid.density-large {
+  grid-template-columns: 1fr;
+  gap: 1.25rem;
+}
+@media (min-width: 640px) {
+  .product-grid.density-large {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.5rem;
+  }
+}
+@media (min-width: 1120px) {
+  .product-grid.density-large {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2rem;
+  }
+}
+
+/* Admin Gallery View Cards */
+.admin-gallery-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.admin-gallery-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+  border-color: #d4a373 !important;
+}
+.admin-gallery-card:hover img {
+  transform: scale(1.04);
+}
+.gallery-hover-actions {
+  opacity: 0.85;
+  transition: opacity 0.2s ease;
+}
+.admin-gallery-card:hover .gallery-hover-actions {
+  opacity: 1;
+}
+
+@media (max-width: 639px) {
+  .hidden-mobile {
+    display: none !important;
+  }
+}
+
 /* Card Aspect Ratio & Hover */
 .product-card {
   display: flex;

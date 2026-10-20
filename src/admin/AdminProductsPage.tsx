@@ -15,6 +15,10 @@ import {
   CheckCircle,
   LayoutGrid,
   List,
+  Image as ImageIcon,
+  ZoomIn,
+  ZoomOut,
+  Maximize2,
   X,
   ChevronLeft,
   ChevronRight,
@@ -25,6 +29,8 @@ import { getColorOption } from '../data/colors';
 import { formatVND } from '../utils/formatCurrency';
 import { normalizeVietnamese } from '../utils/filterProducts';
 
+export type AdminProductViewMode = 'gallery' | 'grid' | 'table';
+
 export const AdminProductsPage: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -32,14 +38,26 @@ export const AdminProductsPage: React.FC = () => {
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
-  // View Mode: 'grid' (Lưới thẻ trực quan) or 'table' (Bảng chi tiết)
-  const [viewMode, setViewMode] = useState<'grid' | 'table'>(() => {
-    return (localStorage.getItem('admin_prod_view') as 'grid' | 'table') || 'grid';
+  // View Mode: 'gallery' (Xem theo ảnh thư viện), 'grid' (Lưới thẻ trực quan) or 'table' (Bảng chi tiết)
+  const [viewMode, setViewMode] = useState<AdminProductViewMode>(() => {
+    return (localStorage.getItem('admin_prod_view') as AdminProductViewMode) || 'gallery';
   });
 
-  const handleSetViewMode = (mode: 'grid' | 'table') => {
+  const handleSetViewMode = (mode: AdminProductViewMode) => {
     setViewMode(mode);
     localStorage.setItem('admin_prod_view', mode);
+  };
+
+  // Zoom / Grid Density (min-width in px for gallery & grid cards)
+  const [zoomSize, setZoomSize] = useState<number>(() => {
+    const saved = localStorage.getItem('admin_prod_zoom');
+    return saved ? Math.max(140, Math.min(420, parseInt(saved, 10))) : 220;
+  });
+
+  const handleZoomChange = (size: number) => {
+    const clamped = Math.max(140, Math.min(420, size));
+    setZoomSize(clamped);
+    localStorage.setItem('admin_prod_zoom', clamped.toString());
   };
 
   // Filters & Search
@@ -227,7 +245,7 @@ export const AdminProductsPage: React.FC = () => {
           />
           <input
             type="text"
-            placeholder="Tìm theo mã SP hoặc tên..."
+            placeholder="Tìm kiếm sản phẩm..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="form-input"
@@ -274,7 +292,7 @@ export const AdminProductsPage: React.FC = () => {
           <span>Làm mới</span>
         </button>
 
-        {/* View Mode Toggle */}
+        {/* View Mode Toggle: Gallery / Grid / Table */}
         <div
           style={{
             display: 'flex',
@@ -285,6 +303,28 @@ export const AdminProductsPage: React.FC = () => {
             marginLeft: 'auto',
           }}
         >
+          <button
+            type="button"
+            onClick={() => handleSetViewMode('gallery')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.35rem',
+              padding: '0.4rem 0.75rem',
+              borderRadius: '4px',
+              border: 'none',
+              fontSize: '0.8rem',
+              fontWeight: 500,
+              backgroundColor: viewMode === 'gallery' ? '#ffffff' : 'transparent',
+              color: viewMode === 'gallery' ? '#2c2825' : '#8c8277',
+              boxShadow: viewMode === 'gallery' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+              cursor: 'pointer',
+            }}
+            title="Xem theo thư viện ảnh sản phẩm"
+          >
+            <ImageIcon size={15} />
+            <span>Xem theo ảnh</span>
+          </button>
           <button
             type="button"
             onClick={() => handleSetViewMode('grid')}
@@ -302,6 +342,7 @@ export const AdminProductsPage: React.FC = () => {
               boxShadow: viewMode === 'grid' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
               cursor: 'pointer',
             }}
+            title="Xem dạng lưới thẻ thông tin"
           >
             <LayoutGrid size={15} />
             <span>Lưới thẻ</span>
@@ -323,12 +364,117 @@ export const AdminProductsPage: React.FC = () => {
               boxShadow: viewMode === 'table' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
               cursor: 'pointer',
             }}
+            title="Xem bảng dữ liệu chi tiết"
           >
             <List size={15} />
             <span>Bảng chi tiết</span>
           </button>
         </div>
       </div>
+
+      {/* Zoom / Chia Lưới Controller (khi xem dạng ảnh hoặc lưới thẻ) */}
+      {(viewMode === 'gallery' || viewMode === 'grid') && (
+        <div
+          style={{
+            backgroundColor: '#ffffff',
+            border: '1px solid #ebdccb',
+            borderRadius: '8px',
+            padding: '0.45rem 0.85rem',
+            marginBottom: '1.25rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.65rem',
+            flexWrap: 'wrap',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.4rem',
+              fontSize: '0.8rem',
+              fontWeight: 600,
+              color: '#685e54',
+            }}
+          >
+            <Maximize2 size={14} style={{ color: '#9c6644' }} />
+            <span>Thu phóng chia lưới ({viewMode === 'gallery' ? 'Ảnh' : 'Thẻ'}: {zoomSize}px):</span>
+          </div>
+
+          {/* Zoom Out Button */}
+          <button
+            type="button"
+            onClick={() => handleZoomChange(zoomSize - 30)}
+            disabled={zoomSize <= 140}
+            className="btn btn-outline btn-sm"
+            style={{ padding: '0.2rem 0.45rem', height: '28px' }}
+            title="Thu nhỏ cỡ ảnh / Tăng số cột"
+          >
+            <ZoomOut size={13} />
+          </button>
+
+          {/* Range Slider */}
+          <input
+            type="range"
+            min={140}
+            max={420}
+            step={10}
+            value={zoomSize}
+            onChange={(e) => handleZoomChange(Number(e.target.value))}
+            style={{
+              accentColor: '#9c6644',
+              cursor: 'pointer',
+              width: '120px',
+            }}
+            title={`Kích thước: ${zoomSize}px`}
+          />
+
+          {/* Zoom In Button */}
+          <button
+            type="button"
+            onClick={() => handleZoomChange(zoomSize + 30)}
+            disabled={zoomSize >= 420}
+            className="btn btn-outline btn-sm"
+            style={{ padding: '0.2rem 0.45rem', height: '28px' }}
+            title="Phóng to cỡ ảnh / Giảm số cột"
+          >
+            <ZoomIn size={13} />
+          </button>
+
+          {/* Preset Buttons */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginLeft: 'auto', flexWrap: 'wrap' }}>
+            {[
+              { label: 'Nhỏ (160px)', val: 160 },
+              { label: 'Vừa (220px)', val: 220 },
+              { label: 'Lớn (300px)', val: 300 },
+              { label: 'Cực đại (390px)', val: 390 },
+            ].map((p) => {
+              const isSelected = Math.abs(zoomSize - p.val) < 25;
+              return (
+                <button
+                  key={p.val}
+                  type="button"
+                  onClick={() => handleZoomChange(p.val)}
+                  style={{
+                    padding: '0.2rem 0.5rem',
+                    borderRadius: '4px',
+                    border: '1px solid',
+                    borderColor: isSelected ? '#9c6644' : '#e8e1d5',
+                    backgroundColor: isSelected ? '#9c6644' : '#faf8f5',
+                    color: isSelected ? '#ffffff' : '#685e54',
+                    fontSize: '0.725rem',
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  {p.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Content Rendering: Loading / Empty / Grid / Table */}
       {loading ? (
@@ -352,12 +498,265 @@ export const AdminProductsPage: React.FC = () => {
             Hãy thử tìm với từ khóa khác hoặc xóa bộ lọc tìm kiếm.
           </p>
         </div>
+      ) : viewMode === 'gallery' ? (
+        /* Gallery View - Photo-centric layout like Media Library */
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: `repeat(auto-fill, minmax(min(100%, ${zoomSize}px), 1fr))`,
+            gap: zoomSize > 250 ? '1.25rem' : '0.85rem',
+          }}
+        >
+          {filteredProducts.map((p) => {
+            const cover = p.coverImage || p.images[0] || '/images/placeholder.webp';
+            const catName = categories.find((c) => c.id === p.category)?.name || p.category;
+            return (
+              <div
+                key={p.id}
+                className="admin-gallery-card"
+                style={{
+                  backgroundColor: '#ffffff',
+                  border: '1px solid #e8e1d5',
+                  borderRadius: '10px',
+                  overflow: 'hidden',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                  position: 'relative',
+                  cursor: 'pointer',
+                }}
+                onClick={() => {
+                  setQuickViewProduct(p);
+                  setActivePreviewImg(p.coverImage || p.images[0] || '');
+                }}
+              >
+                {/* Photo container (1:1 square photo) */}
+                <div
+                  style={{
+                    position: 'relative',
+                    width: '100%',
+                    paddingTop: '100%',
+                    backgroundColor: '#f6f3ee',
+                    overflow: 'hidden',
+                  }}
+                >
+                  <img
+                    src={cover}
+                    alt={p.name}
+                    loading="lazy"
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                      transition: 'transform 0.3s ease',
+                    }}
+                  />
+
+                  {/* Category badge */}
+                  <span
+                    style={{
+                      position: 'absolute',
+                      top: '8px',
+                      left: '8px',
+                      backgroundColor: 'rgba(255, 255, 255, 0.94)',
+                      backdropFilter: 'blur(4px)',
+                      padding: '0.15rem 0.5rem',
+                      borderRadius: '20px',
+                      fontSize: '0.675rem',
+                      fontWeight: 600,
+                      color: '#685e54',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.08)',
+                      maxWidth: '70%',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {catName}
+                  </span>
+
+                  {/* Status badge */}
+                  <span
+                    style={{
+                      position: 'absolute',
+                      top: '8px',
+                      right: '8px',
+                      backgroundColor: p.published ? 'rgba(237, 247, 237, 0.95)' : 'rgba(253, 238, 237, 0.95)',
+                      backdropFilter: 'blur(4px)',
+                      padding: '0.15rem 0.45rem',
+                      borderRadius: '20px',
+                      fontSize: '0.65rem',
+                      fontWeight: 600,
+                      color: p.published ? '#1b5e20' : '#b71c1c',
+                      border: `1px solid ${p.published ? '#c8e6c9' : '#f9c7c4'}`,
+                    }}
+                  >
+                    {p.published ? '🟢 Hiện' : '🔴 Ẩn'}
+                  </span>
+
+                  {/* Photo count badge */}
+                  {p.images && p.images.length > 1 && (
+                    <span
+                      style={{
+                        position: 'absolute',
+                        bottom: '8px',
+                        right: '8px',
+                        backgroundColor: 'rgba(0, 0, 0, 0.65)',
+                        color: '#ffffff',
+                        padding: '0.15rem 0.45rem',
+                        borderRadius: '10px',
+                        fontSize: '0.675rem',
+                        fontWeight: 500,
+                        backdropFilter: 'blur(2px)',
+                      }}
+                    >
+                      📷 {p.images.length}
+                    </span>
+                  )}
+
+                  {/* Hover action overlay */}
+                  <div
+                    className="gallery-hover-actions"
+                    style={{
+                      position: 'absolute',
+                      bottom: '8px',
+                      left: '8px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      zIndex: 2,
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <Link
+                      to={`/admin/products/${p.id}/edit`}
+                      className="btn btn-sm"
+                      style={{
+                        padding: '0.25rem 0.45rem',
+                        backgroundColor: 'rgba(255, 255, 255, 0.94)',
+                        color: '#2c2825',
+                        border: '1px solid rgba(0,0,0,0.1)',
+                        borderRadius: '4px',
+                        fontSize: '0.7rem',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                      }}
+                      title="Chỉnh sửa sản phẩm"
+                    >
+                      <Edit2 size={12} />
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => handleTogglePublish(p)}
+                      className="btn btn-sm"
+                      style={{
+                        padding: '0.25rem 0.45rem',
+                        backgroundColor: 'rgba(255, 255, 255, 0.94)',
+                        color: p.published ? '#685e54' : '#1b5e20',
+                        border: '1px solid rgba(0,0,0,0.1)',
+                        borderRadius: '4px',
+                        fontSize: '0.7rem',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                      }}
+                      title={p.published ? 'Ẩn sản phẩm' : 'Hiện sản phẩm'}
+                    >
+                      {p.published ? <EyeOff size={12} /> : <Eye size={12} />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setProductToDelete(p)}
+                      className="btn btn-sm"
+                      style={{
+                        padding: '0.25rem 0.45rem',
+                        backgroundColor: 'rgba(255, 255, 255, 0.94)',
+                        color: '#c62828',
+                        border: '1px solid rgba(0,0,0,0.1)',
+                        borderRadius: '4px',
+                        fontSize: '0.7rem',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                      }}
+                      title="Xóa sản phẩm"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Product Name & Price directly underneath photo */}
+                <div
+                  style={{
+                    padding: zoomSize < 180 ? '0.5rem 0.65rem' : '0.65rem 0.85rem',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    flex: 1,
+                    backgroundColor: '#ffffff',
+                  }}
+                >
+                  <div
+                    title={p.name}
+                    style={{
+                      fontWeight: 600,
+                      fontSize: zoomSize < 180 ? '0.8rem' : '0.875rem',
+                      color: '#2c2825',
+                      lineHeight: 1.35,
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden',
+                      minHeight: '2.7em',
+                    }}
+                  >
+                    {p.name}
+                  </div>
+
+                  <div
+                    style={{
+                      marginTop: '0.35rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '0.35rem',
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontWeight: 700,
+                        color: '#9c6644',
+                        fontSize: zoomSize < 180 ? '0.825rem' : '0.95rem',
+                      }}
+                    >
+                      {formatVND(p.price)}
+                    </span>
+
+                    {p.type === 'combo' && (
+                      <span
+                        style={{
+                          fontSize: '0.65rem',
+                          backgroundColor: '#fff8e1',
+                          color: '#b78103',
+                          padding: '0.1rem 0.35rem',
+                          borderRadius: '4px',
+                          fontWeight: 600,
+                        }}
+                      >
+                        Combo
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       ) : viewMode === 'grid' ? (
         /* Visual Card Grid View */
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+            gridTemplateColumns: `repeat(auto-fill, minmax(min(100%, ${Math.max(220, zoomSize)}px), 1fr))`,
             gap: '1.25rem',
           }}
         >
@@ -467,21 +866,8 @@ export const AdminProductsPage: React.FC = () => {
 
                 {/* Card Body */}
                 <div style={{ padding: '1rem', flex: 1, display: 'flex', flexDirection: 'column' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
-                    <span
-                      style={{
-                        fontSize: '0.75rem',
-                        fontFamily: 'monospace',
-                        fontWeight: 600,
-                        backgroundColor: '#f3eee6',
-                        color: '#766352',
-                        padding: '0.15rem 0.45rem',
-                        borderRadius: '4px',
-                      }}
-                    >
-                      {p.id}
-                    </span>
-                    {p.type === 'combo' && (
+                  {p.type === 'combo' && (
+                    <div style={{ marginBottom: '0.4rem' }}>
                       <span
                         style={{
                           fontSize: '0.7rem',
@@ -494,8 +880,8 @@ export const AdminProductsPage: React.FC = () => {
                       >
                         Combo
                       </span>
-                    )}
-                  </div>
+                    </div>
+                  )}
 
                   <h3
                     style={{
@@ -650,7 +1036,6 @@ export const AdminProductsPage: React.FC = () => {
               <thead>
                 <tr>
                   <th style={{ width: '70px' }}>Ảnh</th>
-                  <th>Mã SP</th>
                   <th>Tên sản phẩm</th>
                   <th>Danh mục</th>
                   <th>Loại</th>
@@ -705,9 +1090,6 @@ export const AdminProductsPage: React.FC = () => {
                             </span>
                           )}
                         </div>
-                      </td>
-                      <td style={{ fontWeight: 600, color: '#766352' }}>
-                        <code>{p.id}</code>
                       </td>
                       <td>
                         <div style={{ fontWeight: 600, color: '#2c2825' }}>{p.name}</div>
@@ -964,16 +1346,15 @@ export const AdminProductsPage: React.FC = () => {
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                       <span
                         style={{
-                          fontFamily: 'monospace',
-                          fontWeight: 700,
-                          backgroundColor: '#766352',
-                          color: '#ffffff',
+                          fontWeight: 600,
+                          backgroundColor: '#f3eee6',
+                          color: '#766352',
                           padding: '0.25rem 0.65rem',
                           borderRadius: '6px',
-                          fontSize: '0.9rem',
+                          fontSize: '0.825rem',
                         }}
                       >
-                        {quickViewProduct.id}
+                        {categories.find((c) => c.id === quickViewProduct.category)?.name || quickViewProduct.category}
                       </span>
                       <h3
                         style={{

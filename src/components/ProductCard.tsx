@@ -58,8 +58,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }
                 textAlign: 'center',
               }}
             >
-              <span>{product.id}</span>
-              <span style={{ fontSize: '0.7rem' }}>Ảnh đang cập nhật</span>
+              <span style={{ fontSize: '0.75rem' }}>Ảnh đang cập nhật</span>
             </div>
           ) : (
             <img
@@ -132,51 +131,47 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }
 
         {/* Card Body */}
         <div className="product-card-body">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
-            <span className="product-card-code">{product.id}</span>
-
-            {/* Colors Swatches Dots */}
-            {product.colors && product.colors.length > 0 && (
-              <div
-                style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                {product.colors.slice(0, 5).map((colorId) => {
-                  const color = getColorOption(colorId);
-                  const isHovered = activeColorId === colorId;
-                  return (
-                    <button
-                      key={colorId}
-                      type="button"
-                      onMouseEnter={() => setActiveColorId(colorId)}
-                      onMouseLeave={() => setActiveColorId(null)}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setActiveColorId(activeColorId === colorId ? null : colorId);
-                      }}
-                      className="color-dot"
-                      title={`Xem mẫu màu: ${color.label}`}
-                      style={{
-                        background: color.hex,
-                        borderColor: isHovered ? 'var(--text-primary)' : (color.borderHex || 'rgba(0,0,0,0.15)'),
-                        transform: isHovered ? 'scale(1.3)' : 'scale(1)',
-                        boxShadow: isHovered ? '0 0 0 1.5px var(--accent-brown)' : 'none',
-                        cursor: 'pointer',
-                        padding: 0,
-                        transition: 'all 0.15s ease',
-                      }}
-                    />
-                  );
-                })}
-                {product.colors.length > 5 && (
-                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                    +{product.colors.length - 5}
-                  </span>
-                )}
-              </div>
-            )}
-          </div>
+          {/* Colors Swatches Dots */}
+          {product.colors && product.colors.length > 0 && (
+            <div
+              style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '0.2rem' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {product.colors.slice(0, 5).map((colorId) => {
+                const color = getColorOption(colorId);
+                const isHovered = activeColorId === colorId;
+                return (
+                  <button
+                    key={colorId}
+                    type="button"
+                    onMouseEnter={() => setActiveColorId(colorId)}
+                    onMouseLeave={() => setActiveColorId(null)}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setActiveColorId(activeColorId === colorId ? null : colorId);
+                    }}
+                    className="color-dot"
+                    title={`Xem mẫu màu: ${color.label}`}
+                    style={{
+                      background: color.hex,
+                      borderColor: isHovered ? 'var(--text-primary)' : (color.borderHex || 'rgba(0,0,0,0.15)'),
+                      transform: isHovered ? 'scale(1.3)' : 'scale(1)',
+                      boxShadow: isHovered ? '0 0 0 1.5px var(--accent-brown)' : 'none',
+                      cursor: 'pointer',
+                      padding: 0,
+                      transition: 'all 0.15s ease',
+                    }}
+                  />
+                );
+              })}
+              {product.colors.length > 5 && (
+                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                  +{product.colors.length - 5}
+                </span>
+              )}
+            </div>
+          )}
 
           <h3 className="product-card-title" title={product.name}>
             {product.name}

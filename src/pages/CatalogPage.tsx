@@ -1,7 +1,21 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useSearchParams, Link } from 'react-router-dom';
-import { ArrowUpDown, RefreshCw, X, SlidersHorizontal, ArrowRight, MessageCircle, ChevronLeft, ChevronRight, ChevronDown, ChevronUp } from 'lucide-react';
+import {
+  ArrowUpDown,
+  RefreshCw,
+  X,
+  SlidersHorizontal,
+  ArrowRight,
+  MessageCircle,
+  ChevronLeft,
+  ChevronRight,
+  ChevronDown,
+  ChevronUp,
+  Grid2X2,
+  Grid3X3,
+  Image as ImageIcon,
+} from 'lucide-react';
 import { Product, Category, FilterState, SortOption } from '../types/product';
 import { productService } from '../services/productService';
 import { filterProducts } from '../utils/filterProducts';
@@ -23,6 +37,16 @@ export const CatalogPage: React.FC = () => {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
   const [activeQuickViewImg, setActiveQuickViewImg] = useState<string>('');
+
+  // Grid Density / Zoom: 'compact' | 'normal' | 'large'
+  const [gridDensity, setGridDensity] = useState<'compact' | 'normal' | 'large'>(() => {
+    return (localStorage.getItem('catalog_grid_density') as 'compact' | 'normal' | 'large') || 'normal';
+  });
+
+  const handleSetGridDensity = (density: 'compact' | 'normal' | 'large') => {
+    setGridDensity(density);
+    localStorage.setItem('catalog_grid_density', density);
+  };
 
   // Read initial query params from URL if present
   const initialSearch = searchParams.get('q') || '';
@@ -224,6 +248,89 @@ export const CatalogPage: React.FC = () => {
                 )}
               </button>
 
+                  {/* Grid Density / Zoom switcher */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '2px',
+                      backgroundColor: 'var(--bg-muted)',
+                      borderRadius: '6px',
+                      padding: '2px',
+                      border: '1px solid var(--border-subtle)',
+                    }}
+                    title="Thu phóng chia lưới hiển thị sản phẩm"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => handleSetGridDensity('compact')}
+                      style={{
+                        padding: '0.25rem 0.45rem',
+                        borderRadius: '4px',
+                        border: 'none',
+                        backgroundColor: gridDensity === 'compact' ? 'var(--bg-surface)' : 'transparent',
+                        color: gridDensity === 'compact' ? 'var(--accent-brown)' : 'var(--text-muted)',
+                        fontWeight: gridDensity === 'compact' ? 600 : 400,
+                        fontSize: '0.75rem',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '3px',
+                        boxShadow: gridDensity === 'compact' ? '0 1px 2px rgba(0,0,0,0.06)' : 'none',
+                      }}
+                      title="Thu nhỏ lưới (nhiều sản phẩm hơn)"
+                    >
+                      <Grid3X3 size={13} />
+                      <span className="hidden-mobile">Nhỏ</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleSetGridDensity('normal')}
+                      style={{
+                        padding: '0.25rem 0.45rem',
+                        borderRadius: '4px',
+                        border: 'none',
+                        backgroundColor: gridDensity === 'normal' ? 'var(--bg-surface)' : 'transparent',
+                        color: gridDensity === 'normal' ? 'var(--accent-brown)' : 'var(--text-muted)',
+                        fontWeight: gridDensity === 'normal' ? 600 : 400,
+                        fontSize: '0.75rem',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '3px',
+                        boxShadow: gridDensity === 'normal' ? '0 1px 2px rgba(0,0,0,0.06)' : 'none',
+                      }}
+                      title="Lưới chuẩn"
+                    >
+                      <Grid2X2 size={13} />
+                      <span className="hidden-mobile">Chuẩn</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleSetGridDensity('large')}
+                      style={{
+                        padding: '0.25rem 0.45rem',
+                        borderRadius: '4px',
+                        border: 'none',
+                        backgroundColor: gridDensity === 'large' ? 'var(--bg-surface)' : 'transparent',
+                        color: gridDensity === 'large' ? 'var(--accent-brown)' : 'var(--text-muted)',
+                        fontWeight: gridDensity === 'large' ? 600 : 400,
+                        fontSize: '0.75rem',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '3px',
+                        boxShadow: gridDensity === 'large' ? '0 1px 2px rgba(0,0,0,0.06)' : 'none',
+                      }}
+                      title="Phóng to ảnh lớn (xem chi tiết ảnh)"
+                    >
+                      <ImageIcon size={13} />
+                      <span className="hidden-mobile">Ảnh lớn</span>
+                    </button>
+                  </div>
+
                   {/* Sort selector */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                     <ArrowUpDown size={14} style={{ color: 'var(--text-muted)' }} />
@@ -347,7 +454,7 @@ export const CatalogPage: React.FC = () => {
                   <p style={{ fontSize: '0.9rem' }}>Đang tải danh mục sản phẩm...</p>
                 </div>
               ) : filteredProducts.length > 0 ? (
-                <div className="product-grid" style={{ width: '100%' }}>
+                <div className={`product-grid density-${gridDensity}`} style={{ width: '100%' }}>
                   {filteredProducts.map((product) => (
                     <ProductCard
                       key={product.id}
@@ -541,10 +648,11 @@ export const CatalogPage: React.FC = () => {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                       {/* Big Active Image */}
                       <div
+                        className="catalog-quick-view-hero-box"
                         style={{
                           width: '100%',
-                          height: '560px',
-                          maxHeight: '62vh',
+                          aspectRatio: '1 / 1',
+                          maxHeight: '520px',
                           borderRadius: 'var(--radius-md)',
                           overflow: 'hidden',
                           backgroundColor: '#faf8f5',
@@ -770,6 +878,50 @@ export const CatalogPage: React.FC = () => {
                     </div>
                   </div>
 
+                  {/* Variants - Shopee style */}
+                  {quickViewProduct.variants && quickViewProduct.variants.length > 0 && (
+                    <div>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '0.35rem' }}>
+                        Phân loại mẫu ({quickViewProduct.variants.length} mẫu):
+                      </span>
+                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', maxHeight: '180px', overflowY: 'auto', padding: '2px' }}>
+                        {quickViewProduct.variants.map((v, vIdx) => {
+                          const isVarActive = currentImgObj.clean === v.image || currentImgObj.raw.startsWith(v.image);
+                          return (
+                            <button
+                              key={vIdx}
+                              type="button"
+                              onClick={() => {
+                                const matched = parsedQuickViewImages.find(
+                                  (p) => p.clean === v.image || p.raw.startsWith(v.image)
+                                );
+                                if (matched) {
+                                  setActiveQuickViewImg(matched.raw);
+                                }
+                              }}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                padding: '0.25rem 0.55rem',
+                                borderRadius: 'var(--radius-sm)',
+                                border: isVarActive ? '1.5px solid var(--accent-brown)' : '1px solid var(--border-subtle)',
+                                fontSize: '0.72rem',
+                                backgroundColor: isVarActive ? 'var(--accent-warm-tint)' : 'var(--bg-muted)',
+                                color: isVarActive ? 'var(--accent-brown)' : 'var(--text-primary)',
+                                fontWeight: isVarActive ? 600 : 400,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              <img src={v.image} alt="" style={{ width: '20px', height: '20px', objectFit: 'cover', borderRadius: '2px' }} />
+                              <span>{v.label}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Colors - Clickable to switch photos */}
                   {quickViewProduct.colors && quickViewProduct.colors.length > 0 && (
                     <div>
@@ -932,6 +1084,16 @@ export const CatalogPage: React.FC = () => {
         @media (min-width: 768px) {
           .category-scroll-row {
             justify-content: center;
+          }
+        }
+
+        @media (max-width: 640px) {
+          .catalog-quick-view-grid {
+            padding: 1rem !important;
+            gap: 1.25rem !important;
+          }
+          .catalog-quick-view-hero-box {
+            max-height: 48vh !important;
           }
         }
 
