@@ -19,6 +19,12 @@ export interface ComboItem {
   note?: string;
 }
 
+export interface ProductVariant {
+  label: string;
+  image: string;
+  colorId?: string;
+}
+
 export interface Product {
   id: string; // Product code, e.g. "BCG001"
   slug: string; // URL slug, e.g. "set-bo-chan-ga-dui-mau-be-cat"
@@ -33,6 +39,7 @@ export interface Product {
   sizes: string[];
   description: string;
   comboItems?: ComboItem[];
+  variants?: ProductVariant[];
   featured?: boolean;
   published?: boolean;
   available?: boolean;
