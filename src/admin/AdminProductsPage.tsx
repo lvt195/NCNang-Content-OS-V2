@@ -48,16 +48,16 @@ export const AdminProductsPage: React.FC = () => {
     localStorage.setItem('admin_prod_view', mode);
   };
 
-  // Zoom / Grid Density (min-width in px for gallery & grid cards)
-  const [zoomSize, setZoomSize] = useState<number>(() => {
-    const saved = localStorage.getItem('admin_prod_zoom');
-    return saved ? Math.max(140, Math.min(420, parseInt(saved, 10))) : 220;
+  // Column Slider (1 to 5 columns on desktop, 1 to 3 on mobile/tablet)
+  const [adminCols, setAdminCols] = useState<number>(() => {
+    const saved = localStorage.getItem('admin_column_count');
+    return saved ? Math.max(1, Math.min(5, parseInt(saved, 10))) : 4;
   });
 
-  const handleZoomChange = (size: number) => {
-    const clamped = Math.max(140, Math.min(420, size));
-    setZoomSize(clamped);
-    localStorage.setItem('admin_prod_zoom', clamped.toString());
+  const handleAdminColsChange = (cols: number) => {
+    const clamped = Math.max(1, Math.min(5, cols));
+    setAdminCols(clamped);
+    localStorage.setItem('admin_column_count', clamped.toString());
   };
 
   // Filters & Search
@@ -131,7 +131,12 @@ export const AdminProductsPage: React.FC = () => {
     const norm = normalizeVietnamese(searchQuery);
 
     return products.filter((p) => {
-      if (categoryFilter !== 'all' && p.category !== categoryFilter) return false;
+      if (categoryFilter !== 'all') {
+        const match =
+          p.category === categoryFilter ||
+          (Array.isArray(p.categories) && p.categories.includes(categoryFilter));
+        if (!match) return false;
+      }
       if (statusFilter === 'published' && !p.published) return false;
       if (statusFilter === 'draft' && p.published) return false;
 
@@ -401,21 +406,17 @@ export const AdminProductsPage: React.FC = () => {
             }}
           >
             <Maximize2 size={13} style={{ color: '#9c6644' }} />
-            <span>Thu phóng:</span>
-            <span className="desktop-only">({viewMode === 'gallery' ? 'Ảnh' : 'Thẻ'}: {zoomSize}px)</span>
-            <span className="mobile-only" style={{ color: '#9c6644', fontWeight: 700 }}>
-              {zoomSize > 240 ? '1 cột (To)' : '2 cột'}
-            </span>
+            <span>Cột hiển thị:</span>
           </div>
 
           {/* Zoom Out Button */}
           <button
             type="button"
-            onClick={() => handleZoomChange(zoomSize - 30)}
-            disabled={zoomSize <= 140}
+            onClick={() => handleAdminColsChange(adminCols - 1)}
+            disabled={adminCols <= 1}
             className="btn btn-outline btn-sm"
             style={{ padding: '0.2rem 0.45rem', height: '28px' }}
-            title="Thu nhỏ cỡ ảnh / Tăng số cột"
+            title="Giảm số cột (Ảnh to hơn)"
           >
             <ZoomOut size={13} />
           </button>
@@ -423,64 +424,59 @@ export const AdminProductsPage: React.FC = () => {
           {/* Range Slider */}
           <input
             type="range"
-            min={140}
-            max={420}
-            step={10}
-            value={zoomSize}
-            onChange={(e) => handleZoomChange(Number(e.target.value))}
+            min={1}
+            max={5}
+            step={1}
+            value={adminCols}
+            onChange={(e) => handleAdminColsChange(Number(e.target.value))}
             className="zoom-slider"
             style={{
               flex: '1 1 80px',
-              maxWidth: '180px',
+              maxWidth: '140px',
               verticalAlign: 'middle',
             }}
-            title={`Kích thước: ${zoomSize}px`}
+            title={`Số cột: ${adminCols}`}
           />
 
           {/* Zoom In Button */}
           <button
             type="button"
-            onClick={() => handleZoomChange(zoomSize + 30)}
-            disabled={zoomSize >= 420}
+            onClick={() => handleAdminColsChange(adminCols + 1)}
+            disabled={adminCols >= 5}
             className="btn btn-outline btn-sm"
             style={{ padding: '0.2rem 0.45rem', height: '28px' }}
-            title="Phóng to cỡ ảnh / Giảm số cột"
+            title="Tăng số cột (Nhiều ảnh hơn)"
           >
             <ZoomIn size={13} />
           </button>
 
-          {/* Preset Buttons (Hidden on mobile phones to prevent layout wrapping) */}
-          <div className="hidden-mobile" style={{ display: 'flex', alignItems: 'center', gap: '4px', marginLeft: 'auto', flexWrap: 'wrap' }}>
-            {[
-              { label: 'Nhỏ (160px)', val: 160 },
-              { label: 'Vừa (220px)', val: 220 },
-              { label: 'Lớn (300px)', val: 300 },
-              { label: 'Cực đại (390px)', val: 390 },
-            ].map((p) => {
-              const isSelected = Math.abs(zoomSize - p.val) < 25;
-              return (
-                <button
-                  key={p.val}
-                  type="button"
-                  onClick={() => handleZoomChange(p.val)}
-                  style={{
-                    padding: '0.2rem 0.5rem',
-                    borderRadius: '4px',
-                    border: '1px solid',
-                    borderColor: isSelected ? '#9c6644' : '#e8e1d5',
-                    backgroundColor: isSelected ? '#9c6644' : '#faf8f5',
-                    color: isSelected ? '#ffffff' : '#685e54',
-                    fontSize: '0.725rem',
-                    fontWeight: 500,
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease',
-                  }}
-                >
-                  {p.label}
-                </button>
-              );
-            })}
-          </div>
+          <span
+            style={{
+              fontSize: '0.75rem',
+              fontWeight: 600,
+              color: '#9c6644',
+              backgroundColor: '#faf8f5',
+              padding: '0.15rem 0.5rem',
+              borderRadius: '12px',
+              border: '1px solid #ebd9c2',
+              marginLeft: 'auto',
+            }}
+          >
+            <span className="mobile-only">
+              {adminCols === 1
+                ? '1 cột (Lướt xem)'
+                : adminCols >= 3
+                ? '3 cột (Nhỏ)'
+                : '2 cột'}
+            </span>
+            <span className="desktop-only">
+              {adminCols === 1
+                ? '1 cột (To)'
+                : adminCols === 5
+                ? '5 cột (Nhỏ)'
+                : `${adminCols} cột`}
+            </span>
+          </span>
         </div>
       )}
 
@@ -509,10 +505,11 @@ export const AdminProductsPage: React.FC = () => {
       ) : viewMode === 'gallery' ? (
         /* Gallery View - Photo-centric layout like Media Library */
         <div
-          className={`admin-gallery-grid ${zoomSize > 240 ? 'mobile-cols-1' : 'mobile-cols-2'}`}
+          className="admin-gallery-grid"
           style={{
-            ['--admin-zoom-size' as string]: `${zoomSize}px`,
-            ['--admin-gap-size' as string]: zoomSize > 250 ? '1.25rem' : '0.85rem',
+            ['--desktop-cols' as string]: Math.min(5, Math.max(1, adminCols)),
+            ['--tablet-cols' as string]: Math.min(3, Math.max(1, adminCols)),
+            ['--mobile-cols' as string]: Math.min(3, Math.max(1, adminCols)),
           }}
         >
           {filteredProducts.map((p) => {
@@ -695,7 +692,7 @@ export const AdminProductsPage: React.FC = () => {
                 {/* Product Name & Price directly underneath photo */}
                 <div
                   style={{
-                    padding: zoomSize < 180 ? '0.5rem 0.65rem' : '0.65rem 0.85rem',
+                    padding: adminCols >= 4 ? '0.5rem 0.65rem' : '0.65rem 0.85rem',
                     display: 'flex',
                     flexDirection: 'column',
                     justifyContent: 'space-between',
@@ -707,7 +704,7 @@ export const AdminProductsPage: React.FC = () => {
                     title={p.name}
                     style={{
                       fontWeight: 600,
-                      fontSize: zoomSize < 180 ? '0.8rem' : '0.875rem',
+                      fontSize: adminCols >= 4 ? '0.8rem' : '0.875rem',
                       color: '#2c2825',
                       lineHeight: 1.35,
                       display: '-webkit-box',
@@ -733,7 +730,7 @@ export const AdminProductsPage: React.FC = () => {
                       style={{
                         fontWeight: 700,
                         color: '#9c6644',
-                        fontSize: zoomSize < 180 ? '0.825rem' : '0.95rem',
+                        fontSize: adminCols >= 4 ? '0.825rem' : '0.95rem',
                       }}
                     >
                       {formatVND(p.price)}
@@ -762,10 +759,11 @@ export const AdminProductsPage: React.FC = () => {
       ) : viewMode === 'grid' ? (
         /* Visual Card Grid View */
         <div
-          className={`admin-gallery-grid ${zoomSize > 240 ? 'mobile-cols-1' : 'mobile-cols-2'}`}
+          className="admin-gallery-grid"
           style={{
-            ['--admin-zoom-size' as string]: `${Math.max(220, zoomSize)}px`,
-            ['--admin-gap-size' as string]: '1.25rem',
+            ['--desktop-cols' as string]: Math.min(5, Math.max(1, adminCols)),
+            ['--tablet-cols' as string]: Math.min(3, Math.max(1, adminCols)),
+            ['--mobile-cols' as string]: Math.min(3, Math.max(1, adminCols)),
           }}
         >
           {filteredProducts.map((p) => {

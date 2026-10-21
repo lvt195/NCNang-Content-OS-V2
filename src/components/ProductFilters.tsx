@@ -101,7 +101,11 @@ export const ProductFilters: React.FC<ProductFiltersProps> = ({
             </button>
 
             {categories.map((cat) => {
-              const count = products.filter((p) => p.category === cat.id).length;
+              const count = products.filter(
+                (p) =>
+                  p.category === cat.id ||
+                  (Array.isArray(p.categories) && p.categories.includes(cat.id))
+              ).length;
               const isActive = filters.category === cat.id;
               return (
                 <button

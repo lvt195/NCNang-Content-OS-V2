@@ -9,6 +9,7 @@ interface ProductGalleryProps {
   selectedColor?: string;
   onColorChange?: (color: string) => void;
   colors?: string[];
+  selectedVariantImage?: string;
 }
 
 export const ProductGallery: React.FC<ProductGalleryProps> = ({
@@ -17,6 +18,7 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
   selectedColor,
   onColorChange,
   colors = [],
+  selectedVariantImage,
 }) => {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [failedImages, setFailedImages] = useState<Record<number, boolean>>({});
@@ -92,6 +94,17 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
 
     return 0;
   };
+
+  // Sync selectedVariantImage from parent component
+  useEffect(() => {
+    if (!selectedVariantImage || parsedImages.length === 0) return;
+    const targetIdx = parsedImages.findIndex(
+      (img) => img.clean === selectedVariantImage || img.raw === selectedVariantImage
+    );
+    if (targetIdx !== -1) {
+      setSelectedIndex(targetIdx);
+    }
+  }, [selectedVariantImage, parsedImages]);
 
   // Sync selectedColor from parent component
   useEffect(() => {

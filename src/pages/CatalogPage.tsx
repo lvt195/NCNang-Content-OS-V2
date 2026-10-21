@@ -38,16 +38,16 @@ export const CatalogPage: React.FC = () => {
   const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
   const [activeQuickViewImg, setActiveQuickViewImg] = useState<string>('');
 
-  // User Draggable Zoom Size (min card width in px, adjustable via slider)
-  const [catalogZoom, setCatalogZoom] = useState<number>(() => {
-    const saved = localStorage.getItem('catalog_zoom_size');
-    return saved ? Math.max(140, Math.min(420, parseInt(saved, 10))) : 240;
+  // User Draggable Column Slider (1 to 5 columns on desktop, 1 to 3 on mobile/tablet)
+  const [catalogCols, setCatalogCols] = useState<number>(() => {
+    const saved = localStorage.getItem('catalog_column_count');
+    return saved ? Math.max(1, Math.min(5, parseInt(saved, 10))) : 4;
   });
 
-  const handleCatalogZoomChange = (size: number) => {
-    const clamped = Math.max(140, Math.min(420, size));
-    setCatalogZoom(clamped);
-    localStorage.setItem('catalog_zoom_size', clamped.toString());
+  const handleCatalogColsChange = (cols: number) => {
+    const clamped = Math.max(1, Math.min(5, cols));
+    setCatalogCols(clamped);
+    localStorage.setItem('catalog_column_count', clamped.toString());
   };
 
   // Read initial query params from URL if present
@@ -266,56 +266,68 @@ export const CatalogPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Draggable Zoom Slider Bar */}
+            {/* Draggable Column Slider Bar */}
             <div className="catalog-zoom-bar">
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.78rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
                 <Maximize2 size={13} style={{ color: 'var(--accent-brown)' }} />
-                <span className="hidden-mobile">Chia lưới:</span>
+                <span className="hidden-mobile">Cột hiển thị:</span>
               </div>
 
               <button
                 type="button"
-                onClick={() => handleCatalogZoomChange(catalogZoom - 30)}
-                disabled={catalogZoom <= 140}
+                onClick={() => handleCatalogColsChange(catalogCols - 1)}
+                disabled={catalogCols <= 1}
                 className="zoom-btn"
-                title="Thu nhỏ ảnh / Tăng số cột"
-                aria-label="Thu nhỏ ảnh"
+                title="Giảm số cột (Ảnh to hơn)"
+                aria-label="Giảm số cột"
               >
                 <ZoomOut size={13} />
               </button>
 
               <input
                 type="range"
-                min={140}
-                max={420}
-                step={10}
-                value={catalogZoom}
-                onChange={(e) => handleCatalogZoomChange(Number(e.target.value))}
+                min={1}
+                max={5}
+                step={1}
+                value={catalogCols}
+                onChange={(e) => handleCatalogColsChange(Number(e.target.value))}
                 className="zoom-slider"
                 style={{
                   flex: 1,
-                  minWidth: '70px',
-                  maxWidth: '140px',
+                  minWidth: '60px',
+                  maxWidth: '120px',
                   verticalAlign: 'middle',
                 }}
-                title={`Kéo chỉnh cỡ ảnh: ${catalogZoom}px`}
-                aria-label="Thanh kéo thu phóng kích thước sản phẩm"
+                title={`Số cột: ${catalogCols}`}
+                aria-label="Thanh kéo số cột hiển thị"
               />
 
               <button
                 type="button"
-                onClick={() => handleCatalogZoomChange(catalogZoom + 30)}
-                disabled={catalogZoom >= 420}
+                onClick={() => handleCatalogColsChange(catalogCols + 1)}
+                disabled={catalogCols >= 5}
                 className="zoom-btn"
-                title="Phóng to ảnh / Giảm số cột"
-                aria-label="Phóng to ảnh"
+                title="Tăng số cột (Nhiều ảnh hơn)"
+                aria-label="Tăng số cột"
               >
                 <ZoomIn size={13} />
               </button>
 
               <span className="zoom-mode-badge">
-                <span className="mobile-only">{catalogZoom > 240 ? '1 cột (To)' : '2 cột (Nhỏ)'}</span>
-                <span className="desktop-only">{catalogZoom}px</span>
+                <span className="mobile-only">
+                  {catalogCols === 1
+                    ? '1 cột (Lướt xem)'
+                    : catalogCols >= 3
+                    ? '3 cột (Nhỏ)'
+                    : '2 cột'}
+                </span>
+                <span className="desktop-only">
+                  {catalogCols === 1
+                    ? '1 cột (Lớn)'
+                    : catalogCols === 5
+                    ? '5 cột (Nhỏ)'
+                    : `${catalogCols} cột`}
+                </span>
               </span>
             </div>
           </div>
@@ -418,10 +430,11 @@ export const CatalogPage: React.FC = () => {
                 </div>
               ) : filteredProducts.length > 0 ? (
                 <div
-                  className={`catalog-products-grid ${catalogZoom > 240 ? 'mobile-cols-1' : 'mobile-cols-2'}`}
+                  className="catalog-products-grid"
                   style={{
-                    ['--grid-zoom-size' as string]: `${catalogZoom}px`,
-                    ['--grid-gap-size' as string]: catalogZoom > 280 ? '1.5rem' : (catalogZoom > 200 ? '1.15rem' : '0.75rem'),
+                    ['--desktop-cols' as string]: Math.min(5, Math.max(1, catalogCols)),
+                    ['--tablet-cols' as string]: Math.min(3, Math.max(1, catalogCols)),
+                    ['--mobile-cols' as string]: Math.min(3, Math.max(1, catalogCols)),
                   }}
                 >
                   {filteredProducts.map((product) => (

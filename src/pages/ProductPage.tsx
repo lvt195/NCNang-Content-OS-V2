@@ -9,7 +9,7 @@ import {
   Info,
   Layers,
 } from 'lucide-react';
-import { Product } from '../types/product';
+import { Product, ProductVariant } from '../types/product';
 import { productService } from '../services/productService';
 import { formatVND } from '../utils/formatCurrency';
 import { getColorOption } from '../data/colors';
@@ -33,6 +33,7 @@ export const ProductPage: React.FC = () => {
   // User-selected options
   const [selectedColor, setSelectedColor] = useState<string>('');
   const [selectedSize, setSelectedSize] = useState<string>('');
+  const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -79,6 +80,11 @@ export const ProductPage: React.FC = () => {
               setSelectedSize(prod.sizes[0]);
             }
 
+            // Initialize selected variant
+            if (prod.variants && prod.variants.length > 0) {
+              setSelectedVariant(prod.variants[0]);
+            }
+
             // Load related products from same category
             const allPublished = await productService.getPublishedProducts();
             const related = allPublished
@@ -113,6 +119,13 @@ export const ProductPage: React.FC = () => {
     }, { replace: true });
   };
 
+  const handleVariantSelect = (variant: ProductVariant) => {
+    setSelectedVariant(variant);
+    if (variant.colorId) {
+      handleColorSelect(variant.colorId);
+    }
+  };
+
   const handleCopyCode = () => {
     if (!product) return;
     navigator.clipboard.writeText(product.id);
@@ -124,7 +137,8 @@ export const ProductPage: React.FC = () => {
     if (!product) return;
     const colorLabel = selectedColor ? getColorOption(selectedColor).label : 'Mặc định';
     const sizeLabel = selectedSize || 'Theo yêu cầu';
-    const text = `Tôi muốn đặt mua: ${product.name} (Mã: ${product.id})\n- Màu sắc: ${colorLabel}\n- Kích thước: ${sizeLabel}\n- Giá tham khảo: ${formatVND(product.price)}`;
+    const variantLabel = selectedVariant ? `\n- Phân loại / Mẫu: ${selectedVariant.label}` : '';
+    const text = `Tôi muốn đặt mua: ${product.name} (Mã: ${product.id})${variantLabel}\n- Màu sắc: ${colorLabel}\n- Kích thước: ${sizeLabel}\n- Giá tham khảo: ${formatVND(product.price)}`;
     navigator.clipboard.writeText(text);
     setCopiedOrderInfo(true);
     setTimeout(() => setCopiedOrderInfo(false), 2500);
@@ -217,6 +231,7 @@ export const ProductPage: React.FC = () => {
                 selectedColor={selectedColor}
                 onColorChange={handleColorSelect}
                 colors={product.colors}
+                selectedVariantImage={selectedVariant?.image}
               />
             </div>
 
@@ -296,6 +311,82 @@ export const ProductPage: React.FC = () => {
                   (Giá tham khảo, liên hệ để tư vấn theo kích thước)
                 </span>
               </div>
+
+              {/* Shopee-style Variant Selector */}
+              {product.variants && product.variants.length > 0 && (
+                <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '1.25rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
+                    <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>
+                      Phân loại mẫu ({product.variants.length} mẫu):{' '}
+                      <span style={{ color: 'var(--accent-brown)', fontWeight: 700 }}>
+                        {selectedVariant?.label || 'Chưa chọn mẫu'}
+                      </span>
+                    </span>
+                    <span style={{ fontSize: '0.775rem', color: 'var(--text-muted)' }}>
+                      (Bấm mẫu để xem ảnh tương ứng)
+                    </span>
+                  </div>
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))',
+                      gap: '0.5rem',
+                      maxHeight: '260px',
+                      overflowY: 'auto',
+                      padding: '2px',
+                    }}
+                  >
+                    {product.variants.map((variant, idx) => {
+                      const isSelected = selectedVariant?.label === variant.label || selectedVariant?.image === variant.image;
+                      return (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => handleVariantSelect(variant)}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.45rem',
+                            padding: '0.35rem 0.5rem',
+                            borderRadius: 'var(--radius-sm)',
+                            backgroundColor: isSelected ? 'var(--accent-warm-tint)' : 'var(--bg-surface)',
+                            border: isSelected
+                              ? '2px solid var(--accent-brown)'
+                              : '1px solid var(--border-subtle)',
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          <img
+                            src={variant.image}
+                            alt=""
+                            style={{
+                              width: '32px',
+                              height: '32px',
+                              borderRadius: '4px',
+                              objectFit: 'cover',
+                              flexShrink: 0,
+                            }}
+                          />
+                          <span
+                            style={{
+                              fontSize: '0.75rem',
+                              fontWeight: isSelected ? 600 : 400,
+                              color: isSelected ? 'var(--accent-brown)' : 'var(--text-primary)',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {variant.label}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* Colors Swatches & Interactive Selection */}
               {product.colors && product.colors.length > 0 && (
@@ -491,7 +582,7 @@ export const ProductPage: React.FC = () => {
                   <span>
                     {copiedOrderInfo
                       ? '✓ Đã sao chép cấu hình đặt hàng!'
-                      : `Sao chép thông tin đặt (${selectedColor ? getColorOption(selectedColor).label : 'Màu'} • ${selectedSize || 'Size'})`}
+                      : `Sao chép thông tin đặt (${selectedVariant ? selectedVariant.label : (selectedColor ? getColorOption(selectedColor).label : 'Mẫu')} • ${selectedSize || 'Size'})`}
                   </span>
                 </button>
 

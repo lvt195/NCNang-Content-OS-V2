@@ -30,6 +30,7 @@ export interface Product {
   slug: string; // URL slug, e.g. "set-bo-chan-ga-dui-mau-be-cat"
   name: string;
   category: ProductCategory;
+  categories?: string[];
   price: number;
   currency: string;
   colors: ProductColor[];
