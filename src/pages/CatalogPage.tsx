@@ -374,7 +374,7 @@ export const CatalogPage: React.FC = () => {
 
                   {filters.color !== 'all' && (
                     <span className="badge badge-draft" style={{ gap: '4px', padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}>
-                      Màu {getColorOption(filters.color).label.split(' / ')[0]}
+                      {getColorOption(filters.color).label}
                       <button type="button" onClick={() => handleFilterChange({ color: 'all' })}>
                         <X size={12} />
                       </button>

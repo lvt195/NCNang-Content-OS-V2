@@ -659,6 +659,54 @@ export const AdminMediaLibraryPage: React.FC = () => {
     }
   };
 
+  // Helper to determine which categories an image belongs to (shared taxonomy between photos & products)
+  const getImageCategories = (item: StorageItem): string[] => {
+    const matchedCats = new Set<string>();
+
+    // 1. Direct path check (e.g. item.fullPath starts with "chat-lieu-dui/")
+    for (const cat of categories) {
+      if (item.fullPath.startsWith(`${cat.id}/`)) {
+        matchedCats.add(cat.id);
+      }
+    }
+
+    // 2. Product association check (match by URL, filename, or storage folder)
+    const cleanUrl = item.publicUrl?.split('?')[0] || '';
+    const folderName = item.fullPath.includes('/') ? item.fullPath.split('/')[0].toLowerCase() : '';
+
+    for (const prod of products) {
+      const prodCats = Array.isArray(prod.categories) && prod.categories.length > 0
+        ? prod.categories
+        : (prod.category ? [prod.category] : []);
+
+      const hasUrl = prod.images?.some((img) => img.includes(cleanUrl) || cleanUrl.includes(img.split('#')[0]));
+      const hasCover = prod.coverImage && (prod.coverImage.includes(cleanUrl) || cleanUrl.includes(prod.coverImage.split('#')[0]));
+      const hasVariant = prod.variants?.some((v) => v.image && (v.image.includes(cleanUrl) || cleanUrl.includes(v.image.split('#')[0])));
+      const hasId = item.fullPath.toUpperCase().includes(prod.id.toUpperCase());
+
+      let matchesFolder = false;
+      if (folderName === 'combo165' && prod.id.startsWith('SET165')) matchesFolder = true;
+      if (folderName === 'set4-chan-380k' && prod.id.startsWith('SET380')) matchesFolder = true;
+      if (folderName === 'set-thunlanh-350k' && prod.id === 'SET350') matchesFolder = true;
+      if (folderName === 'vo-chan-ni-tho-300k' && prod.id === 'LE_CHAN_NI_THO_300K') matchesFolder = true;
+      if (folderName === 'chan-he-thun-lanh-300k' && prod.id === 'LE_CHAN_THUN_LANH_300K') matchesFolder = true;
+      if (folderName === 'set4-phi-lua-610k' && prod.id === 'SET4_PHI_LUA_610K') matchesFolder = true;
+      if (folderName === 'set4-ni-cham-bi-700k' && prod.id === 'SET4_NI_CHAM_BI_700K') matchesFolder = true;
+      if (folderName === 'set4-bong-xop-400k' && prod.id === 'SET4_BONG_XOP_400K') matchesFolder = true;
+      if (folderName === 'set4-cotton-370k' && prod.id.startsWith('SET370')) matchesFolder = true;
+      if (folderName === 'set-bingbong-240k' && prod.id === 'SET4_BINGBONG_240K') matchesFolder = true;
+      if (folderName === 'set-xinkk-220k' && prod.id === 'SET_XINKK_220K') matchesFolder = true;
+      if (folderName === 'set3-ni-280k' && (prod.id === 'SET280' || prod.id === 'SET_NHAP_NI_280K')) matchesFolder = true;
+      if (folderName === 'set-nhap-ve' && prod.id.startsWith('SET_NHAP')) matchesFolder = true;
+
+      if (hasUrl || hasCover || hasVariant || hasId || matchesFolder) {
+        prodCats.forEach((c) => matchedCats.add(c));
+      }
+    }
+
+    return Array.from(matchedCats);
+  };
+
   // Filter items based on Category, Product, View Scope, and Search
   const displayedItems = useMemo(() => {
     let list: StorageItem[] = [];
@@ -668,11 +716,17 @@ export const AdminMediaLibraryPage: React.FC = () => {
       list = allFiles;
 
       if (categoryFilter === 'uncategorized') {
-        // Files not in any category folder
-        list = list.filter((item) => !item.fullPath.includes('/'));
+        // Files not associated with any category
+        list = list.filter((item) => {
+          const itemCats = getImageCategories(item);
+          return itemCats.length === 0 && !item.fullPath.includes('/');
+        });
       } else if (categoryFilter !== 'all') {
-        // Files whose path starts with categoryFilter
-        list = list.filter((item) => item.fullPath.startsWith(`${categoryFilter}/`));
+        // Files whose path starts with categoryFilter OR whose associated product belongs to categoryFilter
+        list = list.filter((item) => {
+          const itemCats = getImageCategories(item);
+          return itemCats.includes(categoryFilter) || item.fullPath.startsWith(`${categoryFilter}/`);
+        });
       }
 
       // Filter by selected product ID
@@ -700,21 +754,23 @@ export const AdminMediaLibraryPage: React.FC = () => {
     }
 
     return list;
-  }, [categoryFilter, productFilter, viewScope, allFiles, items, searchQuery, products]);
+  }, [categoryFilter, productFilter, viewScope, allFiles, items, searchQuery, products, categories]);
 
   const categoryCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const f of allFiles) {
       if (f.isFolder) continue;
-      const prefix = f.fullPath.includes('/') ? f.fullPath.split('/')[0] : '';
-      if (!prefix) {
+      const itemCats = getImageCategories(f);
+      if (itemCats.length === 0) {
         counts['uncategorized'] = (counts['uncategorized'] || 0) + 1;
       } else {
-        counts[prefix] = (counts[prefix] || 0) + 1;
+        for (const catId of itemCats) {
+          counts[catId] = (counts[catId] || 0) + 1;
+        }
       }
     }
     return counts;
-  }, [allFiles]);
+  }, [allFiles, products, categories]);
 
   const formatFileSize = (bytes?: number) => {
     if (!bytes) return '';

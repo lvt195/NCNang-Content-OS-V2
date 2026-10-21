@@ -23,6 +23,7 @@ export interface ProductVariant {
   label: string;
   image: string;
   colorId?: string;
+  color?: string;
 }
 
 export interface Product {
@@ -62,6 +63,19 @@ export interface ColorOption {
   label: string;
   hex: string;
   borderHex?: string;
+  parentId?: string;
+}
+
+export interface ParentColorGroup {
+  id: string;
+  name: string;
+  description: string;
+  type: 'solid' | 'pattern';
+  hex: string;
+  borderHex?: string;
+  icon?: 'flower' | 'grid' | 'palette';
+  subColors: string[];
+  keywords: string[];
 }
 
 export interface PriceRange {

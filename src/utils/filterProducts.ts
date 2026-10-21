@@ -1,5 +1,6 @@
 import { Product, FilterState } from '../types/product';
 import { SITE_CONFIG } from '../config/site';
+import { doesProductMatchColor } from '../data/colors';
 
 /**
  * Remove Vietnamese accents for diacritic-insensitive search
@@ -45,10 +46,9 @@ export function filterProducts(products: Product[], filters: FilterState): Produ
       if (p.type !== filters.type) return false;
     }
 
-    // 3. Color Filter
+    // 3. Color & Pattern Filter (Parent-Child Group Mapping)
     if (filters.color && filters.color !== 'all') {
-      const hasColor = p.colors?.some((c) => c.toLowerCase() === filters.color.toLowerCase());
-      if (!hasColor) return false;
+      if (!doesProductMatchColor(p, filters.color)) return false;
     }
 
     // 4. Price Range Filter

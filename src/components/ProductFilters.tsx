@@ -2,7 +2,7 @@ import React from 'react';
 import { RotateCcw, SlidersHorizontal, ChevronUp, Check } from 'lucide-react';
 import { FilterState, Category, Product } from '../types/product';
 import { SITE_CONFIG } from '../config/site';
-import { getAllColors } from '../data/colors';
+import { getParentColorGroups, doesProductMatchColor } from '../data/colors';
 
 interface ProductFiltersProps {
   filters: FilterState;
@@ -161,43 +161,106 @@ export const ProductFilters: React.FC<ProductFiltersProps> = ({
           </div>
         </div>
 
-        {/* Column 3: Tone màu tự nhiên */}
+        {/* Column 3: Màu sắc & Họa tiết (14 nhóm màu chuẩn thị trường chăn ga) */}
         <div className="filter-group-col filter-group-col-wide">
-          <h4 className="filter-group-heading">Tone màu tự nhiên</h4>
-          <div className="filter-colors-grid">
-            <button
-              type="button"
-              className={`color-filter-pill ${filters.color === 'all' || !filters.color ? 'active' : ''}`}
-              onClick={() => onFilterChange({ color: 'all' })}
-            >
-              Tất cả màu
-            </button>
-            {getAllColors().map((col) => {
-              const isSelected = filters.color === col.id;
-              return (
-                <button
-                  key={col.id}
-                  type="button"
-                  className={`color-filter-pill ${isSelected ? 'active' : ''}`}
-                  onClick={() => onFilterChange({ color: isSelected ? 'all' : col.id })}
-                  title={col.label}
-                >
-                  <span
-                    style={{
-                      width: '13px',
-                      height: '13px',
-                      borderRadius: '50%',
-                      background: col.hex,
-                      border: '1px solid rgba(0,0,0,0.15)',
-                      display: 'inline-block',
-                      flexShrink: 0,
-                    }}
-                  />
-                  <span>{col.label.split(' / ')[0]}</span>
-                  {isSelected && <Check size={12} />}
-                </button>
-              );
-            })}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+            <h4 className="filter-group-heading" style={{ margin: 0 }}>Màu sắc & Họa tiết</h4>
+            {filters.color !== 'all' && (
+              <button
+                type="button"
+                onClick={() => onFilterChange({ color: 'all' })}
+                style={{ fontSize: '0.75rem', color: 'var(--accent-brown)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+              >
+                Xóa chọn màu
+              </button>
+            )}
+          </div>
+
+          <div style={{ marginBottom: '0.75rem' }}>
+            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '0.35rem' }}>
+              Màu trơn (11 màu):
+            </span>
+            <div className="filter-colors-grid">
+              {getParentColorGroups()
+                .filter((g) => g.type === 'solid')
+                .map((col) => {
+                  const isSelected = filters.color === col.id;
+                  const count = products.filter((p) => doesProductMatchColor(p, col.id)).length;
+                  return (
+                    <button
+                      key={col.id}
+                      type="button"
+                      className={`color-filter-pill ${isSelected ? 'active' : ''}`}
+                      onClick={() => onFilterChange({ color: isSelected ? 'all' : col.id })}
+                      title={`${col.name}: ${col.description}`}
+                    >
+                      <span
+                        style={{
+                          width: '14px',
+                          height: '14px',
+                          borderRadius: '50%',
+                          background: col.hex,
+                          border: `1.5px solid ${col.borderHex || 'rgba(0,0,0,0.15)'}`,
+                          display: 'inline-block',
+                          flexShrink: 0,
+                        }}
+                      />
+                      <span>{col.name}</span>
+                      <span style={{ fontSize: '0.7rem', opacity: 0.75 }}>({count})</span>
+                      {isSelected && <Check size={12} />}
+                    </button>
+                  );
+                })}
+            </div>
+          </div>
+
+          <div>
+            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '0.35rem' }}>
+              Họa tiết & Phối màu (3 nhóm):
+            </span>
+            <div className="filter-colors-grid">
+              {getParentColorGroups()
+                .filter((g) => g.type === 'pattern')
+                .map((col) => {
+                  const isSelected = filters.color === col.id;
+                  const count = products.filter((p) => doesProductMatchColor(p, col.id)).length;
+                  return (
+                    <button
+                      key={col.id}
+                      type="button"
+                      className={`color-filter-pill ${isSelected ? 'active' : ''}`}
+                      onClick={() => onFilterChange({ color: isSelected ? 'all' : col.id })}
+                      title={`${col.name}: ${col.description}`}
+                      style={{
+                        border: isSelected ? '2px solid var(--accent-brown)' : '1px solid #d5cbbf',
+                        backgroundColor: isSelected ? 'var(--accent-warm-tint)' : '#faf8f5',
+                      }}
+                    >
+                      <span
+                        style={{
+                          width: '16px',
+                          height: '16px',
+                          borderRadius: '4px',
+                          background: col.hex,
+                          border: `1px solid ${col.borderHex || 'rgba(0,0,0,0.15)'}`,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0,
+                          fontSize: '10px',
+                        }}
+                      >
+                        {col.icon === 'flower' && '🌸'}
+                        {col.icon === 'grid' && '▦'}
+                        {col.icon === 'palette' && '🎨'}
+                      </span>
+                      <span>{col.name}</span>
+                      <span style={{ fontSize: '0.7rem', opacity: 0.75 }}>({count})</span>
+                      {isSelected && <Check size={12} />}
+                    </button>
+                  );
+                })}
+            </div>
           </div>
         </div>
       </div>

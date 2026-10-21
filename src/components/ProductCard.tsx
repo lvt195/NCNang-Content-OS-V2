@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Eye } from 'lucide-react';
 import { Product } from '../types/product';
 import { formatVND } from '../utils/formatCurrency';
-import { getColorOption } from '../data/colors';
+import { getColorOption, getParentColorGroup, isColorInParentGroup } from '../data/colors';
 import { analyticsService } from '../services/analyticsService';
 
 interface ProductCardProps {
@@ -15,17 +15,55 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }
   const [imageError, setImageError] = useState(false);
   const [activeColorId, setActiveColorId] = useState<string | null>(null);
 
+  // Derive unique parent colors for this product from both product.colors and variants
+  const cardColors = useMemo(() => {
+    const parentSet = new Set<string>();
+    if (Array.isArray(product.colors)) {
+      for (const c of product.colors) {
+        const parent = getParentColorGroup(c);
+        if (parent) parentSet.add(parent.id);
+      }
+    }
+    if (Array.isArray(product.variants)) {
+      for (const v of product.variants) {
+        if (v.color) {
+          const parent = getParentColorGroup(v.color);
+          if (parent) parentSet.add(parent.id);
+        }
+        if (v.label) {
+          const parent = getParentColorGroup(v.label);
+          if (parent) parentSet.add(parent.id);
+        }
+      }
+    }
+    return Array.from(parentSet);
+  }, [product.colors, product.variants]);
+
   // Helper to find image matching a color
   const findImageForColor = (colorId: string): string | null => {
-    if (!product.images || product.images.length === 0) return null;
-    const found = product.images.find((img) => {
-      if (img.includes('#color=')) {
-        const assigned = decodeURIComponent(img.split('#color=')[1]);
-        return assigned.toLowerCase() === colorId.toLowerCase();
-      }
-      return false;
-    });
-    return found ? found.split('#color=')[0] : null;
+    // 1. Check in product.variants for image matching this color
+    if (product.variants && product.variants.length > 0) {
+      const foundVar = product.variants.find((v) => {
+        if (v.color && isColorInParentGroup(v.color, colorId)) return true;
+        if (v.label && isColorInParentGroup(v.label, colorId)) return true;
+        return false;
+      });
+      if (foundVar?.image) return foundVar.image;
+    }
+
+    // 2. Check in product.images with #color= tag
+    if (product.images && product.images.length > 0) {
+      const found = product.images.find((img) => {
+        if (img.includes('#color=')) {
+          const assigned = decodeURIComponent(img.split('#color=')[1]);
+          return assigned.toLowerCase() === colorId.toLowerCase() || isColorInParentGroup(assigned, colorId);
+        }
+        return false;
+      });
+      if (found) return found.split('#color=')[0];
+    }
+
+    return null;
   };
 
   const colorSwappedImage = activeColorId ? findImageForColor(activeColorId) : null;
@@ -132,12 +170,12 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }
         {/* Card Body */}
         <div className="product-card-body">
           {/* Colors Swatches Dots */}
-          {product.colors && product.colors.length > 0 && (
+          {cardColors.length > 0 && (
             <div
-              style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '0.2rem' }}
+              style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '0.25rem', flexWrap: 'wrap' }}
               onClick={(e) => e.stopPropagation()}
             >
-              {product.colors.slice(0, 5).map((colorId) => {
+              {cardColors.slice(0, 6).map((colorId) => {
                 const color = getColorOption(colorId);
                 const isHovered = activeColorId === colorId;
                 return (
@@ -156,18 +194,20 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }
                     style={{
                       background: color.hex,
                       borderColor: isHovered ? 'var(--text-primary)' : (color.borderHex || 'rgba(0,0,0,0.15)'),
-                      transform: isHovered ? 'scale(1.3)' : 'scale(1)',
+                      transform: isHovered ? 'scale(1.25)' : 'scale(1)',
                       boxShadow: isHovered ? '0 0 0 1.5px var(--accent-brown)' : 'none',
                       cursor: 'pointer',
                       padding: 0,
                       transition: 'all 0.15s ease',
+                      width: '12px',
+                      height: '12px',
                     }}
                   />
                 );
               })}
-              {product.colors.length > 5 && (
-                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                  +{product.colors.length - 5}
+              {cardColors.length > 6 && (
+                <span style={{ fontSize: '0.675rem', color: 'var(--text-muted)' }}>
+                  +{cardColors.length - 6}
                 </span>
               )}
             </div>
