@@ -465,7 +465,7 @@ export const ProductPage: React.FC = () => {
 
               {/* Sizes Available & Interactive Selection */}
               {product.sizes && product.sizes.length > 0 && (
-                <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '1.25rem' }}>
+                <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '1.25rem', width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
                     <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>
                       Kích thước:{' '}
@@ -474,7 +474,7 @@ export const ProductPage: React.FC = () => {
                       </span>
                     </span>
                   </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.65rem' }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
                     {product.sizes.map((s) => {
                       const isSelected = selectedSize === s;
                       return (
@@ -483,7 +483,7 @@ export const ProductPage: React.FC = () => {
                           type="button"
                           onClick={() => setSelectedSize(s)}
                           style={{
-                            padding: '0.45rem 0.95rem',
+                            padding: '0.45rem 0.85rem',
                             borderRadius: 'var(--radius-sm)',
                             backgroundColor: isSelected ? 'var(--accent-brown)' : 'var(--bg-surface)',
                             color: isSelected ? '#ffffff' : 'var(--text-primary)',
@@ -495,26 +495,31 @@ export const ProductPage: React.FC = () => {
                             cursor: 'pointer',
                             transition: 'all 0.15s ease',
                             boxShadow: isSelected ? '0 2px 6px rgba(118,99,82,0.25)' : 'none',
+                            maxWidth: '100%',
+                            wordBreak: 'break-word',
                           }}
                         >
                           {s}
                         </button>
                       );
                     })}
-                    <div
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        padding: '0.45rem 0.85rem',
-                        borderRadius: 'var(--radius-sm)',
-                        backgroundColor: 'var(--bg-muted)',
-                        border: '1px dashed var(--border-subtle)',
-                        fontSize: '0.8rem',
-                        color: 'var(--text-secondary)',
-                      }}
-                    >
-                      ✂️ Nhận may đo theo yêu cầu
-                    </div>
+                    {!product.sizes.some((s) => s.toLowerCase().includes('may theo yêu cầu') || s.toLowerCase().includes('may đo')) && (
+                      <div
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          padding: '0.45rem 0.85rem',
+                          borderRadius: 'var(--radius-sm)',
+                          backgroundColor: 'var(--bg-muted)',
+                          border: '1px dashed var(--border-subtle)',
+                          fontSize: '0.8rem',
+                          color: 'var(--text-secondary)',
+                          maxWidth: '100%',
+                        }}
+                      >
+                        ✂️ Nhận may đo theo yêu cầu
+                      </div>
+                    )}
                   </div>
                   <span style={{ fontSize: '0.775rem', color: 'var(--text-muted)', marginTop: '0.4rem', display: 'block' }}>
                     * Tiệm có nhận may theo độ dày đệm riêng (đệm cao 20-30cm hoặc nệm topper/nệm Nhật).
@@ -530,15 +535,18 @@ export const ProductPage: React.FC = () => {
                     borderRadius: 'var(--radius-sm)',
                     padding: '1rem',
                     border: '1px solid var(--border-subtle)',
+                    width: '100%',
+                    maxWidth: '100%',
+                    boxSizing: 'border-box',
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.5rem' }}>
-                    <Layers size={16} color="var(--accent-brown)" />
+                    <Layers size={16} color="var(--accent-brown)" style={{ flexShrink: 0 }} />
                     <span>Bộ combo bao gồm:</span>
                   </div>
-                  <ul style={{ paddingLeft: '1.25rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                  <ul style={{ paddingLeft: '1.25rem', fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0 }}>
                     {product.comboItems.map((item, idx) => (
-                      <li key={idx} style={{ marginBottom: '0.25rem' }}>
+                      <li key={idx} style={{ marginBottom: '0.25rem', wordBreak: 'break-word' }}>
                         <strong>{item.quantity}x</strong> {item.name} {item.note && `(${item.note})`}
                       </li>
                     ))}
@@ -547,11 +555,11 @@ export const ProductPage: React.FC = () => {
               )}
 
               {/* Description */}
-              <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '1rem' }}>
+              <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '1rem', width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
                 <span style={{ fontSize: '0.85rem', fontWeight: 600, display: 'block', marginBottom: '0.5rem' }}>
                   Thông tin chất liệu & chi tiết:
                 </span>
-                <p style={{ fontSize: '0.925rem', color: 'var(--text-secondary)', lineHeight: 1.7, whiteSpace: 'pre-line' }}>
+                <p style={{ fontSize: '0.925rem', color: 'var(--text-secondary)', lineHeight: 1.7, whiteSpace: 'pre-line', wordBreak: 'break-word', overflowWrap: 'break-word', margin: 0 }}>
                   {cleanProductDescription(product.description)}
                 </p>
               </div>
@@ -567,6 +575,9 @@ export const ProductPage: React.FC = () => {
                   flexDirection: 'column',
                   gap: '0.75rem',
                   marginTop: '0.5rem',
+                  width: '100%',
+                  maxWidth: '100%',
+                  boxSizing: 'border-box',
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
