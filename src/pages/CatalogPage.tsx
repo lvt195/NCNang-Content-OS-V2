@@ -862,11 +862,11 @@ export const CatalogPage: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Variants - Shopee style */}
+                  {/* Variants - Shopee style: Mẫu & Màu đi liền với nhau */}
                   {quickViewProduct.variants && quickViewProduct.variants.length > 0 && (
                     <div>
                       <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '0.35rem' }}>
-                        Phân loại mẫu ({quickViewProduct.variants.length} mẫu):
+                        Chọn mẫu / Màu sắc ({quickViewProduct.variants.length} mẫu):
                       </span>
                       <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', maxHeight: '180px', overflowY: 'auto', padding: '2px' }}>
                         {quickViewProduct.variants.map((v, vIdx) => {
@@ -906,8 +906,8 @@ export const CatalogPage: React.FC = () => {
                     </div>
                   )}
 
-                  {/* Colors - Clickable to switch photos */}
-                  {quickViewProduct.colors && quickViewProduct.colors.length > 0 && (
+                  {/* Colors (Only displayed when product does not have distinct variants) */}
+                  {(!quickViewProduct.variants || quickViewProduct.variants.length === 0) && quickViewProduct.colors && quickViewProduct.colors.length > 0 && (
                     <div>
                       <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '0.35rem' }}>
                         Màu sắc (bấm để xem ảnh):

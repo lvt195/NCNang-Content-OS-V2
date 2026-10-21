@@ -89,9 +89,13 @@ export type SortOption = 'featured' | 'price-asc' | 'price-desc' | 'name-asc';
 
 export interface FilterState {
   category: string;
+  categories?: string[];
   priceRangeId: string;
+  priceRanges?: string[];
   color: string;
+  colors?: string[];
   type: string;
+  types?: string[];
   searchQuery: string;
   sortBy: SortOption;
 }

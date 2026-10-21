@@ -1971,7 +1971,7 @@ export const AdminMediaLibraryPage: React.FC = () => {
                   color: '#2c2825',
                   fontWeight: 600,
                 }}
-                title={gridSize === 'large' ? 'Đang bật Lưới Lớn (230px). Bấm để thu về Lưới Vừa' : 'Đang bật Lưới Vừa (170px). Bấm để phóng to Lưới Lớn'}
+                title={gridSize === 'large' ? 'Đang bật Lưới Lớn. Bấm để thu về Lưới Vừa' : 'Đang bật Lưới Vừa. Bấm để phóng to Lưới Lớn'}
               >
                 <span>{gridSize === 'large' ? '🖼️ Lưới Lớn' : '🔲 Lưới Vừa'}</span>
               </button>

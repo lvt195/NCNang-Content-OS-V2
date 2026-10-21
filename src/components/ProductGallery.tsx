@@ -10,6 +10,7 @@ interface ProductGalleryProps {
   onColorChange?: (color: string) => void;
   colors?: string[];
   selectedVariantImage?: string;
+  hasVariants?: boolean;
 }
 
 export const ProductGallery: React.FC<ProductGalleryProps> = ({
@@ -19,6 +20,7 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
   onColorChange,
   colors = [],
   selectedVariantImage,
+  hasVariants = false,
 }) => {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [failedImages, setFailedImages] = useState<Record<number, boolean>>({});
@@ -333,8 +335,8 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
         )}
       </div>
 
-      {/* Interactive Color Switcher Directly In Gallery */}
-      {effectiveColors.length > 0 && (
+      {/* Interactive Color Switcher Directly In Gallery (Only when product has no distinct variants) */}
+      {!hasVariants && effectiveColors.length > 0 && (
         <div className="product-gallery-color-bar">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.45rem' }}>
             <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>

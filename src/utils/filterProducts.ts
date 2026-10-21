@@ -31,33 +31,54 @@ export function filterProducts(products: Product[], filters: FilterState): Produ
   const normalizedQuery = normalizeVietnamese(filters.searchQuery);
 
   const filtered = products.filter((p) => {
-    // 1. Category Filter (multi-category support)
-    if (filters.category && filters.category !== 'all') {
+    // 1. Category Filter (multi-category support with multi-selection)
+    const activeCategories = filters.categories && filters.categories.length > 0
+      ? filters.categories
+      : (filters.category && filters.category !== 'all' ? [filters.category] : []);
+
+    if (activeCategories.length > 0) {
       const pCats = [
         p.category,
         ...(Array.isArray(p.categories) ? p.categories : []),
         ...(Array.isArray(p.categoryIds) ? p.categoryIds : []),
       ];
-      if (!pCats.includes(filters.category)) return false;
+      const hasMatchingCat = activeCategories.some((catId) => pCats.includes(catId));
+      if (!hasMatchingCat) return false;
     }
 
-    // 2. Product Type Filter (single / combo)
-    if (filters.type && filters.type !== 'all') {
-      if (p.type !== filters.type) return false;
+    // 2. Product Type Filter (single / combo with multi-selection)
+    const activeTypes = filters.types && filters.types.length > 0
+      ? filters.types
+      : (filters.type && filters.type !== 'all' ? [filters.type] : []);
+
+    if (activeTypes.length > 0) {
+      if (!activeTypes.includes(p.type)) return false;
     }
 
-    // 3. Color & Pattern Filter (Parent-Child Group Mapping)
-    if (filters.color && filters.color !== 'all') {
-      if (!doesProductMatchColor(p, filters.color)) return false;
+    // 3. Color & Pattern Filter (supports multi-selecting colors)
+    const activeColors = filters.colors && filters.colors.length > 0
+      ? filters.colors
+      : (filters.color && filters.color !== 'all' ? [filters.color] : []);
+
+    if (activeColors.length > 0) {
+      const matchesAnyColor = activeColors.some((c) => doesProductMatchColor(p, c));
+      if (!matchesAnyColor) return false;
     }
 
-    // 4. Price Range Filter
-    if (filters.priceRangeId && filters.priceRangeId !== 'all') {
-      const range = SITE_CONFIG.priceRanges.find((r) => r.id === filters.priceRangeId);
-      if (range) {
+    // 4. Price Range Filter (supports multi-selecting price ranges)
+    const activePriceRanges = filters.priceRanges && filters.priceRanges.length > 0
+      ? filters.priceRanges
+      : (filters.priceRangeId && filters.priceRangeId !== 'all' ? [filters.priceRangeId] : []);
+
+    if (activePriceRanges.length > 0) {
+      const matchesAnyRange = activePriceRanges.some((rangeId) => {
+        const range = SITE_CONFIG.priceRanges.find((r) => r.id === rangeId);
+        if (!range) return false;
         if (range.min !== undefined && p.price < range.min) return false;
         if (range.max !== undefined && p.price > range.max) return false;
-      }
+        return true;
+      });
+      if (!matchesAnyRange) return false;
     }
 
     // 5. Search Query Filter (Name or Product Code ID)

@@ -264,6 +264,7 @@ export const ProductPage: React.FC = () => {
                 onColorChange={handleColorSelect}
                 colors={product.colors}
                 selectedVariantImage={selectedVariant?.image}
+                hasVariants={Boolean(product.variants && product.variants.length > 0)}
               />
             </div>
 
@@ -365,14 +366,14 @@ export const ProductPage: React.FC = () => {
                 </span>
               </div>
 
-              {/* Shopee-style Variant Selector */}
+              {/* Shopee-style Variant Selector: Mẫu và Màu đi liền với nhau */}
               {product.variants && product.variants.length > 0 && (
                 <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '1.25rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.4rem', marginBottom: '0.65rem' }}>
                     <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>
-                      Phân loại mẫu ({product.variants.length} mẫu):{' '}
+                      Chọn mẫu / Màu sắc ({product.variants.length} mẫu):{' '}
                       <span style={{ color: 'var(--accent-brown)', fontWeight: 700 }}>
-                        {selectedVariant?.label || 'Chưa chọn mẫu'}
+                        {selectedVariant?.label || 'Bấm chọn mẫu'}
                       </span>
                     </span>
                     <span style={{ fontSize: '0.775rem', color: 'var(--text-muted)' }}>
@@ -449,8 +450,8 @@ export const ProductPage: React.FC = () => {
                 </div>
               )}
 
-              {/* Colors Swatches & Interactive Selection */}
-              {product.colors && product.colors.length > 0 && (
+              {/* Colors Swatches (Only displayed for products without distinct photo variants) */}
+              {(!product.variants || product.variants.length === 0) && product.colors && product.colors.length > 0 && (
                 <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '1.25rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
                     <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>
