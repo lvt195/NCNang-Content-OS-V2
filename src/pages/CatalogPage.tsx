@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useSearchParams, Link } from 'react-router-dom';
 import {
@@ -15,6 +15,7 @@ import {
   ZoomIn,
   ZoomOut,
   Maximize2,
+  Check,
 } from 'lucide-react';
 import { Product, Category, FilterState, SortOption } from '../types/product';
 import { productService } from '../services/productService';
@@ -43,6 +44,32 @@ export const CatalogPage: React.FC = () => {
     const saved = localStorage.getItem('catalog_column_count');
     return saved ? Math.max(1, Math.min(5, parseInt(saved, 10))) : 4;
   });
+
+  const [isSortOpen, setIsSortOpen] = useState(false);
+  const sortRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent | TouchEvent) => {
+      if (sortRef.current && !sortRef.current.contains(e.target as Node)) {
+        setIsSortOpen(false);
+      }
+    };
+    if (isSortOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('touchstart', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [isSortOpen]);
+
+  const sortOptions: { id: SortOption; label: string }[] = [
+    { id: 'featured', label: 'Nổi bật' },
+    { id: 'price-asc', label: 'Giá: Thấp - Cao' },
+    { id: 'price-desc', label: 'Giá: Cao - Thấp' },
+    { id: 'name-asc', label: 'Tên: A – Z' },
+  ];
 
   const handleCatalogColsChange = (cols: number) => {
     const clamped = Math.max(1, Math.min(5, cols));
@@ -154,6 +181,13 @@ export const CatalogPage: React.FC = () => {
       <Header
         searchQuery={filters.searchQuery}
         onSearchChange={(q) => handleFilterChange({ searchQuery: q })}
+        categories={categories}
+        onSelectCategory={(catId) =>
+          handleFilterChange({
+            category: catId,
+            categories: catId === 'all' ? [] : [catId],
+          })
+        }
       />
 
       <main style={{ flex: 1, paddingBottom: '3.5rem', width: '100%', overflowX: 'hidden' }}>
@@ -162,7 +196,7 @@ export const CatalogPage: React.FC = () => {
           style={{
             backgroundColor: 'var(--bg-muted)',
             borderBottom: '1px solid var(--border-subtle)',
-            padding: '1.25rem 0 1rem',
+            padding: '1.65rem 0 1.35rem',
             width: '100%',
           }}
         >
@@ -170,27 +204,28 @@ export const CatalogPage: React.FC = () => {
             <h1
               className="font-serif"
               style={{
-                fontSize: 'clamp(1.35rem, 3.5vw, 1.85rem)',
-                fontWeight: 600,
+                fontSize: 'clamp(1.65rem, 4.8vw, 2.35rem)',
+                fontWeight: 700,
                 color: 'var(--text-primary)',
                 lineHeight: 1.25,
-                marginBottom: '0.35rem',
+                marginBottom: '0.55rem',
+                letterSpacing: '-0.01em',
               }}
             >
               Không Gian Nhỏ, Giấc Ngủ Bình Yên
             </h1>
             <p
               style={{
-                fontSize: '0.85rem',
+                fontSize: 'clamp(0.95rem, 2.6vw, 1.1rem)',
+                fontWeight: 500,
                 color: 'var(--text-secondary)',
-                lineHeight: 1.4,
-                maxWidth: '560px',
+                lineHeight: 1.6,
+                maxWidth: '620px',
                 margin: '0 auto',
               }}
             >
               Chăn ga, gối đũi wash mềm và linen tự nhiên thoáng khí cho phòng ngủ mộc mạc.
             </p>
-
           </div>
         </section>
 
@@ -244,28 +279,81 @@ export const CatalogPage: React.FC = () => {
                   )}
                 </button>
 
-                {/* Sort selector */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                  <ArrowUpDown size={13} style={{ color: 'var(--text-muted)' }} />
-                  <select
-                    id="sort-select"
-                    value={filters.sortBy}
-                    onChange={(e) => handleFilterChange({ sortBy: e.target.value as SortOption })}
-                    className="form-select"
+                {/* Custom Sort selector - eliminates Android detached spinner popup */}
+                <div ref={sortRef} style={{ position: 'relative' }}>
+                  <button
+                    type="button"
+                    onClick={() => setIsSortOpen(!isSortOpen)}
                     style={{
-                      padding: '0.35rem 0.5rem',
-                      fontSize: '0.8rem',
-                      width: 'auto',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                      padding: '0.35rem 0.65rem',
+                      borderRadius: 'var(--radius-sm)',
+                      border: '1px solid var(--border-subtle)',
                       backgroundColor: 'var(--bg-surface)',
+                      fontSize: '0.8rem',
+                      color: 'var(--text-primary)',
                       cursor: 'pointer',
+                      fontWeight: 500,
                     }}
                     aria-label="Sắp xếp sản phẩm"
                   >
-                    <option value="featured">Nổi bật</option>
-                    <option value="price-asc">Giá: Thấp - Cao</option>
-                    <option value="price-desc">Giá: Cao - Thấp</option>
-                    <option value="name-asc">Tên: A – Z</option>
-                  </select>
+                    <ArrowUpDown size={13} style={{ color: 'var(--accent-brown)' }} />
+                    <span>{sortOptions.find((o) => o.id === filters.sortBy)?.label || 'Nổi bật'}</span>
+                    <ChevronDown size={13} style={{ color: 'var(--text-muted)' }} />
+                  </button>
+
+                  {isSortOpen && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        right: 0,
+                        top: 'calc(100% + 4px)',
+                        backgroundColor: '#ffffff',
+                        border: '1px solid var(--border-subtle)',
+                        borderRadius: 'var(--radius-md)',
+                        boxShadow: '0 8px 24px rgba(0,0,0,0.14)',
+                        zIndex: 100,
+                        minWidth: '150px',
+                        overflow: 'hidden',
+                        padding: '4px',
+                      }}
+                    >
+                      {sortOptions.map((opt) => {
+                        const isSelected = filters.sortBy === opt.id;
+                        return (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            onClick={() => {
+                              handleFilterChange({ sortBy: opt.id });
+                              setIsSortOpen(false);
+                            }}
+                            style={{
+                              width: '100%',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              padding: '0.5rem 0.75rem',
+                              border: 'none',
+                              backgroundColor: isSelected ? 'var(--accent-warm-tint)' : 'transparent',
+                              color: isSelected ? 'var(--accent-brown)' : 'var(--text-primary)',
+                              fontWeight: isSelected ? 600 : 400,
+                              fontSize: '0.825rem',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              textAlign: 'left',
+                              transition: 'all 0.1s ease',
+                            }}
+                          >
+                            <span>{opt.label}</span>
+                            {isSelected && <Check size={14} color="var(--accent-brown)" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
