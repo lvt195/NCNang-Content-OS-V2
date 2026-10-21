@@ -27,9 +27,9 @@ export const DEFAULT_CATEGORIES: Category[] = [
   },
   {
     id: 'chat-lieu-ni',
-    name: 'Vải nỉ lông mùa đông',
-    description: 'Nỉ lông chuột, nỉ lông thỏ ấm áp giữ nhiệt cực tốt',
-    displayOrder: 5,
+    name: 'Nỉ lông & Mùa đông',
+    description: 'Nỉ lông chuột, nỉ lông thỏ ấm áp giữ nhiệt đón mùa lạnh',
+    displayOrder: 6,
   },
   {
     id: 'chat-lieu-lanh',
@@ -66,11 +66,5 @@ export const DEFAULT_CATEGORIES: Category[] = [
     name: 'Màu trơn tối giản',
     description: 'Tông màu trơn sang trọng, hiện đại tối giản',
     displayOrder: 11,
-  },
-  {
-    id: 'mua-dong',
-    name: 'Ấm áp mùa đông',
-    description: 'Bộ chăn ga nỉ dày dặn đón mùa lạnh',
-    displayOrder: 12,
   },
 ];

@@ -7,7 +7,6 @@ import {
   X,
   SlidersHorizontal,
   ArrowRight,
-  MessageCircle,
   ChevronLeft,
   ChevronRight,
   ChevronDown,

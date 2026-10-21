@@ -124,6 +124,7 @@ export const ProductPage: React.FC = () => {
 
   const handleColorSelect = (colorId: string) => {
     setSelectedColor(colorId);
+    setSelectedVariant(null);
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
       next.set('color', colorId);
@@ -134,7 +135,7 @@ export const ProductPage: React.FC = () => {
   const handleVariantSelect = (variant: ProductVariant) => {
     setSelectedVariant(variant);
     if (variant.colorId) {
-      handleColorSelect(variant.colorId);
+      setSelectedColor(variant.colorId);
     }
   };
 

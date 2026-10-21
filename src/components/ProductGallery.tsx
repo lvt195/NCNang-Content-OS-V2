@@ -79,22 +79,7 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
     });
     if (urlMatchIndex !== -1) return urlMatchIndex;
 
-    // 3. Fallback distribution across available product colors
-    if (effectiveColors.length > 1 && parsedImages.length > 1) {
-      const colorIndex = effectiveColors.findIndex(
-        (c) =>
-          slugifyColor(c).toLowerCase() === targetSlug ||
-          c.toLowerCase() === color.toLowerCase()
-      );
-      if (colorIndex !== -1) {
-        return Math.min(
-          Math.floor((colorIndex * parsedImages.length) / effectiveColors.length),
-          parsedImages.length - 1
-        );
-      }
-    }
-
-    return 0;
+    return -1;
   };
 
   // Sync selectedVariantImage from parent component
@@ -108,17 +93,21 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
     }
   }, [selectedVariantImage, parsedImages]);
 
-  // Sync selectedColor from parent component
+  // Sync selectedColor from parent component (Only if no variant image was actively chosen or if product has no variants)
   useEffect(() => {
-    if (selectedColor) {
+    if (selectedColor && !selectedVariantImage) {
       const matchIdx = findImageIndexForColor(selectedColor);
-      setSelectedIndex(matchIdx);
+      if (matchIdx !== -1) {
+        setSelectedIndex(matchIdx);
+      }
     }
-  }, [selectedColor, parsedImages, effectiveColors]);
+  }, [selectedColor, selectedVariantImage, parsedImages]);
 
   const handleUserSelectColor = (color: string) => {
     const matchIdx = findImageIndexForColor(color);
-    setSelectedIndex(matchIdx);
+    if (matchIdx !== -1) {
+      setSelectedIndex(matchIdx);
+    }
     if (onColorChange) {
       onColorChange(color);
     }
