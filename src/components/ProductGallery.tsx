@@ -663,11 +663,21 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
           display: flex;
           flex-direction: column;
           gap: 0.85rem;
-          position: sticky;
-          top: 1.25rem;
+          width: 100%;
+          max-width: 100%;
+          min-width: 0;
+          box-sizing: border-box;
+        }
+        @media (min-width: 860px) {
+          .product-gallery-root {
+            position: sticky;
+            top: 1.25rem;
+          }
         }
         .product-hero-box {
           width: 100%;
+          max-width: 100%;
+          box-sizing: border-box;
           aspect-ratio: 1 / 1;
           max-height: 560px;
           background-color: #faf8f5;
@@ -692,6 +702,10 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
           border: 1px solid var(--border-subtle);
           border-radius: var(--radius-md);
           padding: 0.75rem 0.9rem;
+          width: 100%;
+          max-width: 100%;
+          min-width: 0;
+          box-sizing: border-box;
         }
         .gallery-color-pill {
           display: inline-flex;
@@ -722,8 +736,13 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
           display: flex;
           gap: 0.65rem;
           overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
           padding-bottom: 0.35rem;
           scrollbar-width: thin;
+          width: 100%;
+          max-width: 100%;
+          min-width: 0;
+          box-sizing: border-box;
         }
         .product-thumb-btn {
           position: relative;
@@ -753,12 +772,12 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
         /* Mobile Portrait Specifics */
         @media (max-width: 640px) {
           .product-hero-box {
-            max-height: min(52vh, 440px);
+            max-height: min(48vh, 380px);
             border-radius: var(--radius-md);
           }
           .product-thumb-btn {
-            width: 68px;
-            height: 68px;
+            width: 62px;
+            height: 62px;
           }
         }
 

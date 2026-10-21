@@ -202,42 +202,61 @@ export const ProductPage: React.FC = () => {
   }
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', width: '100%', maxWidth: '100vw', overflowX: 'hidden' }}>
       <Header />
 
-      <main className="product-page-main" style={{ flex: 1, paddingBottom: '4rem' }}>
-        <div className="container" style={{ paddingTop: '1.5rem', maxWidth: '1440px' }}>
+      <main className="product-page-main" style={{ flex: 1, paddingBottom: '4rem', width: '100%', maxWidth: '100%', overflowX: 'hidden' }}>
+        <div className="container" style={{ paddingTop: '1.5rem', maxWidth: '1440px', width: '100%', boxSizing: 'border-box' }}>
           {/* Breadcrumbs Navigation */}
           <nav
             className="product-breadcrumbs"
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '0.5rem',
+              flexWrap: 'wrap',
+              gap: '0.45rem',
               fontSize: '0.85rem',
               color: 'var(--text-muted)',
-              marginBottom: '1.5rem',
+              marginBottom: '1.25rem',
+              maxWidth: '100%',
+              minWidth: 0,
             }}
           >
-            <Link to="/" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--text-secondary)' }}>
+            <Link to="/" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--text-secondary)', flexShrink: 0 }}>
               <ArrowLeft size={14} />
               <span>Danh mục</span>
             </Link>
             <span>/</span>
-            <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{product.name}</span>
+            <span
+              style={{
+                color: 'var(--text-primary)',
+                fontWeight: 500,
+                minWidth: 0,
+                maxWidth: 'calc(100vw - 140px)',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+              title={product.name}
+            >
+              {product.name}
+            </span>
           </nav>
 
           {/* Product Detail Two Columns */}
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: '1fr',
+              gridTemplateColumns: 'minmax(0, 1fr)',
               gap: '2.5rem',
+              width: '100%',
+              maxWidth: '100%',
+              minWidth: 0,
             }}
             className="product-detail-grid"
           >
             {/* Left: Gallery */}
-            <div>
+            <div style={{ minWidth: 0, maxWidth: '100%', width: '100%' }}>
               <ProductGallery
                 images={product.images}
                 productName={product.name}
@@ -249,7 +268,7 @@ export const ProductPage: React.FC = () => {
             </div>
 
             {/* Right: Info & Actions */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', minWidth: 0, maxWidth: '100%', width: '100%' }}>
               {/* Product Code & Badges */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -299,10 +318,12 @@ export const ProductPage: React.FC = () => {
               <h1
                 className="font-serif"
                 style={{
-                  fontSize: 'clamp(1.5rem, 3vw, 2.2rem)',
+                  fontSize: 'clamp(1.4rem, 3vw, 2.2rem)',
                   fontWeight: 600,
                   color: 'var(--text-primary)',
                   lineHeight: 1.3,
+                  wordBreak: 'break-word',
+                  overflowWrap: 'break-word',
                 }}
               >
                 {product.name}
@@ -334,6 +355,7 @@ export const ProductPage: React.FC = () => {
                   color: 'var(--accent-brown)',
                   display: 'flex',
                   alignItems: 'baseline',
+                  flexWrap: 'wrap',
                   gap: '0.5rem',
                 }}
               >
@@ -346,7 +368,7 @@ export const ProductPage: React.FC = () => {
               {/* Shopee-style Variant Selector */}
               {product.variants && product.variants.length > 0 && (
                 <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '1.25rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.4rem', marginBottom: '0.65rem' }}>
                     <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>
                       Phân loại mẫu ({product.variants.length} mẫu):{' '}
                       <span style={{ color: 'var(--accent-brown)', fontWeight: 700 }}>
@@ -358,13 +380,15 @@ export const ProductPage: React.FC = () => {
                     </span>
                   </div>
                   <div
+                    className="product-variants-grid"
                     style={{
                       display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))',
                       gap: '0.5rem',
                       maxHeight: '260px',
                       overflowY: 'auto',
                       padding: '2px',
+                      width: '100%',
+                      minWidth: 0,
                     }}
                   >
                     {product.variants.map((variant, idx) => {
@@ -387,6 +411,9 @@ export const ProductPage: React.FC = () => {
                             cursor: 'pointer',
                             textAlign: 'left',
                             transition: 'all 0.15s ease',
+                            width: '100%',
+                            minWidth: 0,
+                            boxSizing: 'border-box',
                           }}
                         >
                           <img
@@ -408,7 +435,10 @@ export const ProductPage: React.FC = () => {
                               overflow: 'hidden',
                               textOverflow: 'ellipsis',
                               whiteSpace: 'nowrap',
+                              flex: 1,
+                              minWidth: 0,
                             }}
+                            title={variant.label}
                           >
                             {variant.label}
                           </span>
@@ -600,33 +630,65 @@ export const ProductPage: React.FC = () => {
                   className="btn btn-outline"
                   style={{
                     width: '100%',
+                    maxWidth: '100%',
+                    minWidth: 0,
+                    boxSizing: 'border-box',
                     backgroundColor: '#ffffff',
                     borderStyle: 'dashed',
                     color: 'var(--accent-brown)',
                     borderColor: 'var(--accent-brown)',
                     fontSize: '0.85rem',
-                    padding: '0.65rem 1rem',
+                    padding: '0.65rem 0.75rem',
                     justifyContent: 'center',
+                    textAlign: 'center',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.45rem',
                   }}
                 >
-                  {copiedOrderInfo ? <Check size={16} color="#2e7d32" /> : <Copy size={16} />}
-                  <span>
+                  <span style={{ flexShrink: 0, display: 'inline-flex' }}>
+                    {copiedOrderInfo ? <Check size={16} color="#2e7d32" /> : <Copy size={16} />}
+                  </span>
+                  <span
+                    style={{
+                      minWidth: 0,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      lineHeight: 1.35,
+                      wordBreak: 'break-word',
+                    }}
+                  >
                     {copiedOrderInfo
                       ? '✓ Đã sao chép cấu hình đặt hàng!'
                       : `Sao chép thông tin đặt (${selectedVariant ? selectedVariant.label : (selectedColor ? getColorOption(selectedColor).label : 'Mẫu')} • ${selectedSize || 'Size'})`}
                   </span>
                 </button>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem', marginTop: '0.25rem' }}>
+                <div
+                  className="product-contact-actions"
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(135px, 1fr))',
+                    gap: '0.75rem',
+                    marginTop: '0.25rem',
+                    width: '100%',
+                    minWidth: 0,
+                  }}
+                >
                   <a
                     href={SITE_CONFIG.contact.zalo.url}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="btn btn-primary"
-                    style={{ width: '100%' }}
+                    style={{ width: '100%', minWidth: 0, justifyContent: 'center' }}
                   >
-                    <MessageCircle size={18} />
-                    <span>{SITE_CONFIG.contact.zalo.actionText}</span>
+                    <MessageCircle size={18} style={{ flexShrink: 0 }} />
+                    <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {SITE_CONFIG.contact.zalo.actionText}
+                    </span>
                   </a>
 
                   <a
@@ -634,10 +696,12 @@ export const ProductPage: React.FC = () => {
                     target="_blank"
                     rel="noopener noreferrer"
                     className="btn btn-outline"
-                    style={{ width: '100%', backgroundColor: '#ffffff' }}
+                    style={{ width: '100%', minWidth: 0, backgroundColor: '#ffffff', justifyContent: 'center' }}
                   >
-                    <MessageCircle size={18} />
-                    <span>{SITE_CONFIG.contact.messenger.actionText}</span>
+                    <MessageCircle size={18} style={{ flexShrink: 0 }} />
+                    <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {SITE_CONFIG.contact.messenger.actionText}
+                    </span>
                   </a>
                 </div>
 
@@ -671,6 +735,23 @@ export const ProductPage: React.FC = () => {
       <Footer />
 
       <style>{`
+        /* Variant Selector Grid Responsiveness */
+        .product-variants-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        }
+        @media (min-width: 640px) {
+          .product-variants-grid {
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)) !important;
+          }
+        }
+
+        /* Small mobile screens (< 360px) contact buttons stack */
+        @media (max-width: 360px) {
+          .product-contact-actions {
+            grid-template-columns: 1fr !important;
+          }
+        }
+
         /* Desktop & Large Tablet: 2 columns */
         @media (min-width: 860px) {
           .product-detail-grid {
