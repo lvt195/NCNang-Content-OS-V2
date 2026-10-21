@@ -11,6 +11,7 @@ interface ProductGalleryProps {
   colors?: string[];
   selectedVariantImage?: string;
   hasVariants?: boolean;
+  onActiveIndexChange?: (index: number) => void;
 }
 
 export const ProductGallery: React.FC<ProductGalleryProps> = ({
@@ -18,6 +19,7 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
   productName,
   selectedColor,
   selectedVariantImage,
+  onActiveIndexChange,
 }) => {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [failedImages, setFailedImages] = useState<Record<number, boolean>>({});
@@ -73,23 +75,24 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
     const targetIdx = parsedImages.findIndex(
       (img) => img.clean === selectedVariantImage || img.raw === selectedVariantImage
     );
-    if (targetIdx !== -1) {
+    if (targetIdx !== -1 && targetIdx !== selectedIndex) {
       setSelectedIndex(targetIdx);
     }
-  }, [selectedVariantImage, parsedImages]);
+  }, [selectedVariantImage, parsedImages, selectedIndex]);
 
   // Sync selectedColor from parent component (Only if no variant image was actively chosen or if product has no variants)
   useEffect(() => {
     if (selectedColor && !selectedVariantImage) {
       const matchIdx = findImageIndexForColor(selectedColor);
-      if (matchIdx !== -1) {
+      if (matchIdx !== -1 && matchIdx !== selectedIndex) {
         setSelectedIndex(matchIdx);
       }
     }
-  }, [selectedColor, selectedVariantImage, parsedImages]);
+  }, [selectedColor, selectedVariantImage, parsedImages, selectedIndex]);
 
   const handleSelectThumbnail = (index: number) => {
     setSelectedIndex(index);
+    onActiveIndexChange?.(index);
   };
 
   const currentImgObj = parsedImages[selectedIndex] || parsedImages[0];
@@ -103,12 +106,14 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
     e?.stopPropagation();
     const nextIdx = selectedIndex === 0 ? parsedImages.length - 1 : selectedIndex - 1;
     setSelectedIndex(nextIdx);
+    onActiveIndexChange?.(nextIdx);
   };
 
   const handleNext = (e?: React.MouseEvent) => {
     e?.stopPropagation();
     const nextIdx = selectedIndex === parsedImages.length - 1 ? 0 : selectedIndex + 1;
     setSelectedIndex(nextIdx);
+    onActiveIndexChange?.(nextIdx);
   };
 
   // Keyboard navigation for lightbox

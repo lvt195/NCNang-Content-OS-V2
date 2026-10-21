@@ -137,6 +137,36 @@ export const ProductPage: React.FC = () => {
     }
   };
 
+  const handleActiveIndexChange = (index: number) => {
+    if (!product || !product.images || product.images.length === 0) return;
+    const rawUrl = product.images[index] || '';
+    const [cleanUrl, colorTag] = rawUrl.split('#color=');
+
+    // 1. If product has distinct variants:
+    if (product.variants && product.variants.length > 0) {
+      const matched = product.variants.find((v) => {
+        const vClean = (v.image || '').split('#color=')[0];
+        return vClean === cleanUrl || v.image === rawUrl;
+      });
+      if (matched) {
+        setSelectedVariant(matched);
+        if (matched.colorId) setSelectedColor(matched.colorId);
+      } else {
+        // Active image is an overview / lookbook photo of the product line
+        setSelectedVariant(null);
+      }
+    } else {
+      // 2. Color-based product:
+      if (colorTag) {
+        const cId = decodeURIComponent(colorTag);
+        setSelectedColor(cId);
+      } else {
+        // Active image is an overview photo
+        setSelectedColor('');
+      }
+    }
+  };
+
   const handleCopyOrderInfo = () => {
     if (!product) return;
     const colorLabel = selectedColor ? getColorOption(selectedColor).label : 'Mặc định';
@@ -256,6 +286,7 @@ export const ProductPage: React.FC = () => {
                 colors={product.colors}
                 selectedVariantImage={selectedVariant?.image}
                 hasVariants={Boolean(product.variants && product.variants.length > 0)}
+                onActiveIndexChange={handleActiveIndexChange}
               />
             </div>
 
@@ -326,8 +357,8 @@ export const ProductPage: React.FC = () => {
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.4rem', marginBottom: '0.65rem' }}>
                     <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>
                       Chọn mẫu / Màu sắc ({product.variants.length} mẫu):{' '}
-                      <span style={{ color: 'var(--accent-brown)', fontWeight: 700 }}>
-                        {selectedVariant?.label || 'Bấm chọn mẫu'}
+                      <span style={{ color: selectedVariant ? 'var(--accent-brown)' : 'var(--text-muted)', fontWeight: 700 }}>
+                        {selectedVariant?.label || 'Ảnh giới thiệu dòng sản phẩm'}
                       </span>
                     </span>
                     <span style={{ fontSize: '0.775rem', color: 'var(--text-muted)' }}>
@@ -410,8 +441,8 @@ export const ProductPage: React.FC = () => {
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
                     <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>
                       Màu sắc:{' '}
-                      <span style={{ color: 'var(--accent-brown)', fontWeight: 700 }}>
-                        {selectedColor ? getColorOption(selectedColor).label : 'Chưa chọn'}
+                      <span style={{ color: selectedColor ? 'var(--accent-brown)' : 'var(--text-muted)', fontWeight: 700 }}>
+                        {selectedColor ? getColorOption(selectedColor).label : 'Ảnh giới thiệu dòng sản phẩm'}
                       </span>
                     </span>
                     <span style={{ fontSize: '0.775rem', color: 'var(--text-muted)' }}>
