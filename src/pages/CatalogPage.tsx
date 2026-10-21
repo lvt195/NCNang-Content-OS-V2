@@ -559,43 +559,35 @@ export const CatalogPage: React.FC = () => {
                   {/* Header */}
                   <div
                     style={{
-                      padding: '1rem 1.75rem',
+                      padding: '0.85rem 1.25rem',
                       borderBottom: '1px solid var(--border-subtle)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
                       backgroundColor: 'var(--bg-muted)',
                       flexShrink: 0,
+                      gap: '0.75rem',
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                      <span
-                        style={{
-                          fontFamily: 'monospace',
-                          fontWeight: 700,
-                          backgroundColor: 'var(--accent-brown)',
-                          color: '#ffffff',
-                          padding: '0.25rem 0.65rem',
-                          borderRadius: '4px',
-                          fontSize: '0.85rem',
-                        }}
-                      >
-                        {quickViewProduct.id}
-                      </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0, flex: 1 }}>
                       <h3
                         className="font-serif"
                         style={{
-                          fontSize: '1.25rem',
+                          fontSize: 'clamp(1rem, 2.5vw, 1.25rem)',
                           fontWeight: 600,
                           color: 'var(--text-primary)',
                           margin: 0,
+                          lineHeight: 1.35,
+                          wordBreak: 'break-word',
+                          minWidth: 0,
+                          flex: 1,
                         }}
                       >
                         {quickViewProduct.name}
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 400, marginLeft: '0.45rem' }}>
+                          ({parsedQuickViewImages.length} ảnh)
+                        </span>
                       </h3>
-                      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                        ({parsedQuickViewImages.length} ảnh)
-                      </span>
                     </div>
 
                     <button
@@ -611,6 +603,7 @@ export const CatalogPage: React.FC = () => {
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
+                        flexShrink: 0,
                       }}
                       aria-label="Đóng xem nhanh"
                     >
@@ -628,15 +621,18 @@ export const CatalogPage: React.FC = () => {
                       gridTemplateColumns: '1fr',
                       gap: '2rem',
                       alignItems: 'start',
+                      width: '100%',
+                      boxSizing: 'border-box',
                     }}
                   >
                     {/* Left: Photos Preview */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', minWidth: 0, maxWidth: '100%', width: '100%' }}>
                       {/* Big Active Image */}
                       <div
                         className="catalog-quick-view-hero-box"
                         style={{
                           width: '100%',
+                          maxWidth: '100%',
                           aspectRatio: '1 / 1',
                           maxHeight: '520px',
                           borderRadius: 'var(--radius-md)',
@@ -645,20 +641,19 @@ export const CatalogPage: React.FC = () => {
                           border: '1px solid var(--border-subtle)',
                           position: 'relative',
                           boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
+                          boxSizing: 'border-box',
                         }}
                       >
                         <img
                           src={currentImgObj.clean}
                           alt={`${quickViewProduct.name} - Ảnh ${currentIdx + 1}`}
                           style={{
-                            maxWidth: '100%',
-                            maxHeight: '100%',
+                            position: 'absolute',
+                            inset: 0,
                             width: '100%',
                             height: '100%',
                             objectFit: 'contain',
+                            display: 'block',
                             transition: 'opacity 0.2s ease',
                           }}
                         />
@@ -842,7 +837,7 @@ export const CatalogPage: React.FC = () => {
                     </div>
 
                 {/* Right: Info & Actions */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', minWidth: 0, maxWidth: '100%', width: '100%' }}>
                   <div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.4rem', marginBottom: '0.35rem' }}>
                       {(quickViewProduct.categories || [quickViewProduct.category]).map((cId) => (
@@ -1077,11 +1072,14 @@ export const CatalogPage: React.FC = () => {
 
         @media (max-width: 640px) {
           .catalog-quick-view-grid {
-            padding: 1rem !important;
+            padding: 0.85rem !important;
             gap: 1.25rem !important;
+            grid-template-columns: minmax(0, 1fr) !important;
+            width: 100% !important;
+            box-sizing: border-box !important;
           }
           .catalog-quick-view-hero-box {
-            max-height: 48vh !important;
+            max-height: min(48vh, 380px) !important;
           }
         }
 

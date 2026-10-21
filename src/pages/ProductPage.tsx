@@ -29,7 +29,6 @@ export const ProductPage: React.FC = () => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
-  const [copiedCode, setCopiedCode] = useState(false);
   const [copiedOrderInfo, setCopiedOrderInfo] = useState(false);
 
   // User-selected options
@@ -137,13 +136,6 @@ export const ProductPage: React.FC = () => {
     if (variant.colorId) {
       handleColorSelect(variant.colorId);
     }
-  };
-
-  const handleCopyCode = () => {
-    if (!product) return;
-    navigator.clipboard.writeText(product.id);
-    setCopiedCode(true);
-    setTimeout(() => setCopiedCode(false), 2000);
   };
 
   const handleCopyOrderInfo = () => {
@@ -270,50 +262,13 @@ export const ProductPage: React.FC = () => {
 
             {/* Right: Info & Actions */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', minWidth: 0, maxWidth: '100%', width: '100%' }}>
-              {/* Product Code & Badges */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <span
-                    style={{
-                      fontSize: '0.8rem',
-                      fontWeight: 600,
-                      color: 'var(--text-muted)',
-                      letterSpacing: '0.05em',
-                      textTransform: 'uppercase',
-                    }}
-                  >
-                    Mã sản phẩm:
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleCopyCode}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                      padding: '0.2rem 0.5rem',
-                      backgroundColor: 'var(--bg-muted)',
-                      borderRadius: 'var(--radius-sm)',
-                      fontSize: '0.8rem',
-                      fontWeight: 600,
-                      color: 'var(--text-primary)',
-                      border: '1px solid var(--border-subtle)',
-                    }}
-                    title="Bấm để sao chép mã sản phẩm"
-                  >
-                    <span>{product.id}</span>
-                    {copiedCode ? <Check size={12} color="#2e7d32" /> : <Copy size={12} />}
-                  </button>
-                  {copiedCode && (
-                    <span style={{ fontSize: '0.75rem', color: '#2e7d32' }}>Đã chép mã!</span>
-                  )}
-                </div>
-
+              {/* Product Badges (Combo / Featured) */}
+              {(product.type === 'combo' || product.featured) && (
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
                   {product.type === 'combo' && <span className="badge badge-combo">Combo</span>}
                   {product.featured && <span className="badge badge-featured">Nổi bật</span>}
                 </div>
-              </div>
+              )}
 
               {/* Title */}
               <h1

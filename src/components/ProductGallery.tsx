@@ -176,8 +176,8 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
         {failedImages[selectedIndex] ? (
           <div
             style={{
-              width: '100%',
-              height: '100%',
+              position: 'absolute',
+              inset: 0,
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
@@ -689,14 +689,14 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
           position: relative;
           cursor: zoom-in;
           box-shadow: 0 4px 20px rgba(0,0,0,0.06);
-          display: flex;
-          align-items: center;
-          justify-content: center;
         }
         .product-hero-img {
+          position: absolute;
+          inset: 0;
           width: 100%;
           height: 100%;
           object-fit: contain;
+          display: block;
           transition: transform 0.25s ease, opacity 0.2s ease;
         }
         .product-gallery-color-bar {
