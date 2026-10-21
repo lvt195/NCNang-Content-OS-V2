@@ -631,9 +631,8 @@ export const CatalogPage: React.FC = () => {
                 <div
                   style={{
                     position: 'relative',
-                    width: '95vw',
-                    maxWidth: '1280px',
-                    maxHeight: '94vh',
+                    width: 'min(92vw, 460px)',
+                    maxHeight: '90vh',
                     backgroundColor: 'var(--bg-surface)',
                     borderRadius: 'var(--radius-lg)',
                     boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.45)',
@@ -641,13 +640,14 @@ export const CatalogPage: React.FC = () => {
                     overflow: 'hidden',
                     display: 'flex',
                     flexDirection: 'column',
+                    boxSizing: 'border-box',
                   }}
                   onClick={(e) => e.stopPropagation()}
                 >
-                  {/* Header */}
+                  {/* Header: Tên sản phẩm + Close */}
                   <div
                     style={{
-                      padding: '0.85rem 1.25rem',
+                      padding: '0.9rem 1.25rem',
                       borderBottom: '1px solid var(--border-subtle)',
                       display: 'flex',
                       alignItems: 'center',
@@ -657,26 +657,21 @@ export const CatalogPage: React.FC = () => {
                       gap: '0.75rem',
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0, flex: 1 }}>
-                      <h3
-                        className="font-serif"
-                        style={{
-                          fontSize: 'clamp(1rem, 2.5vw, 1.25rem)',
-                          fontWeight: 600,
-                          color: 'var(--text-primary)',
-                          margin: 0,
-                          lineHeight: 1.35,
-                          wordBreak: 'break-word',
-                          minWidth: 0,
-                          flex: 1,
-                        }}
-                      >
-                        {quickViewProduct.name}
-                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 400, marginLeft: '0.45rem' }}>
-                          ({parsedQuickViewImages.length} ảnh)
-                        </span>
-                      </h3>
-                    </div>
+                    <h3
+                      className="font-serif"
+                      style={{
+                        fontSize: 'clamp(1.05rem, 3vw, 1.25rem)',
+                        fontWeight: 700,
+                        color: 'var(--text-primary)',
+                        margin: 0,
+                        lineHeight: 1.35,
+                        wordBreak: 'break-word',
+                        minWidth: 0,
+                        flex: 1,
+                      }}
+                    >
+                      {quickViewProduct.name}
+                    </h3>
 
                     <button
                       type="button"
@@ -699,88 +694,51 @@ export const CatalogPage: React.FC = () => {
                     </button>
                   </div>
 
-                  {/* Body: Two Columns (Images 62%, Details 38%) */}
+                  {/* Body: Ảnh sản phẩm + Highlight Giá + Mô tả 2 dòng + Nút Chi tiết */}
                   <div
-                    className="catalog-quick-view-grid"
                     style={{
-                      padding: '1.75rem',
+                      padding: '1.25rem',
                       overflowY: 'auto',
-                      display: 'grid',
-                      gridTemplateColumns: '1fr',
-                      gap: '2rem',
-                      alignItems: 'start',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '1rem',
                       width: '100%',
                       boxSizing: 'border-box',
                     }}
                   >
-                    {/* Left: Photos Preview */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', minWidth: 0, maxWidth: '100%', width: '100%' }}>
-                      {/* Big Active Image */}
-                      <div
-                        className="catalog-quick-view-hero-box"
+                    {/* Ảnh sản phẩm */}
+                    <div
+                      className="catalog-quick-view-hero-box"
+                      style={{
+                        width: '100%',
+                        maxWidth: '100%',
+                        aspectRatio: '1 / 1',
+                        maxHeight: '380px',
+                        borderRadius: 'var(--radius-md)',
+                        overflow: 'hidden',
+                        backgroundColor: '#faf8f5',
+                        border: '1px solid var(--border-subtle)',
+                        position: 'relative',
+                        boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
+                        boxSizing: 'border-box',
+                      }}
+                    >
+                      <img
+                        src={currentImgObj.clean}
+                        alt={`${quickViewProduct.name} - Ảnh ${currentIdx + 1}`}
                         style={{
+                          position: 'absolute',
+                          inset: 0,
                           width: '100%',
-                          maxWidth: '100%',
-                          aspectRatio: '1 / 1',
-                          maxHeight: '520px',
-                          borderRadius: 'var(--radius-md)',
-                          overflow: 'hidden',
-                          backgroundColor: '#faf8f5',
-                          border: '1px solid var(--border-subtle)',
-                          position: 'relative',
-                          boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
-                          boxSizing: 'border-box',
+                          height: '100%',
+                          objectFit: 'contain',
+                          display: 'block',
+                          transition: 'opacity 0.2s ease',
                         }}
-                      >
-                        <img
-                          src={currentImgObj.clean}
-                          alt={`${quickViewProduct.name} - Ảnh ${currentIdx + 1}`}
-                          style={{
-                            position: 'absolute',
-                            inset: 0,
-                            width: '100%',
-                            height: '100%',
-                            objectFit: 'contain',
-                            display: 'block',
-                            transition: 'opacity 0.2s ease',
-                          }}
-                        />
+                      />
 
-                        {/* Assigned Color Badge */}
-                        {currentImgObj.colorId && (
-                          <div
-                            style={{
-                              position: 'absolute',
-                              top: '12px',
-                              left: '12px',
-                              backgroundColor: 'rgba(44, 40, 37, 0.82)',
-                              backdropFilter: 'blur(6px)',
-                              color: '#ffffff',
-                              padding: '0.3rem 0.75rem',
-                              borderRadius: '20px',
-                              fontSize: '0.8rem',
-                              fontWeight: 600,
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '0.45rem',
-                              zIndex: 3,
-                              boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
-                            }}
-                          >
-                            <span
-                              style={{
-                                width: '10px',
-                                height: '10px',
-                                borderRadius: '50%',
-                                backgroundColor: getColorOption(currentImgObj.colorId).hex,
-                                border: '1px solid rgba(255,255,255,0.4)',
-                              }}
-                            />
-                            <span>Màu: {getColorOption(currentImgObj.colorId).label}</span>
-                          </div>
-                        )}
-
-                        {/* Counter Badge */}
+                      {/* Counter Badge */}
+                      {parsedQuickViewImages.length > 1 && (
                         <div
                           style={{
                             position: 'absolute',
@@ -789,349 +747,147 @@ export const CatalogPage: React.FC = () => {
                             backgroundColor: 'rgba(44, 40, 37, 0.75)',
                             backdropFilter: 'blur(6px)',
                             color: '#ffffff',
-                            padding: '0.25rem 0.75rem',
+                            padding: '0.2rem 0.65rem',
                             borderRadius: '20px',
-                            fontSize: '0.8rem',
+                            fontSize: '0.75rem',
                             fontWeight: 600,
                             letterSpacing: '0.02em',
                             pointerEvents: 'none',
                           }}
                         >
-                          Ảnh {currentIdx + 1} / {parsedQuickViewImages.length}
+                          {currentIdx + 1} / {parsedQuickViewImages.length}
                         </div>
+                      )}
 
-                        {/* Prev Arrow */}
-                        {parsedQuickViewImages.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={handlePrev}
-                            style={{
-                              position: 'absolute',
-                              left: '14px',
-                              top: '50%',
-                              transform: 'translateY(-50%)',
-                              backgroundColor: 'rgba(255, 255, 255, 0.92)',
-                              color: 'var(--text-primary)',
-                              border: 'none',
-                              borderRadius: '50%',
-                              width: '42px',
-                              height: '42px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              cursor: 'pointer',
-                              boxShadow: '0 3px 10px rgba(0,0,0,0.18)',
-                              transition: 'all 0.15s ease',
-                            }}
-                            title="Ảnh trước"
-                          >
-                            <ChevronLeft size={22} />
-                          </button>
-                        )}
-
-                        {/* Next Arrow */}
-                        {parsedQuickViewImages.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={handleNext}
-                            style={{
-                              position: 'absolute',
-                              right: '14px',
-                              top: '50%',
-                              transform: 'translateY(-50%)',
-                              backgroundColor: 'rgba(255, 255, 255, 0.92)',
-                              color: 'var(--text-primary)',
-                              border: 'none',
-                              borderRadius: '50%',
-                              width: '42px',
-                              height: '42px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              cursor: 'pointer',
-                              boxShadow: '0 3px 10px rgba(0,0,0,0.18)',
-                              transition: 'all 0.15s ease',
-                            }}
-                            title="Ảnh tiếp theo"
-                          >
-                            <ChevronRight size={22} />
-                          </button>
-                        )}
-                      </div>
-
-                      {/* Large Thumbnails */}
+                      {/* Prev Arrow */}
                       {parsedQuickViewImages.length > 1 && (
-                        <div
+                        <button
+                          type="button"
+                          onClick={handlePrev}
                           style={{
+                            position: 'absolute',
+                            left: '10px',
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            backgroundColor: 'rgba(255, 255, 255, 0.92)',
+                            color: 'var(--text-primary)',
+                            border: 'none',
+                            borderRadius: '50%',
+                            width: '38px',
+                            height: '38px',
                             display: 'flex',
-                            gap: '0.65rem',
-                            overflowX: 'auto',
-                            paddingBottom: '0.4rem',
-                            scrollbarWidth: 'thin',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            boxShadow: '0 3px 10px rgba(0,0,0,0.18)',
+                            transition: 'all 0.15s ease',
                           }}
+                          title="Ảnh trước"
                         >
-                          {parsedQuickViewImages.map((item, idx) => {
-                            const isSelected = currentImgObj.raw === item.raw;
-                            return (
-                              <button
-                                key={idx}
-                                type="button"
-                                onClick={() => setActiveQuickViewImg(item.raw)}
-                                style={{
-                                  width: '78px',
-                                  height: '78px',
-                                  flexShrink: 0,
-                                  borderRadius: 'var(--radius-sm)',
-                                  overflow: 'hidden',
-                                  border: isSelected
-                                    ? '2.5px solid var(--accent-brown)'
-                                    : '1px solid var(--border-subtle)',
-                                  padding: 0,
-                                  cursor: 'pointer',
-                                  backgroundColor: '#faf8f5',
-                                  opacity: isSelected ? 1 : 0.65,
-                                  transition: 'all 0.15s ease',
-                                  transform: isSelected ? 'scale(1.03)' : 'scale(1)',
-                                  boxShadow: isSelected ? '0 2px 8px rgba(118,99,82,0.3)' : 'none',
-                                  position: 'relative',
-                                }}
-                                title={`Xem ảnh ${idx + 1}`}
-                              >
-                                <img
-                                  src={item.clean}
-                                  alt=""
-                                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                  loading="lazy"
-                                />
-                                {item.colorId && (
-                                  <span
-                                    style={{
-                                      position: 'absolute',
-                                      top: '3px',
-                                      right: '3px',
-                                      width: '8px',
-                                      height: '8px',
-                                      borderRadius: '50%',
-                                      backgroundColor: getColorOption(item.colorId).hex,
-                                      border: '1px solid #ffffff',
-                                    }}
-                                  />
-                                )}
-                              </button>
-                            );
-                          })}
-                        </div>
+                          <ChevronLeft size={22} />
+                        </button>
+                      )}
+
+                      {/* Next Arrow */}
+                      {parsedQuickViewImages.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={handleNext}
+                          style={{
+                            position: 'absolute',
+                            right: '10px',
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            backgroundColor: 'rgba(255, 255, 255, 0.92)',
+                            color: 'var(--text-primary)',
+                            border: 'none',
+                            borderRadius: '50%',
+                            width: '38px',
+                            height: '38px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            boxShadow: '0 3px 10px rgba(0,0,0,0.18)',
+                            transition: 'all 0.15s ease',
+                          }}
+                          title="Ảnh tiếp theo"
+                        >
+                          <ChevronRight size={22} />
+                        </button>
                       )}
                     </div>
 
-                {/* Right: Info & Actions */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', minWidth: 0, maxWidth: '100%', width: '100%' }}>
-                  <div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.4rem', marginBottom: '0.35rem' }}>
-                      {(quickViewProduct.categories || [quickViewProduct.category]).map((cId) => (
-                        <span key={cId} className="badge badge-draft">
-                          {categories.find((c) => c.id === cId)?.name || cId}
-                        </span>
-                      ))}
-                      {quickViewProduct.type === 'combo' && (
-                        <span className="badge badge-combo">Bộ Combo</span>
-                      )}
-                    </div>
+                    {/* Highlight Giá sản phẩm */}
                     <div
                       style={{
-                        fontSize: '1.4rem',
-                        fontWeight: 700,
-                        color: 'var(--accent-brown)',
-                        fontFamily: 'serif',
-                      }}
-                    >
-                      {formatVND(quickViewProduct.price)}
-                    </div>
-                  </div>
-
-                  {/* Variants - Shopee style: Mẫu & Màu đi liền với nhau */}
-                  {quickViewProduct.variants && quickViewProduct.variants.length > 0 && (
-                    <div>
-                      <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '0.35rem' }}>
-                        Chọn mẫu / Màu sắc ({quickViewProduct.variants.length} mẫu):
-                      </span>
-                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', maxHeight: '180px', overflowY: 'auto', padding: '2px' }}>
-                        {quickViewProduct.variants.map((v, vIdx) => {
-                          const isVarActive = currentImgObj.clean === v.image || currentImgObj.raw.startsWith(v.image);
-                          return (
-                            <button
-                              key={vIdx}
-                              type="button"
-                              onClick={() => {
-                                const matched = parsedQuickViewImages.find(
-                                  (p) => p.clean === v.image || p.raw.startsWith(v.image)
-                                );
-                                if (matched) {
-                                  setActiveQuickViewImg(matched.raw);
-                                }
-                              }}
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                padding: '0.25rem 0.55rem',
-                                borderRadius: 'var(--radius-sm)',
-                                border: isVarActive ? '1.5px solid var(--accent-brown)' : '1px solid var(--border-subtle)',
-                                fontSize: '0.72rem',
-                                backgroundColor: isVarActive ? 'var(--accent-warm-tint)' : 'var(--bg-muted)',
-                                color: isVarActive ? 'var(--accent-brown)' : 'var(--text-primary)',
-                                fontWeight: isVarActive ? 600 : 400,
-                                cursor: 'pointer',
-                              }}
-                            >
-                              <img src={v.image} alt="" style={{ width: '20px', height: '20px', objectFit: 'cover', borderRadius: '2px' }} />
-                              <span>{v.label}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Colors (Only displayed when product does not have distinct variants) */}
-                  {(!quickViewProduct.variants || quickViewProduct.variants.length === 0) && quickViewProduct.colors && quickViewProduct.colors.length > 0 && (
-                    <div>
-                      <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '0.35rem' }}>
-                        Màu sắc (bấm để xem ảnh):
-                      </span>
-                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                        {quickViewProduct.colors.map((cId) => {
-                          const c = getColorOption(cId);
-                          const isColorActive = currentImgObj.colorId && currentImgObj.colorId.toLowerCase() === cId.toLowerCase();
-                          return (
-                            <button
-                              key={cId}
-                              type="button"
-                              onClick={() => {
-                                const matched = parsedQuickViewImages.find(
-                                  (p) => p.colorId && p.colorId.toLowerCase() === cId.toLowerCase()
-                                );
-                                if (matched) {
-                                  setActiveQuickViewImg(matched.raw);
-                                }
-                              }}
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '5px',
-                                padding: '0.25rem 0.65rem',
-                                borderRadius: '14px',
-                                border: isColorActive ? '1.5px solid var(--accent-brown)' : '1px solid var(--border-subtle)',
-                                fontSize: '0.75rem',
-                                backgroundColor: isColorActive ? 'var(--accent-warm-tint)' : 'var(--bg-muted)',
-                                color: isColorActive ? 'var(--accent-brown)' : 'var(--text-primary)',
-                                fontWeight: isColorActive ? 600 : 400,
-                                cursor: 'pointer',
-                              }}
-                            >
-                              <span
-                                style={{
-                                  width: '10px',
-                                  height: '10px',
-                                  borderRadius: '50%',
-                                  backgroundColor: c.hex,
-                                  border: `1px solid ${c.borderHex || 'rgba(0,0,0,0.1)'}`,
-                                }}
-                              />
-                              <span>{c.label.split(' / ')[0]}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Sizes */}
-                  {quickViewProduct.sizes && quickViewProduct.sizes.length > 0 && (
-                    <div>
-                      <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '0.35rem' }}>
-                        Kích thước:
-                      </span>
-                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                        {quickViewProduct.sizes.map((sz) => (
-                          <span
-                            key={sz}
-                            style={{
-                              padding: '0.2rem 0.6rem',
-                              borderRadius: '4px',
-                              backgroundColor: 'var(--bg-muted)',
-                              border: '1px solid var(--border-subtle)',
-                              fontSize: '0.75rem',
-                              fontWeight: 500,
-                            }}
-                          >
-                            {sz}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Description Preview */}
-                  {quickViewProduct.description && (
-                    <p
-                      style={{
-                        fontSize: '0.85rem',
-                        color: 'var(--text-secondary)',
-                        lineHeight: 1.5,
-                        margin: 0,
-                        display: '-webkit-box',
-                        WebkitLineClamp: 3,
-                        WebkitBoxOrient: 'vertical',
-                        overflow: 'hidden',
-                      }}
-                    >
-                      {cleanProductDescription(quickViewProduct.description)}
-                    </p>
-                  )}
-
-                  {/* Actions */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', marginTop: '0.5rem' }}>
-                    <Link
-                      to={`/products/${quickViewProduct.slug || quickViewProduct.id}`}
-                      className="btn btn-primary"
-                      style={{
                         display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '0.4rem',
-                        textDecoration: 'none',
-                        padding: '0.65rem 1rem',
-                        fontWeight: 600,
+                        alignItems: 'baseline',
+                        justifyContent: 'space-between',
+                        gap: '0.5rem',
+                        flexWrap: 'wrap',
                       }}
                     >
-                      <span>Xem chi tiết đầy đủ</span>
-                      <ArrowRight size={16} />
-                    </Link>
+                      <div
+                        style={{
+                          fontSize: '1.65rem',
+                          fontWeight: 700,
+                          color: 'var(--accent-brown)',
+                          fontFamily: 'serif',
+                          letterSpacing: '-0.02em',
+                        }}
+                      >
+                        {formatVND(quickViewProduct.price)}
+                      </div>
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                        (Giá tham khảo theo kích thước)
+                      </span>
+                    </div>
 
-                    <a
-                      href={SITE_CONFIG.contact.messenger.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="btn btn-outline"
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '0.4rem',
-                        textDecoration: 'none',
-                        padding: '0.55rem 1rem',
-                        fontSize: '0.85rem',
-                      }}
-                    >
-                      <MessageCircle size={16} />
-                      <span>Nhắn tin tư vấn Messenger</span>
-                    </a>
+                    {/* Mô tả sản phẩm: hiển thị đúng 2 dòng rồi ... */}
+                    {quickViewProduct.description && (
+                      <p
+                        style={{
+                          fontSize: '0.875rem',
+                          color: 'var(--text-secondary)',
+                          lineHeight: 1.55,
+                          margin: 0,
+                          display: '-webkit-box',
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: 'vertical',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}
+                      >
+                        {cleanProductDescription(quickViewProduct.description)}
+                      </p>
+                    )}
+
+                    {/* Action Button: Xem chi tiết đầy đủ */}
+                    <div style={{ marginTop: '0.35rem' }}>
+                      <Link
+                        to={`/products/${quickViewProduct.slug || quickViewProduct.id}`}
+                        className="btn btn-primary"
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.45rem',
+                          textDecoration: 'none',
+                          padding: '0.75rem 1.25rem',
+                          fontWeight: 600,
+                          fontSize: '0.95rem',
+                          width: '100%',
+                          borderRadius: 'var(--radius-sm)',
+                        }}
+                      >
+                        <span>Xem chi tiết đầy đủ & Đặt may</span>
+                        <ArrowRight size={17} />
+                      </Link>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </div>
-            );
+              );
           })()}
           </div>,
           document.body
