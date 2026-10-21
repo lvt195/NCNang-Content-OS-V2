@@ -56,9 +56,13 @@ export const CatalogPage: React.FC = () => {
 
   const [filters, setFilters] = useState<FilterState>({
     category: initialCategory,
+    categories: initialCategory !== 'all' ? [initialCategory] : [],
     priceRangeId: 'all',
+    priceRanges: [],
     color: 'all',
+    colors: [],
     type: 'all',
+    types: [],
     searchQuery: initialSearch,
     sortBy: 'featured',
   });

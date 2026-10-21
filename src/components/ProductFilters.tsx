@@ -25,12 +25,84 @@ export const ProductFilters: React.FC<ProductFiltersProps> = ({
   totalFilteredCount,
   products = [],
 }) => {
+  const selectedCategories = filters.categories && filters.categories.length > 0
+    ? filters.categories
+    : (filters.category && filters.category !== 'all' ? [filters.category] : []);
+
+  const selectedColors = filters.colors && filters.colors.length > 0
+    ? filters.colors
+    : (filters.color && filters.color !== 'all' ? [filters.color] : []);
+
+  const selectedPriceRanges = filters.priceRanges && filters.priceRanges.length > 0
+    ? filters.priceRanges
+    : (filters.priceRangeId && filters.priceRangeId !== 'all' ? [filters.priceRangeId] : []);
+
+  const selectedTypes = filters.types && filters.types.length > 0
+    ? filters.types
+    : (filters.type && filters.type !== 'all' ? [filters.type] : []);
+
   const isAnyFilterActive =
-    (filters.category && filters.category !== 'all') ||
-    (filters.priceRangeId && filters.priceRangeId !== 'all') ||
-    (filters.color && filters.color !== 'all') ||
-    (filters.type && filters.type !== 'all') ||
+    selectedCategories.length > 0 ||
+    selectedColors.length > 0 ||
+    selectedPriceRanges.length > 0 ||
+    selectedTypes.length > 0 ||
     Boolean(filters.searchQuery);
+
+  const handleToggleCategory = (catId: string) => {
+    if (catId === 'all') {
+      onFilterChange({ category: 'all', categories: [] });
+      return;
+    }
+    const next = selectedCategories.includes(catId)
+      ? selectedCategories.filter((c) => c !== catId)
+      : [...selectedCategories, catId];
+    onFilterChange({
+      category: next.length === 1 ? next[0] : (next.length === 0 ? 'all' : next.join(',')),
+      categories: next,
+    });
+  };
+
+  const handleToggleColor = (colId: string) => {
+    if (colId === 'all') {
+      onFilterChange({ color: 'all', colors: [] });
+      return;
+    }
+    const next = selectedColors.includes(colId)
+      ? selectedColors.filter((c) => c !== colId)
+      : [...selectedColors, colId];
+    onFilterChange({
+      color: next.length === 1 ? next[0] : (next.length === 0 ? 'all' : next.join(',')),
+      colors: next,
+    });
+  };
+
+  const handleTogglePriceRange = (rangeId: string) => {
+    if (rangeId === 'all') {
+      onFilterChange({ priceRangeId: 'all', priceRanges: [] });
+      return;
+    }
+    const next = selectedPriceRanges.includes(rangeId)
+      ? selectedPriceRanges.filter((r) => r !== rangeId)
+      : [...selectedPriceRanges, rangeId];
+    onFilterChange({
+      priceRangeId: next.length === 1 ? next[0] : (next.length === 0 ? 'all' : next.join(',')),
+      priceRanges: next,
+    });
+  };
+
+  const handleToggleType = (typeId: string) => {
+    if (typeId === 'all') {
+      onFilterChange({ type: 'all', types: [] });
+      return;
+    }
+    const next = selectedTypes.includes(typeId)
+      ? selectedTypes.filter((t) => t !== typeId)
+      : [...selectedTypes, typeId];
+    onFilterChange({
+      type: next.length === 1 ? next[0] : (next.length === 0 ? 'all' : next.join(',')),
+      types: next,
+    });
+  };
 
   if (!isOpen) return null;
 
@@ -41,7 +113,7 @@ export const ProductFilters: React.FC<ProductFiltersProps> = ({
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <SlidersHorizontal size={16} color="var(--accent-brown)" />
           <span style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--text-primary)' }}>
-            Bộ lọc tìm kiếm chi tiết
+            Bộ lọc tìm kiếm chi tiết (chọn nhiều mục)
           </span>
           {isAnyFilterActive && (
             <span
@@ -55,7 +127,7 @@ export const ProductFilters: React.FC<ProductFiltersProps> = ({
                 border: '1px solid #ebd9c2',
               }}
             >
-              Đang áp dụng
+              Đang lọc {selectedCategories.length + selectedColors.length + selectedPriceRanges.length + selectedTypes.length} tiêu chí
             </span>
           )}
         </div>
@@ -89,12 +161,23 @@ export const ProductFilters: React.FC<ProductFiltersProps> = ({
       <div className="filters-card-grid">
         {/* Column 1: Danh mục sản phẩm */}
         <div className="filter-group-col">
-          <h4 className="filter-group-heading">Danh mục sản phẩm</h4>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+            <h4 className="filter-group-heading" style={{ margin: 0 }}>Danh mục ({selectedCategories.length > 0 ? selectedCategories.length : 'Tất cả'})</h4>
+            {selectedCategories.length > 0 && (
+              <button
+                type="button"
+                onClick={() => handleToggleCategory('all')}
+                style={{ fontSize: '0.75rem', color: 'var(--accent-brown)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+              >
+                Bỏ chọn
+              </button>
+            )}
+          </div>
           <div className="filter-options-list">
             <button
               type="button"
-              className={`filter-item-btn ${filters.category === 'all' || !filters.category ? 'active' : ''}`}
-              onClick={() => onFilterChange({ category: 'all' })}
+              className={`filter-item-btn ${selectedCategories.length === 0 ? 'active' : ''}`}
+              onClick={() => handleToggleCategory('all')}
             >
               <span>Tất cả danh mục</span>
               <span className="filter-count-badge">({products.length})</span>
@@ -107,15 +190,18 @@ export const ProductFilters: React.FC<ProductFiltersProps> = ({
                   (Array.isArray(p.categories) && p.categories.includes(cat.id)) ||
                   (Array.isArray(p.categoryIds) && p.categoryIds.includes(cat.id))
               ).length;
-              const isActive = filters.category === cat.id;
+              const isActive = selectedCategories.includes(cat.id);
               return (
                 <button
                   key={cat.id}
                   type="button"
                   className={`filter-item-btn ${isActive ? 'active' : ''}`}
-                  onClick={() => onFilterChange({ category: cat.id })}
+                  onClick={() => handleToggleCategory(cat.id)}
                 >
-                  <span>{cat.name}</span>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                    {isActive && <Check size={13} color="var(--accent-brown)" style={{ strokeWidth: 2.5 }} />}
+                    <span>{cat.name}</span>
+                  </span>
                   <span className="filter-count-badge">({count})</span>
                 </button>
               );
@@ -125,53 +211,97 @@ export const ProductFilters: React.FC<ProductFiltersProps> = ({
 
         {/* Column 2: Loại sản phẩm & Mức giá */}
         <div className="filter-group-col">
-          <h4 className="filter-group-heading">Loại sản phẩm</h4>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+            <h4 className="filter-group-heading" style={{ margin: 0 }}>Loại sản phẩm</h4>
+            {selectedTypes.length > 0 && (
+              <button
+                type="button"
+                onClick={() => handleToggleType('all')}
+                style={{ fontSize: '0.75rem', color: 'var(--accent-brown)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+              >
+                Bỏ chọn
+              </button>
+            )}
+          </div>
           <div className="filter-chips-wrap">
+            <button
+              type="button"
+              className={`filter-chip ${selectedTypes.length === 0 ? 'active' : ''}`}
+              onClick={() => handleToggleType('all')}
+            >
+              Tất cả
+            </button>
             {[
-              { id: 'all', label: 'Tất cả' },
               { id: 'single', label: 'Món lẻ / Set đơn' },
               { id: 'combo', label: 'Bộ Combo' },
-            ].map((typeItem) => (
-              <button
-                key={typeItem.id}
-                type="button"
-                className={`filter-chip ${filters.type === typeItem.id ? 'active' : ''}`}
-                onClick={() => onFilterChange({ type: typeItem.id })}
-              >
-                {typeItem.label}
-              </button>
-            ))}
+            ].map((typeItem) => {
+              const isActive = selectedTypes.includes(typeItem.id);
+              return (
+                <button
+                  key={typeItem.id}
+                  type="button"
+                  className={`filter-chip ${isActive ? 'active' : ''}`}
+                  onClick={() => handleToggleType(typeItem.id)}
+                >
+                  {isActive && <Check size={11} style={{ marginRight: '3px' }} />}
+                  {typeItem.label}
+                </button>
+              );
+            })}
           </div>
 
-          <h4 className="filter-group-heading" style={{ marginTop: '1.25rem' }}>
-            Mức giá tham khảo
-          </h4>
-          <div className="filter-options-list">
-            {SITE_CONFIG.priceRanges.map((range) => (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '1.25rem', marginBottom: '0.4rem' }}>
+            <h4 className="filter-group-heading" style={{ margin: 0 }}>Mức giá tham khảo</h4>
+            {selectedPriceRanges.length > 0 && (
               <button
-                key={range.id}
                 type="button"
-                className={`filter-item-btn ${filters.priceRangeId === range.id ? 'active' : ''}`}
-                onClick={() => onFilterChange({ priceRangeId: range.id })}
+                onClick={() => handleTogglePriceRange('all')}
+                style={{ fontSize: '0.75rem', color: 'var(--accent-brown)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
               >
-                <span>{range.label}</span>
-                {filters.priceRangeId === range.id && <Check size={13} color="var(--accent-brown)" />}
+                Bỏ chọn
               </button>
-            ))}
+            )}
+          </div>
+          <div className="filter-options-list">
+            <button
+              type="button"
+              className={`filter-item-btn ${selectedPriceRanges.length === 0 ? 'active' : ''}`}
+              onClick={() => handleTogglePriceRange('all')}
+            >
+              <span>Tất cả mức giá</span>
+            </button>
+            {SITE_CONFIG.priceRanges.map((range) => {
+              const isActive = selectedPriceRanges.includes(range.id);
+              return (
+                <button
+                  key={range.id}
+                  type="button"
+                  className={`filter-item-btn ${isActive ? 'active' : ''}`}
+                  onClick={() => handleTogglePriceRange(range.id)}
+                >
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                    {isActive && <Check size={13} color="var(--accent-brown)" style={{ strokeWidth: 2.5 }} />}
+                    <span>{range.label}</span>
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
 
-        {/* Column 3: Màu sắc & Họa tiết (14 nhóm màu chuẩn thị trường chăn ga) */}
+        {/* Column 3: Màu sắc & Họa tiết (14 nhóm màu chuẩn thị trường chăn ga - Multi-select) */}
         <div className="filter-group-col filter-group-col-wide">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
-            <h4 className="filter-group-heading" style={{ margin: 0 }}>Màu sắc & Họa tiết</h4>
-            {filters.color !== 'all' && (
+            <h4 className="filter-group-heading" style={{ margin: 0 }}>
+              Màu sắc & Họa tiết ({selectedColors.length > 0 ? `${selectedColors.length} đã chọn` : 'Tất cả'})
+            </h4>
+            {selectedColors.length > 0 && (
               <button
                 type="button"
-                onClick={() => onFilterChange({ color: 'all' })}
+                onClick={() => handleToggleColor('all')}
                 style={{ fontSize: '0.75rem', color: 'var(--accent-brown)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
               >
-                Xóa chọn màu
+                Xóa chọn màu ({selectedColors.length})
               </button>
             )}
           </div>
@@ -184,14 +314,14 @@ export const ProductFilters: React.FC<ProductFiltersProps> = ({
               {getParentColorGroups()
                 .filter((g) => g.type === 'solid')
                 .map((col) => {
-                  const isSelected = filters.color === col.id;
+                  const isSelected = selectedColors.includes(col.id);
                   const count = products.filter((p) => doesProductMatchColor(p, col.id)).length;
                   return (
                     <button
                       key={col.id}
                       type="button"
                       className={`color-filter-pill ${isSelected ? 'active' : ''}`}
-                      onClick={() => onFilterChange({ color: isSelected ? 'all' : col.id })}
+                      onClick={() => handleToggleColor(col.id)}
                       title={`${col.name}: ${col.description}`}
                     >
                       <span
@@ -222,14 +352,14 @@ export const ProductFilters: React.FC<ProductFiltersProps> = ({
               {getParentColorGroups()
                 .filter((g) => g.type === 'pattern')
                 .map((col) => {
-                  const isSelected = filters.color === col.id;
+                  const isSelected = selectedColors.includes(col.id);
                   const count = products.filter((p) => doesProductMatchColor(p, col.id)).length;
                   return (
                     <button
                       key={col.id}
                       type="button"
                       className={`color-filter-pill ${isSelected ? 'active' : ''}`}
-                      onClick={() => onFilterChange({ color: isSelected ? 'all' : col.id })}
+                      onClick={() => handleToggleColor(col.id)}
                       title={`${col.name}: ${col.description}`}
                       style={{
                         border: isSelected ? '2px solid var(--accent-brown)' : '1px solid #d5cbbf',
