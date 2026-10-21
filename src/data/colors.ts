@@ -398,14 +398,54 @@ export function deleteCustomColor(colorId: string): void {
   }
 }
 
+export const KNOWN_SHADES: Record<string, { label: string; hex: string; borderHex?: string; parentId: string }> = {
+  'be': { label: 'Be / Kem', hex: '#e2d7c5', borderHex: '#cfc1ab', parentId: 'be' },
+  'kem': { label: 'Kem sữa', hex: '#fdfbf7', borderHex: '#e5dec9', parentId: 'be' },
+  'xam': { label: 'Xám / Ghi', hex: '#8e9194', borderHex: '#75777a', parentId: 'xam' },
+  'ghi': { label: 'Ghi sáng', hex: '#a6a9ad', borderHex: '#8c8f94', parentId: 'xam' },
+  'xanh-duong': { label: 'Xanh dương', hex: '#4a7bb0', borderHex: '#365e8a', parentId: 'xanh-duong' },
+  'xanh-navy': { label: 'Xanh Navy', hex: '#1e3a5f', borderHex: '#142740', parentId: 'xanh-duong' },
+  'xanh-nhat': { label: 'Xanh pastel', hex: '#9ec5e8', borderHex: '#7ba9d4', parentId: 'xanh-duong' },
+  'xanh-reu': { label: 'Xanh rêu', hex: '#5f7756', borderHex: '#495d42', parentId: 'xanh-la' },
+  'xanh-mint': { label: 'Xanh mint', hex: '#8cd4b0', borderHex: '#6bb891', parentId: 'xanh-la' },
+  'xanh-bo': { label: 'Xanh bơ / cốm', hex: '#9cb36a', borderHex: '#7d944e', parentId: 'xanh-la' },
+  'xanh-la': { label: 'Xanh lá', hex: '#6b8e6b', borderHex: '#537353', parentId: 'xanh-la' },
+  'hong': { label: 'Hồng pastel', hex: '#f0a8b4', borderHex: '#d88794', parentId: 'hong' },
+  'hong-dat': { label: 'Hồng đất', hex: '#c97c88', borderHex: '#a95f6a', parentId: 'hong' },
+  'hong-cam': { label: 'Hồng cam đào', hex: '#e89487', borderHex: '#c77265', parentId: 'hong' },
+  'vang': { label: 'Vàng tươi', hex: '#e8c86d', borderHex: '#cca746', parentId: 'vang' },
+  'vang-nhat': { label: 'Vàng pastel', hex: '#f7e199', borderHex: '#dec478', parentId: 'vang' },
+  'vang-bo': { label: 'Vàng bơ', hex: '#f9e8a2', borderHex: '#dec87e', parentId: 'vang' },
+  'nau': { label: 'Nâu tây', hex: '#7d5b42', borderHex: '#61432c', parentId: 'nau' },
+  'tim': { label: 'Tím', hex: '#9c84ab', borderHex: '#7e658e', parentId: 'tim' },
+  'tim-khoi': { label: 'Tím khói / Lavender', hex: '#9f8ca6', borderHex: '#806e86', parentId: 'tim' },
+  'trang': { label: 'Trắng', hex: '#fbfaf7', borderHex: '#d8d3c5', parentId: 'trang' },
+  'caro': { label: 'Kẻ caro', hex: '#a68c74', borderHex: '#8a705a', parentId: 'hoa-tiet' },
+  'hoa-nhi': { label: 'Hoa nhí', hex: '#e8a598', borderHex: '#c8877a', parentId: 'hoa-tiet' },
+};
+
 export function getColorOption(colorId: string): ColorOption {
   if (!colorId) {
     return { id: 'be', label: 'Be / Kem', hex: '#e2d7c5', borderHex: '#cfc1ab' };
   }
 
-  // Check 14 parent color groups first
+  const cleanId = colorId.toLowerCase().trim();
+
+  // 1. Exact match in dedicated known shades dictionary
+  if (KNOWN_SHADES[cleanId]) {
+    const s = KNOWN_SHADES[cleanId];
+    return {
+      id: colorId,
+      label: s.label,
+      hex: s.hex,
+      borderHex: s.borderHex || s.hex,
+      parentId: s.parentId,
+    };
+  }
+
+  // 2. Check 14 parent color groups
   const parent = getParentColorGroup(colorId);
-  if (parent && (parent.id.toLowerCase() === colorId.toLowerCase() || !colorId.includes('__'))) {
+  if (parent && parent.id.toLowerCase() === cleanId) {
     return {
       id: parent.id,
       label: parent.name,
