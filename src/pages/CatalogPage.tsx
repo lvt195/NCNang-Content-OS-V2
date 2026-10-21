@@ -36,7 +36,8 @@ export const CatalogPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
-  const [activeQuickViewImg, setActiveQuickViewImg] = useState<string>('');
+  const [quickViewImgIdx, setQuickViewImgIdx] = useState<number>(0);
+  const touchStartXRef = useRef<number | null>(null);
 
   // User Draggable Column Slider (1 to 5 columns on desktop, 1 to 3 on mobile/tablet)
   const [catalogCols, setCatalogCols] = useState<number>(() => {
@@ -62,6 +63,18 @@ export const CatalogPage: React.FC = () => {
       document.removeEventListener('touchstart', handleClickOutside);
     };
   }, [isSortOpen]);
+
+  // Keyboard navigation for Quick View Modal
+  useEffect(() => {
+    if (!quickViewProduct) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setQuickViewProduct(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [quickViewProduct]);
 
   const sortOptions: { id: SortOption; label: string }[] = [
     { id: 'featured', label: 'Nổi bật' },
@@ -534,7 +547,7 @@ export const CatalogPage: React.FC = () => {
                       product={product}
                       onQuickView={(p) => {
                         setQuickViewProduct(p);
-                        setActiveQuickViewImg(p.coverImage || p.images?.[0] || '');
+                        setQuickViewImgIdx(0);
                       }}
                     />
                   ))}
@@ -596,8 +609,27 @@ export const CatalogPage: React.FC = () => {
               onClick={() => setQuickViewProduct(null)}
             />
 
-            {/* Modal Dialog Content - Expansive 1280px View */}
+            {/* Modal Dialog Content - Clean, responsive Quick View */}
             {(() => {
+              const currentProductIdx = filteredProducts.findIndex((p) => p.id === quickViewProduct.id);
+              const totalProducts = filteredProducts.length;
+
+              const handlePrevProduct = (e?: React.MouseEvent) => {
+                e?.stopPropagation();
+                if (totalProducts <= 1) return;
+                const prevIdx = currentProductIdx <= 0 ? totalProducts - 1 : currentProductIdx - 1;
+                setQuickViewProduct(filteredProducts[prevIdx]);
+                setQuickViewImgIdx(0);
+              };
+
+              const handleNextProduct = (e?: React.MouseEvent) => {
+                e?.stopPropagation();
+                if (totalProducts <= 1) return;
+                const nextIdx = currentProductIdx >= totalProducts - 1 ? 0 : currentProductIdx + 1;
+                setQuickViewProduct(filteredProducts[nextIdx]);
+                setQuickViewImgIdx(0);
+              };
+
               const rawImages = quickViewProduct.images && quickViewProduct.images.length > 0
                 ? quickViewProduct.images
                 : (quickViewProduct.coverImage ? [quickViewProduct.coverImage] : ['/images/placeholder.webp']);
@@ -612,18 +644,17 @@ export const CatalogPage: React.FC = () => {
                 };
               });
 
-              const currentImgObj = parsedQuickViewImages.find((p) => p.raw === activeQuickViewImg) || parsedQuickViewImages[0];
-              const currentIdx = currentImgObj.originalIndex;
+              const safeImgIdx = Math.max(0, Math.min(quickViewImgIdx, parsedQuickViewImages.length - 1));
+              const currentImgObj = parsedQuickViewImages[safeImgIdx] || parsedQuickViewImages[0];
 
-              const handlePrev = (e: React.MouseEvent) => {
-                e.stopPropagation();
-                const nextIdx = currentIdx === 0 ? parsedQuickViewImages.length - 1 : currentIdx - 1;
-                setActiveQuickViewImg(parsedQuickViewImages[nextIdx].raw);
+              const handlePrevImg = (e?: React.MouseEvent) => {
+                e?.stopPropagation();
+                setQuickViewImgIdx((prev) => (prev <= 0 ? parsedQuickViewImages.length - 1 : prev - 1));
               };
-              const handleNext = (e: React.MouseEvent) => {
-                e.stopPropagation();
-                const nextIdx = currentIdx === parsedQuickViewImages.length - 1 ? 0 : currentIdx + 1;
-                setActiveQuickViewImg(parsedQuickViewImages[nextIdx].raw);
+
+              const handleNextImg = (e?: React.MouseEvent) => {
+                e?.stopPropagation();
+                setQuickViewImgIdx((prev) => (prev >= parsedQuickViewImages.length - 1 ? 0 : prev + 1));
               };
 
               return (
@@ -643,34 +674,93 @@ export const CatalogPage: React.FC = () => {
                   }}
                   onClick={(e) => e.stopPropagation()}
                 >
-                  {/* Header: Tên sản phẩm + Close */}
+                  {/* Header: Prev Product | Tên sản phẩm | Next Product | Close */}
                   <div
                     style={{
-                      padding: '0.9rem 1.25rem',
+                      padding: '0.85rem 1.15rem',
                       borderBottom: '1px solid var(--border-subtle)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
                       backgroundColor: 'var(--bg-muted)',
                       flexShrink: 0,
-                      gap: '0.75rem',
+                      gap: '0.65rem',
                     }}
                   >
-                    <h3
-                      className="font-serif"
-                      style={{
-                        fontSize: 'clamp(1.05rem, 3vw, 1.25rem)',
-                        fontWeight: 700,
-                        color: 'var(--text-primary)',
-                        margin: 0,
-                        lineHeight: 1.35,
-                        wordBreak: 'break-word',
-                        minWidth: 0,
-                        flex: 1,
-                      }}
-                    >
-                      {quickViewProduct.name}
-                    </h3>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0, flex: 1 }}>
+                      {totalProducts > 1 && (
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', flexShrink: 0 }}>
+                          <button
+                            type="button"
+                            onClick={handlePrevProduct}
+                            title="Sản phẩm trước đó"
+                            aria-label="Sản phẩm trước đó"
+                            style={{
+                              border: '1px solid var(--border-subtle)',
+                              backgroundColor: 'var(--bg-surface)',
+                              color: 'var(--text-secondary)',
+                              width: '30px',
+                              height: '30px',
+                              borderRadius: 'var(--radius-sm)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              cursor: 'pointer',
+                              padding: 0,
+                              touchAction: 'manipulation',
+                            }}
+                          >
+                            <ChevronLeft size={16} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleNextProduct}
+                            title="Sản phẩm tiếp theo"
+                            aria-label="Sản phẩm tiếp theo"
+                            style={{
+                              border: '1px solid var(--border-subtle)',
+                              backgroundColor: 'var(--bg-surface)',
+                              color: 'var(--text-secondary)',
+                              width: '30px',
+                              height: '30px',
+                              borderRadius: 'var(--radius-sm)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              cursor: 'pointer',
+                              padding: 0,
+                              touchAction: 'manipulation',
+                            }}
+                          >
+                            <ChevronRight size={16} />
+                          </button>
+                          {currentProductIdx !== -1 && (
+                            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginLeft: '2px', whiteSpace: 'nowrap' }}>
+                              {currentProductIdx + 1}/{totalProducts}
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      <h3
+                        className="font-serif"
+                        style={{
+                          fontSize: 'clamp(0.95rem, 2.8vw, 1.15rem)',
+                          fontWeight: 700,
+                          color: 'var(--text-primary)',
+                          margin: 0,
+                          lineHeight: 1.3,
+                          wordBreak: 'break-word',
+                          minWidth: 0,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                        title={quickViewProduct.name}
+                      >
+                        {quickViewProduct.name}
+                      </h3>
+                    </div>
 
                     <button
                       type="button"
@@ -686,6 +776,7 @@ export const CatalogPage: React.FC = () => {
                         alignItems: 'center',
                         justifyContent: 'center',
                         flexShrink: 0,
+                        touchAction: 'manipulation',
                       }}
                       aria-label="Đóng xem nhanh"
                     >
@@ -700,14 +791,29 @@ export const CatalogPage: React.FC = () => {
                       overflowY: 'auto',
                       display: 'flex',
                       flexDirection: 'column',
-                      gap: '1rem',
+                      gap: '0.85rem',
                       width: '100%',
                       boxSizing: 'border-box',
                     }}
                   >
-                    {/* Ảnh sản phẩm */}
+                    {/* Ảnh sản phẩm với nút Next/Prev ảnh & Touch swipe */}
                     <div
                       className="catalog-quick-view-hero-box"
+                      onTouchStart={(e) => {
+                        touchStartXRef.current = e.touches[0].clientX;
+                      }}
+                      onTouchEnd={(e) => {
+                        if (touchStartXRef.current === null) return;
+                        const diffX = e.changedTouches[0].clientX - touchStartXRef.current;
+                        touchStartXRef.current = null;
+                        if (Math.abs(diffX) > 35) {
+                          if (diffX < 0) {
+                            handleNextImg();
+                          } else {
+                            handlePrevImg();
+                          }
+                        }
+                      }}
                       style={{
                         width: '100%',
                         maxWidth: '100%',
@@ -720,11 +826,12 @@ export const CatalogPage: React.FC = () => {
                         position: 'relative',
                         boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
                         boxSizing: 'border-box',
+                        touchAction: 'pan-y',
                       }}
                     >
                       <img
                         src={currentImgObj.clean}
-                        alt={`${quickViewProduct.name} - Ảnh ${currentIdx + 1}`}
+                        alt={`${quickViewProduct.name} - Ảnh ${safeImgIdx + 1}`}
                         style={{
                           position: 'absolute',
                           inset: 0,
@@ -752,70 +859,120 @@ export const CatalogPage: React.FC = () => {
                             fontWeight: 600,
                             letterSpacing: '0.02em',
                             pointerEvents: 'none',
+                            zIndex: 10,
                           }}
                         >
-                          {currentIdx + 1} / {parsedQuickViewImages.length}
+                          {safeImgIdx + 1} / {parsedQuickViewImages.length}
                         </div>
                       )}
 
-                      {/* Prev Arrow */}
+                      {/* Prev Photo Arrow */}
                       {parsedQuickViewImages.length > 1 && (
                         <button
                           type="button"
-                          onClick={handlePrev}
+                          onClick={handlePrevImg}
                           style={{
                             position: 'absolute',
                             left: '10px',
                             top: '50%',
                             transform: 'translateY(-50%)',
-                            backgroundColor: 'rgba(255, 255, 255, 0.92)',
+                            backgroundColor: 'rgba(255, 255, 255, 0.94)',
                             color: 'var(--text-primary)',
-                            border: 'none',
+                            border: '1px solid rgba(0,0,0,0.08)',
                             borderRadius: '50%',
-                            width: '38px',
-                            height: '38px',
+                            width: '42px',
+                            height: '42px',
+                            minWidth: '42px',
+                            minHeight: '42px',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                             cursor: 'pointer',
-                            boxShadow: '0 3px 10px rgba(0,0,0,0.18)',
+                            boxShadow: '0 4px 14px rgba(0,0,0,0.22)',
                             transition: 'all 0.15s ease',
+                            zIndex: 25,
+                            touchAction: 'manipulation',
+                            userSelect: 'none',
                           }}
                           title="Ảnh trước"
+                          aria-label="Ảnh trước"
                         >
-                          <ChevronLeft size={22} />
+                          <ChevronLeft size={24} />
                         </button>
                       )}
 
-                      {/* Next Arrow */}
+                      {/* Next Photo Arrow */}
                       {parsedQuickViewImages.length > 1 && (
                         <button
                           type="button"
-                          onClick={handleNext}
+                          onClick={handleNextImg}
                           style={{
                             position: 'absolute',
                             right: '10px',
                             top: '50%',
                             transform: 'translateY(-50%)',
-                            backgroundColor: 'rgba(255, 255, 255, 0.92)',
+                            backgroundColor: 'rgba(255, 255, 255, 0.94)',
                             color: 'var(--text-primary)',
-                            border: 'none',
+                            border: '1px solid rgba(0,0,0,0.08)',
                             borderRadius: '50%',
-                            width: '38px',
-                            height: '38px',
+                            width: '42px',
+                            height: '42px',
+                            minWidth: '42px',
+                            minHeight: '42px',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                             cursor: 'pointer',
-                            boxShadow: '0 3px 10px rgba(0,0,0,0.18)',
+                            boxShadow: '0 4px 14px rgba(0,0,0,0.22)',
                             transition: 'all 0.15s ease',
+                            zIndex: 25,
+                            touchAction: 'manipulation',
+                            userSelect: 'none',
                           }}
                           title="Ảnh tiếp theo"
+                          aria-label="Ảnh tiếp theo"
                         >
-                          <ChevronRight size={22} />
+                          <ChevronRight size={24} />
                         </button>
                       )}
                     </div>
+
+                    {/* Thumbnail Dots Indicator for Photos */}
+                    {parsedQuickViewImages.length > 1 && (
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px',
+                          paddingTop: '2px',
+                        }}
+                      >
+                        {parsedQuickViewImages.slice(0, 15).map((_, dotIdx) => (
+                          <button
+                            key={dotIdx}
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setQuickViewImgIdx(dotIdx);
+                            }}
+                            style={{
+                              width: safeImgIdx === dotIdx ? '18px' : '6px',
+                              height: '6px',
+                              borderRadius: '3px',
+                              backgroundColor: safeImgIdx === dotIdx ? 'var(--accent-brown)' : '#ddd6cc',
+                              border: 'none',
+                              padding: 0,
+                              cursor: 'pointer',
+                              transition: 'all 0.2s ease',
+                              touchAction: 'manipulation',
+                            }}
+                            title={`Xem ảnh ${dotIdx + 1}`}
+                            aria-label={`Xem ảnh ${dotIdx + 1}`}
+                          />
+                        ))}
+                      </div>
+                    )}
 
                     {/* Highlight Giá sản phẩm */}
                     <div
@@ -863,7 +1020,7 @@ export const CatalogPage: React.FC = () => {
                     )}
 
                     {/* Action Button: Xem chi tiết đầy đủ */}
-                    <div style={{ marginTop: '0.35rem' }}>
+                    <div style={{ marginTop: '0.25rem' }}>
                       <Link
                         to={`/products/${quickViewProduct.slug || quickViewProduct.id}`}
                         className="btn btn-primary"
@@ -887,7 +1044,7 @@ export const CatalogPage: React.FC = () => {
                   </div>
                 </div>
               );
-          })()}
+            })()}
           </div>,
           document.body
         )}
