@@ -105,8 +105,8 @@ async function main() {
   console.log('Successfully updated remote main to:', updatedRef.object.sha);
 
   console.log('5. Syncing local git branch with new remote commit...');
-  execSync(`git update-ref refs/remotes/origin/main ${newCommit.sha}`);
-  execSync(`git reset --soft ${newCommit.sha}`);
+  execSync(`git fetch origin main`);
+  execSync(`git reset --hard FETCH_HEAD`);
   console.log('Local branch is now in sync with remote main!');
 }
 
