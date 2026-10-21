@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronLeft, ChevronRight, Maximize2, X, Sparkles, Check } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Maximize2, X } from 'lucide-react';
 import { getColorOption, slugifyColor } from '../data/colors';
 
 interface ProductGalleryProps {
@@ -17,10 +17,7 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
   images,
   productName,
   selectedColor,
-  onColorChange,
-  colors = [],
   selectedVariantImage,
-  hasVariants = false,
 }) => {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [failedImages, setFailedImages] = useState<Record<number, boolean>>({});
@@ -39,18 +36,6 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
       };
     });
   }, [images]);
-
-  // Combined unique colors from product definition and parsed tags
-  const effectiveColors = useMemo(() => {
-    const set = new Set<string>();
-    (colors || []).forEach((c) => {
-      if (c && c.trim()) set.add(c.trim());
-    });
-    parsedImages.forEach((img) => {
-      if (img.colorId) set.add(img.colorId.trim());
-    });
-    return Array.from(set);
-  }, [colors, parsedImages]);
 
   // Multi-tier matcher to find best photo index for a chosen color
   const findImageIndexForColor = (color: string): number => {
@@ -103,22 +88,8 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
     }
   }, [selectedColor, selectedVariantImage, parsedImages]);
 
-  const handleUserSelectColor = (color: string) => {
-    const matchIdx = findImageIndexForColor(color);
-    if (matchIdx !== -1) {
-      setSelectedIndex(matchIdx);
-    }
-    if (onColorChange) {
-      onColorChange(color);
-    }
-  };
-
   const handleSelectThumbnail = (index: number) => {
     setSelectedIndex(index);
-    const imgObj = parsedImages[index];
-    if (imgObj?.colorId && onColorChange) {
-      onColorChange(imgObj.colorId);
-    }
   };
 
   const currentImgObj = parsedImages[selectedIndex] || parsedImages[0];
@@ -131,13 +102,13 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
   const handlePrev = (e?: React.MouseEvent) => {
     e?.stopPropagation();
     const nextIdx = selectedIndex === 0 ? parsedImages.length - 1 : selectedIndex - 1;
-    handleSelectThumbnail(nextIdx);
+    setSelectedIndex(nextIdx);
   };
 
   const handleNext = (e?: React.MouseEvent) => {
     e?.stopPropagation();
     const nextIdx = selectedIndex === parsedImages.length - 1 ? 0 : selectedIndex + 1;
-    handleSelectThumbnail(nextIdx);
+    setSelectedIndex(nextIdx);
   };
 
   // Keyboard navigation for lightbox
@@ -185,41 +156,6 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
             className="product-hero-img"
             onError={() => handleImageError(selectedIndex)}
           />
-        )}
-
-        {/* Assigned Color Badge on Hero Image */}
-        {currentImgObj.colorId && (
-          <div
-            style={{
-              position: 'absolute',
-              top: '12px',
-              left: '12px',
-              backgroundColor: 'rgba(44, 40, 37, 0.85)',
-              backdropFilter: 'blur(6px)',
-              color: '#ffffff',
-              padding: '0.3rem 0.75rem',
-              borderRadius: '20px',
-              fontSize: '0.78rem',
-              fontWeight: 600,
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.45rem',
-              zIndex: 3,
-              boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
-            }}
-          >
-            <span
-              style={{
-                width: '10px',
-                height: '10px',
-                borderRadius: '50%',
-                backgroundColor: getColorOption(currentImgObj.colorId).hex,
-                border: '1px solid rgba(255,255,255,0.6)',
-                display: 'inline-block',
-              }}
-            />
-            <span>Màu: {getColorOption(currentImgObj.colorId).label}</span>
-          </div>
         )}
 
         {/* Counter Badge */}
@@ -324,53 +260,6 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
         )}
       </div>
 
-      {/* Interactive Color Switcher Directly In Gallery (Only when product has no distinct variants) */}
-      {!hasVariants && effectiveColors.length > 0 && (
-        <div className="product-gallery-color-bar">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.45rem' }}>
-            <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-              <Sparkles size={13} color="var(--accent-brown)" /> Chọn màu để xem ảnh mẫu:
-            </span>
-            {selectedColor && (
-              <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--accent-brown)' }}>
-                {getColorOption(selectedColor).label}
-              </span>
-            )}
-          </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-            {effectiveColors.map((colorId) => {
-              const col = getColorOption(colorId);
-              const isSelected =
-                selectedColor &&
-                (slugifyColor(selectedColor).toLowerCase() === slugifyColor(colorId).toLowerCase() ||
-                  selectedColor.toLowerCase() === colorId.toLowerCase());
-              return (
-                <button
-                  key={colorId}
-                  type="button"
-                  onClick={() => handleUserSelectColor(colorId)}
-                  className={`gallery-color-pill ${isSelected ? 'active' : ''}`}
-                >
-                  <span
-                    style={{
-                      width: '12px',
-                      height: '12px',
-                      borderRadius: '50%',
-                      backgroundColor: col.hex,
-                      border: col.borderHex ? `1px solid ${col.borderHex}` : '1px solid rgba(0,0,0,0.15)',
-                      display: 'inline-block',
-                      flexShrink: 0,
-                    }}
-                  />
-                  <span>{col.label}</span>
-                  {isSelected && <Check size={13} style={{ strokeWidth: 2.5 }} />}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
       {/* Thumbnails Row */}
       {parsedImages.length > 1 && (
         <div className="product-gallery-thumbnails">
@@ -404,24 +293,6 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
                     alt=""
                     style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                     loading="lazy"
-                  />
-                )}
-
-                {/* Color Dot on Thumbnail if tagged */}
-                {item.colorId && (
-                  <span
-                    style={{
-                      position: 'absolute',
-                      top: '3px',
-                      right: '3px',
-                      width: '10px',
-                      height: '10px',
-                      borderRadius: '50%',
-                      backgroundColor: getColorOption(item.colorId).hex,
-                      border: '1.5px solid #ffffff',
-                      boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
-                    }}
-                    title={`Màu: ${getColorOption(item.colorId).label}`}
                   />
                 )}
               </button>

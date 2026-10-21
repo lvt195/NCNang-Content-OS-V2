@@ -68,12 +68,12 @@ export const ProductPage: React.FC = () => {
             setMeta('og:image', cleanCover);
             setMeta('twitter:image', cleanCover);
 
-            // Initialize selected color from URL query or first available color
+            // Initialize selected color from URL query if present
             const queryColor = searchParams.get('color');
             if (queryColor && prod.colors?.includes(queryColor)) {
               setSelectedColor(queryColor);
-            } else if (prod.colors && prod.colors.length > 0) {
-              setSelectedColor(prod.colors[0]);
+            } else {
+              setSelectedColor('');
             }
 
             // Initialize selected size
@@ -81,10 +81,8 @@ export const ProductPage: React.FC = () => {
               setSelectedSize(prod.sizes[0]);
             }
 
-            // Initialize selected variant
-            if (prod.variants && prod.variants.length > 0) {
-              setSelectedVariant(prod.variants[0]);
-            }
+            // Do not force select first variant on load so customer sees overview image first
+            setSelectedVariant(null);
 
             // Load related products from same categories
             const [allPublished, allCats] = await Promise.all([
