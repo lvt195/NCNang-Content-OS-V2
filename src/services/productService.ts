@@ -7,11 +7,56 @@ import { DEFAULT_CATEGORIES } from '../data/categories';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapRowToProduct(row: any): Product {
   const images = Array.isArray(row.images) ? row.images : [];
+
+  // Parse multi-category support
+  let categories: string[] = [];
+  if (Array.isArray(row.categories) && row.categories.length > 0) {
+    categories = row.categories;
+  } else if (Array.isArray(row.category_ids) && row.category_ids.length > 0) {
+    categories = row.category_ids;
+  } else if (typeof row.description === 'string') {
+    const match = row.description.match(/<!--cats:(.*?)-->/);
+    if (match) {
+      try {
+        const parsed = JSON.parse(match[1]);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          categories = parsed;
+        }
+      } catch (_) {}
+    }
+  }
+
+  // Fallback to row.category_id if no multi-category found
+  if (categories.length === 0 && row.category_id) {
+    categories = [row.category_id];
+  }
+
+  // Parse variants support from description if embedded
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let variants: any = undefined;
+  if (Array.isArray(row.variants) && row.variants.length > 0) {
+    variants = row.variants;
+  } else if (typeof row.description === 'string') {
+    const varMatch = row.description.match(/<!--vars:(.*?)-->/);
+    if (varMatch) {
+      try {
+        const parsedVars = JSON.parse(varMatch[1]);
+        if (Array.isArray(parsedVars)) {
+          variants = parsedVars;
+        }
+      } catch (_) {}
+    }
+  }
+
+  const primaryCategory = (categories[0] || row.category_id || 'mon-le') as ProductCategory;
+
   return {
     id: row.id,
     slug: row.slug,
     name: row.name,
-    category: row.category_id as ProductCategory,
+    category: primaryCategory,
+    categories: categories,
+    categoryIds: categories,
     price: Number(row.price),
     currency: row.currency || 'VND',
     type: row.type || 'single',
@@ -19,6 +64,7 @@ function mapRowToProduct(row: any): Product {
     sizes: Array.isArray(row.sizes) ? row.sizes : [],
     description: row.description || '',
     comboItems: Array.isArray(row.combo_items) ? row.combo_items : [],
+    variants: variants,
     images: images,
     coverImage: row.cover_image || images[0] || '',
     featured: Boolean(row.featured),
@@ -31,17 +77,44 @@ function mapRowToProduct(row: any): Product {
 
 // Map Product to database insert/update payload
 function mapProductToRow(product: Partial<Product>) {
+  const cats =
+    (Array.isArray(product.categories) && product.categories.length > 0)
+      ? product.categories
+      : (Array.isArray(product.categoryIds) && product.categoryIds.length > 0)
+      ? product.categoryIds
+      : product.category
+      ? [product.category]
+      : [];
+
+  let desc = product.description || '';
+
+  // Synchronize embedded <!--cats:...--> tag in description
+  if (cats.length > 0) {
+    if (desc.includes('<!--cats:')) {
+      desc = desc.replace(/<!--cats:(.*?)-->/, `<!--cats:${JSON.stringify(cats)}-->`);
+    } else {
+      desc = `${desc}\n<!--cats:${JSON.stringify(cats)}-->`;
+    }
+  }
+
+  // Preserve or embed variants in description
+  if (Array.isArray(product.variants) && product.variants.length > 0 && !desc.includes('<!--vars:')) {
+    desc = `${desc}\n<!--vars:${JSON.stringify(product.variants)}-->`;
+  }
+
+  const primaryCategory = product.category || cats[0] || 'mon-le';
+
   return {
     id: product.id?.trim().toUpperCase(),
     slug: product.slug?.trim(),
     name: product.name?.trim(),
-    category_id: product.category,
+    category_id: primaryCategory,
     price: Number(product.price),
     currency: product.currency || 'VND',
     type: product.type || 'single',
     colors: product.colors || [],
     sizes: product.sizes || [],
-    description: product.description || '',
+    description: desc,
     combo_items: product.comboItems || [],
     images: product.images || [],
     cover_image: product.coverImage || product.images?.[0] || null,

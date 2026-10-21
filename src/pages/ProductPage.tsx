@@ -9,9 +9,10 @@ import {
   Info,
   Layers,
 } from 'lucide-react';
-import { Product, ProductVariant } from '../types/product';
+import { Product, ProductVariant, Category } from '../types/product';
 import { productService } from '../services/productService';
 import { formatVND } from '../utils/formatCurrency';
+import { cleanProductDescription } from '../utils/filterProducts';
 import { getColorOption } from '../data/colors';
 import { SITE_CONFIG } from '../config/site';
 import { analyticsService } from '../services/analyticsService';
@@ -25,6 +26,7 @@ export const ProductPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [product, setProduct] = useState<Product | null>(null);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [copiedCode, setCopiedCode] = useState(false);
@@ -85,10 +87,21 @@ export const ProductPage: React.FC = () => {
               setSelectedVariant(prod.variants[0]);
             }
 
-            // Load related products from same category
-            const allPublished = await productService.getPublishedProducts();
+            // Load related products from same categories
+            const [allPublished, allCats] = await Promise.all([
+              productService.getPublishedProducts(),
+              productService.getCategories(),
+            ]);
+            if (mounted) {
+              setCategories(allCats);
+            }
+            const currentCats = prod.categories || (prod.category ? [prod.category] : []);
             const related = allPublished
-              .filter((p) => p.category === prod.category && p.id !== prod.id)
+              .filter((p) => {
+                if (p.id === prod.id) return false;
+                const pCats = p.categories || (p.category ? [p.category] : []);
+                return pCats.some((c) => currentCats.includes(c)) || p.category === prod.category;
+              })
               .slice(0, 4);
             if (mounted) {
               setRelatedProducts(related);
@@ -294,6 +307,24 @@ export const ProductPage: React.FC = () => {
               >
                 {product.name}
               </h1>
+
+              {/* Categories badges */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginTop: '0.4rem', marginBottom: '0.6rem' }}>
+                {(product.categories || [product.category]).map((cId) => {
+                  const cat = categories.find((c) => c.id === cId);
+                  return (
+                    <Link
+                      key={cId}
+                      to={`/catalog?cat=${cId}`}
+                      className="badge badge-draft"
+                      style={{ fontSize: '0.78rem', textDecoration: 'none', cursor: 'pointer' }}
+                      title={`Xem tất cả sản phẩm thuộc danh mục ${cat?.name || cId}`}
+                    >
+                      {cat?.name || cId}
+                    </Link>
+                  );
+                })}
+              </div>
 
               {/* Price in VND */}
               <div
@@ -535,7 +566,7 @@ export const ProductPage: React.FC = () => {
                   Thông tin chất liệu & chi tiết:
                 </span>
                 <p style={{ fontSize: '0.925rem', color: 'var(--text-secondary)', lineHeight: 1.7, whiteSpace: 'pre-line' }}>
-                  {product.description}
+                  {cleanProductDescription(product.description)}
                 </p>
               </div>
 

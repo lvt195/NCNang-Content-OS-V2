@@ -31,6 +31,7 @@ export interface Product {
   name: string;
   category: ProductCategory;
   categories?: string[];
+  categoryIds?: string[];
   price: number;
   currency: string;
   colors: ProductColor[];

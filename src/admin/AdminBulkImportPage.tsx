@@ -17,6 +17,7 @@ interface ParsedBulkItem {
   id: string; // Product Code
   name: string;
   category: ProductCategory;
+  categories?: string[];
   price: number;
   type: 'single' | 'combo';
   published: boolean;
@@ -58,8 +59,8 @@ export const AdminBulkImportPage: React.FC = () => {
     loadCats();
   }, []);
 
-  // Helper to parse folder name into Code and Name
-  const parseFolderMeta = (folderName: string): { id: string; name: string; category: ProductCategory; type: 'single' | 'combo' } => {
+  // Helper to parse folder name into Code, Name, and Categories
+  const parseFolderMeta = (folderName: string): { id: string; name: string; category: ProductCategory; categories: string[]; type: 'single' | 'combo' } => {
     const clean = folderName.trim();
     let id = '';
     let name = clean;
@@ -85,15 +86,21 @@ export const AdminBulkImportPage: React.FC = () => {
 
     const norm = normalizeVietnamese(name.toLowerCase() + ' ' + id.toLowerCase());
 
-    // Auto-detect category from actual database categories
-    let category: ProductCategory = categories[0]?.id || '';
+    // Auto-detect matching categories from actual database categories
+    const matchedCats: string[] = [];
     for (const c of categories) {
       const cNorm = normalizeVietnamese(c.name.toLowerCase());
       if (norm.includes(cNorm) || norm.includes(c.id.toLowerCase())) {
-        category = c.id;
-        break;
+        matchedCats.push(c.id);
       }
     }
+
+    let category: ProductCategory = matchedCats[0] || categories[0]?.id || '';
+    if (!category && categories.length > 0) {
+      category = categories[0].id;
+    }
+
+    const itemCats = matchedCats.length > 0 ? matchedCats : (category ? [category] : []);
 
     // Auto-detect type
     const type: 'single' | 'combo' =
@@ -101,7 +108,7 @@ export const AdminBulkImportPage: React.FC = () => {
         ? 'combo'
         : 'single';
 
-    return { id, name, category, type };
+    return { id, name, category, categories: itemCats, type };
   };
 
   // Process a list of File objects grouped by folder
@@ -148,6 +155,7 @@ export const AdminBulkImportPage: React.FC = () => {
         id: meta.id,
         name: meta.name,
         category: meta.category,
+        categories: meta.categories,
         price: meta.type === 'combo' ? 850000 : 380000, // natural defaults
         type: meta.type,
         published: true,
@@ -308,6 +316,8 @@ export const AdminBulkImportPage: React.FC = () => {
           name: item.name.trim(),
           slug: finalSlug,
           category: item.category,
+          categories: item.categories || [item.category],
+          categoryIds: item.categories || [item.category],
           price: item.price,
           currency: 'VND',
           type: item.type,

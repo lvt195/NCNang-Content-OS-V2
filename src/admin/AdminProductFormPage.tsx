@@ -18,10 +18,10 @@ import {
   Image as ImageIcon,
   Check,
 } from 'lucide-react';
-import { Product, Category, ProductColor, ComboItem } from '../types/product';
+import { Product, Category, ProductColor, ComboItem, ProductVariant } from '../types/product';
 import { productService } from '../services/productService';
 import { DEFAULT_COLORS, getColorOption, getAllColors, saveCustomColor, deleteCustomColor } from '../data/colors';
-import { normalizeVietnamese } from '../utils/filterProducts';
+import { normalizeVietnamese, cleanProductDescription } from '../utils/filterProducts';
 import { ProductCard } from '../components/ProductCard';
 import { MediaPickerModal } from '../components/MediaPickerModal';
 import { formatVND } from '../utils/formatCurrency';
@@ -42,6 +42,8 @@ export const AdminProductFormPage: React.FC = () => {
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
   const [categoryId, setCategoryId] = useState('');
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [existingVariants, setExistingVariants] = useState<ProductVariant[]>([]);
   const [price, setPrice] = useState<number | ''>(350000);
   const [type, setType] = useState<'single' | 'combo'>('single');
   const [selectedColors, setSelectedColors] = useState<ProductColor[]>(['be']);
@@ -100,12 +102,21 @@ export const AdminProductFormPage: React.FC = () => {
             setCode(existing.id);
             setName(existing.name);
             setSlug(existing.slug);
-            setCategoryId(existing.category);
+            const rawCats = (Array.isArray(existing.categories) && existing.categories.length > 0)
+              ? existing.categories
+              : (Array.isArray(existing.categoryIds) && existing.categoryIds.length > 0)
+              ? existing.categoryIds
+              : (existing.category ? [existing.category] : []);
+            setSelectedCategories(rawCats);
+            setCategoryId(existing.category || rawCats[0] || '');
+            if (existing.variants && existing.variants.length > 0) {
+              setExistingVariants(existing.variants);
+            }
             setPrice(existing.price);
             setType(existing.type);
             setSelectedColors(existing.colors || []);
             setSelectedSizes(existing.sizes || []);
-            setDescription(existing.description || '');
+            setDescription(cleanProductDescription(existing.description || ''));
             setFeatured(Boolean(existing.featured));
             setPublished(existing.published !== false);
             setImages(existing.images || []);
@@ -118,6 +129,7 @@ export const AdminProductFormPage: React.FC = () => {
           // Creating a new product: default category to first available category in database
           if (cats.length > 0) {
             setCategoryId((prev) => (prev && cats.some((c) => c.id === prev) ? prev : cats[0].id));
+            setSelectedCategories((prev) => (prev.length > 0 ? prev : [cats[0].id]));
           }
         }
       } catch (err: unknown) {
@@ -128,6 +140,18 @@ export const AdminProductFormPage: React.FC = () => {
     }
     init();
   }, [id, isEditMode]);
+
+  // Category Multi-Select Toggle
+  const toggleCategory = (catId: string) => {
+    setSelectedCategories((prev) => {
+      const exists = prev.includes(catId);
+      const updated = exists ? prev.filter((c) => c !== catId) : [...prev, catId];
+      if (updated.length > 0) {
+        setCategoryId(updated[0]);
+      }
+      return updated;
+    });
+  };
 
   // Color Toggle
   const toggleColor = (colorId: ProductColor) => {
@@ -406,17 +430,13 @@ export const AdminProductFormPage: React.FC = () => {
       return;
     }
 
-    const effectiveCategory = categoryId || (categories.length > 0 ? categories[0].id : '');
+    const effectiveCategory = selectedCategories[0] || categoryId || (categories.length > 0 ? categories[0].id : '');
     if (!effectiveCategory) {
-      setErrorMsg('Vui lòng chọn danh mục cho sản phẩm.');
+      setErrorMsg('Vui lòng chọn ít nhất một danh mục cho sản phẩm.');
       return;
     }
 
-    const categoryExists = categories.some((c) => c.id === effectiveCategory);
-    if (!categoryExists && categories.length > 0) {
-      setErrorMsg(`Danh mục đã chọn ("${effectiveCategory}") không tồn tại trong hệ thống. Vui lòng chọn lại danh mục.`);
-      return;
-    }
+    const effectiveCategories = selectedCategories.length > 0 ? selectedCategories : [effectiveCategory];
 
     const finalSlug =
       slug.trim() ||
@@ -431,6 +451,9 @@ export const AdminProductFormPage: React.FC = () => {
       name: name.trim(),
       slug: finalSlug,
       category: effectiveCategory,
+      categories: effectiveCategories,
+      categoryIds: effectiveCategories,
+      variants: existingVariants,
       price: Number(price),
       currency: 'VND',
       type,
@@ -481,7 +504,10 @@ export const AdminProductFormPage: React.FC = () => {
     id: code || 'MA-SP',
     name: name || 'Tên sản phẩm mẫu',
     slug: slug || 'san-pham-mau',
-    category: categoryId,
+    category: selectedCategories[0] || categoryId,
+    categories: selectedCategories,
+    categoryIds: selectedCategories,
+    variants: existingVariants,
     price: Number(price) || 0,
     currency: 'VND',
     type,
@@ -998,44 +1024,72 @@ export const AdminProductFormPage: React.FC = () => {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label" htmlFor="p-category">
-                    Danh mục sản phẩm *
+                  <label className="form-label" htmlFor="p-price">
+                    Giá niêm yết (VND) *
                   </label>
-                  <select
-                    id="p-category"
-                    className="form-select"
-                    value={categoryId || (categories.length > 0 ? categories[0].id : '')}
-                    onChange={(e) => setCategoryId(e.target.value)}
-                  >
-                    {categories.length === 0 ? (
-                      <option value="">-- Đang tải danh mục... --</option>
-                    ) : (
-                      categories.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.name}
-                        </option>
-                      ))
-                    )}
-                  </select>
+                  <input
+                    id="p-price"
+                    type="number"
+                    min="0"
+                    step="1000"
+                    required
+                    placeholder="380000"
+                    className="form-input"
+                    value={price}
+                    onChange={(e) => setPrice(e.target.value === '' ? '' : Number(e.target.value))}
+                  />
+                  <span className="form-help">Lưu dạng số nguyên (VND), không nhập dấu chấm phẩy.</span>
                 </div>
               </div>
 
+              {/* Multi-Category Selection */}
               <div className="form-group">
-                <label className="form-label" htmlFor="p-price">
-                  Giá niêm yết (VND) *
+                <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>
+                    Danh mục sản phẩm *{' '}
+                    <span style={{ fontWeight: 400, color: '#766352', fontSize: '0.8rem' }}>
+                      (Bấm để chọn nhiều danh mục phù hợp)
+                    </span>
+                  </span>
+                  <span style={{ fontSize: '0.78rem', color: '#766352', fontWeight: 600 }}>
+                    Đã chọn: {selectedCategories.length} danh mục
+                  </span>
                 </label>
-                <input
-                  id="p-price"
-                  type="number"
-                  min="0"
-                  step="1000"
-                  required
-                  placeholder="380000"
-                  className="form-input"
-                  value={price}
-                  onChange={(e) => setPrice(e.target.value === '' ? '' : Number(e.target.value))}
-                />
-                <span className="form-help">Lưu dạng số nguyên (VND), không nhập dấu chấm phẩy.</span>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.4rem' }}>
+                  {categories.map((c) => {
+                    const isSelected = selectedCategories.includes(c.id);
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => toggleCategory(c.id)}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          padding: '0.4rem 0.8rem',
+                          borderRadius: '20px',
+                          fontSize: '0.825rem',
+                          fontWeight: isSelected ? 600 : 500,
+                          border: isSelected ? '1.5px solid #766352' : '1px solid #dcd3c5',
+                          backgroundColor: isSelected ? '#f5eee6' : '#ffffff',
+                          color: isSelected ? '#4a3b32' : '#555555',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease',
+                          boxShadow: isSelected ? '0 1px 3px rgba(118,99,82,0.15)' : 'none',
+                        }}
+                      >
+                        {isSelected && <Check size={14} style={{ strokeWidth: 2.5, color: '#766352' }} />}
+                        <span>{c.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                {selectedCategories.length === 0 && (
+                  <span style={{ fontSize: '0.75rem', color: '#c62828', marginTop: '0.4rem', display: 'block' }}>
+                    ⚠️ Vui lòng chọn ít nhất 1 danh mục cho sản phẩm
+                  </span>
+                )}
               </div>
 
               <div className="form-group">

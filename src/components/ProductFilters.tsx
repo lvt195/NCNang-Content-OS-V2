@@ -104,7 +104,8 @@ export const ProductFilters: React.FC<ProductFiltersProps> = ({
               const count = products.filter(
                 (p) =>
                   p.category === cat.id ||
-                  (Array.isArray(p.categories) && p.categories.includes(cat.id))
+                  (Array.isArray(p.categories) && p.categories.includes(cat.id)) ||
+                  (Array.isArray(p.categoryIds) && p.categoryIds.includes(cat.id))
               ).length;
               const isActive = filters.category === cat.id;
               return (

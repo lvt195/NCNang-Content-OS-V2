@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { Product, Category, FilterState, SortOption } from '../types/product';
 import { productService } from '../services/productService';
-import { filterProducts } from '../utils/filterProducts';
+import { filterProducts, cleanProductDescription } from '../utils/filterProducts';
 import { Header } from '../components/Header';
 import { Footer } from '../components/Footer';
 import { ProductCard } from '../components/ProductCard';
@@ -840,10 +840,12 @@ export const CatalogPage: React.FC = () => {
                 {/* Right: Info & Actions */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                   <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
-                      <span className="badge badge-draft">
-                        {categories.find((c) => c.id === quickViewProduct.category)?.name || quickViewProduct.category}
-                      </span>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.4rem', marginBottom: '0.35rem' }}>
+                      {(quickViewProduct.categories || [quickViewProduct.category]).map((cId) => (
+                        <span key={cId} className="badge badge-draft">
+                          {categories.find((c) => c.id === cId)?.name || cId}
+                        </span>
+                      ))}
                       {quickViewProduct.type === 'combo' && (
                         <span className="badge badge-combo">Bộ Combo</span>
                       )}
@@ -997,7 +999,7 @@ export const CatalogPage: React.FC = () => {
                         overflow: 'hidden',
                       }}
                     >
-                      {quickViewProduct.description}
+                      {cleanProductDescription(quickViewProduct.description)}
                     </p>
                   )}
 

@@ -15,15 +15,29 @@ export function normalizeVietnamese(str: string): string {
 }
 
 /**
+ * Clean embedded metadata tags (such as <!--cats:...--> and <!--vars:...-->)
+ * from the description string for human-readable display.
+ */
+export function cleanProductDescription(desc: string | undefined | null): string {
+  if (!desc) return '';
+  return desc.replace(/<!--.*?-->/gs, '').trim();
+}
+
+/**
  * Filter and sort products according to FilterState
  */
 export function filterProducts(products: Product[], filters: FilterState): Product[] {
   const normalizedQuery = normalizeVietnamese(filters.searchQuery);
 
   const filtered = products.filter((p) => {
-    // 1. Category Filter
+    // 1. Category Filter (multi-category support)
     if (filters.category && filters.category !== 'all') {
-      if (p.category !== filters.category) return false;
+      const pCats = [
+        p.category,
+        ...(Array.isArray(p.categories) ? p.categories : []),
+        ...(Array.isArray(p.categoryIds) ? p.categoryIds : []),
+      ];
+      if (!pCats.includes(filters.category)) return false;
     }
 
     // 2. Product Type Filter (single / combo)

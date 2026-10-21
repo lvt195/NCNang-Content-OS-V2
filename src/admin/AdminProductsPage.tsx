@@ -27,7 +27,7 @@ import { Product, Category } from '../types/product';
 import { productService } from '../services/productService';
 import { getColorOption } from '../data/colors';
 import { formatVND } from '../utils/formatCurrency';
-import { normalizeVietnamese } from '../utils/filterProducts';
+import { normalizeVietnamese, cleanProductDescription } from '../utils/filterProducts';
 
 export type AdminProductViewMode = 'gallery' | 'grid' | 'table';
 
@@ -134,7 +134,8 @@ export const AdminProductsPage: React.FC = () => {
       if (categoryFilter !== 'all') {
         const match =
           p.category === categoryFilter ||
-          (Array.isArray(p.categories) && p.categories.includes(categoryFilter));
+          (Array.isArray(p.categories) && p.categories.includes(categoryFilter)) ||
+          (Array.isArray(p.categoryIds) && p.categoryIds.includes(categoryFilter));
         if (!match) return false;
       }
       if (statusFilter === 'published' && !p.published) return false;
@@ -265,12 +266,20 @@ export const AdminProductsPage: React.FC = () => {
             value={categoryFilter}
             onChange={(e) => setCategoryFilter(e.target.value)}
           >
-            <option value="all">Tất cả danh mục</option>
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
+            <option value="all">Tất cả danh mục ({products.length})</option>
+            {categories.map((c) => {
+              const count = products.filter(
+                (p) =>
+                  p.category === c.id ||
+                  (Array.isArray(p.categories) && p.categories.includes(c.id)) ||
+                  (Array.isArray(p.categoryIds) && p.categoryIds.includes(c.id))
+              ).length;
+              return (
+                <option key={c.id} value={c.id}>
+                  {c.name} ({count})
+                </option>
+              );
+            })}
           </select>
         </div>
 
@@ -514,7 +523,8 @@ export const AdminProductsPage: React.FC = () => {
         >
           {filteredProducts.map((p) => {
             const cover = p.coverImage || p.images[0] || '/images/placeholder.webp';
-            const catName = categories.find((c) => c.id === p.category)?.name || p.category;
+            const pCats = Array.isArray(p.categories) && p.categories.length > 0 ? p.categories : [p.category];
+            const catName = pCats.map((cId) => categories.find((c) => c.id === cId)?.name || cId).join(' • ');
             return (
               <div
                 key={p.id}
@@ -768,7 +778,8 @@ export const AdminProductsPage: React.FC = () => {
         >
           {filteredProducts.map((p) => {
             const cover = p.coverImage || p.images[0] || '/images/placeholder.webp';
-            const catName = categories.find((c) => c.id === p.category)?.name || p.category;
+            const pCats = Array.isArray(p.categories) && p.categories.length > 0 ? p.categories : [p.category];
+            const catName = pCats.map((cId) => categories.find((c) => c.id === cId)?.name || cId).join(' • ');
             return (
               <div
                 key={p.id}
@@ -1105,7 +1116,15 @@ export const AdminProductsPage: React.FC = () => {
                           </span>
                         )}
                       </td>
-                      <td>{categories.find((c) => c.id === p.category)?.name || p.category}</td>
+                      <td>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px' }}>
+                          {(Array.isArray(p.categories) && p.categories.length > 0 ? p.categories : [p.category]).map((cId) => (
+                            <span key={cId} className="badge badge-draft" style={{ fontSize: '0.68rem', padding: '0.15rem 0.4rem' }}>
+                              {categories.find((c) => c.id === cId)?.name || cId}
+                            </span>
+                          ))}
+                        </div>
+                      </td>
                       <td>
                         <span className={`badge ${p.type === 'combo' ? 'badge-combo' : 'badge-draft'}`}>
                           {p.type === 'combo' ? 'Combo' : 'Món lẻ'}
@@ -1613,10 +1632,12 @@ export const AdminProductsPage: React.FC = () => {
                       {formatVND(quickViewProduct.price)}
                     </div>
 
-                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
-                      <span className="badge" style={{ backgroundColor: '#e8e1d5', color: '#2c2825' }}>
-                        {categories.find((c) => c.id === quickViewProduct.category)?.name || quickViewProduct.category}
-                      </span>
+                    <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
+                      {(quickViewProduct.categories || [quickViewProduct.category]).map((cId) => (
+                        <span key={cId} className="badge" style={{ backgroundColor: '#e8e1d5', color: '#2c2825' }}>
+                          {categories.find((c) => c.id === cId)?.name || cId}
+                        </span>
+                      ))}
                       <span className={`badge ${quickViewProduct.type === 'combo' ? 'badge-combo' : 'badge-draft'}`}>
                         {quickViewProduct.type === 'combo' ? 'Bộ Combo' : 'Món lẻ'}
                       </span>
@@ -1651,7 +1672,7 @@ export const AdminProductsPage: React.FC = () => {
                         Mô tả sản phẩm:
                       </span>
                       <p style={{ fontSize: '0.85rem', color: '#2c2825', lineHeight: 1.5, margin: 0 }}>
-                        {quickViewProduct.description}
+                        {cleanProductDescription(quickViewProduct.description)}
                       </p>
                     </div>
                   )}
