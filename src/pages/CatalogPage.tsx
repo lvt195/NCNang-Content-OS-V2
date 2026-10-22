@@ -106,12 +106,27 @@ export const CatalogPage: React.FC = () => {
     sortBy: 'featured',
   });
 
-  // Sync searchQuery with URL query parameter
+  // Sync searchQuery and category with URL query parameter
   useEffect(() => {
     const q = searchParams.get('q');
-    if (q !== null && q !== filters.searchQuery) {
-      setFilters((prev) => ({ ...prev, searchQuery: q }));
-    }
+    const cat = searchParams.get('cat') || 'all';
+
+    setFilters((prev) => {
+      let changed = false;
+      const updates: Partial<FilterState> = {};
+
+      if (q !== null && q !== prev.searchQuery) {
+        updates.searchQuery = q;
+        changed = true;
+      }
+      if (cat !== prev.category) {
+        updates.category = cat;
+        updates.categories = cat !== 'all' ? [cat] : [];
+        changed = true;
+      }
+
+      return changed ? { ...prev, ...updates } : prev;
+    });
   }, [searchParams]);
 
   // Track site visit on mount

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronLeft, ChevronRight, Maximize2, X } from 'lucide-react';
 import { getColorOption, slugifyColor } from '../data/colors';
@@ -19,11 +19,15 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
   productName,
   selectedColor,
   selectedVariantImage,
+  hasVariants = false,
   onActiveIndexChange,
 }) => {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [failedImages, setFailedImages] = useState<Record<number, boolean>>({});
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
+
+  const lastPropVariantImg = useRef<string | undefined>(selectedVariantImage);
+  const lastPropColor = useRef<string | undefined>(selectedColor);
 
   // Parse images into clean URLs and optional color tags
   const parsedImages = useMemo(() => {
@@ -69,26 +73,33 @@ export const ProductGallery: React.FC<ProductGalleryProps> = ({
     return -1;
   };
 
-  // Sync selectedVariantImage from parent component
+  // Sync selectedVariantImage from parent component only when prop value changes
   useEffect(() => {
-    if (!selectedVariantImage || parsedImages.length === 0) return;
-    const targetIdx = parsedImages.findIndex(
-      (img) => img.clean === selectedVariantImage || img.raw === selectedVariantImage
-    );
-    if (targetIdx !== -1 && targetIdx !== selectedIndex) {
-      setSelectedIndex(targetIdx);
-    }
-  }, [selectedVariantImage, parsedImages, selectedIndex]);
-
-  // Sync selectedColor from parent component (Only if no variant image was actively chosen or if product has no variants)
-  useEffect(() => {
-    if (selectedColor && !selectedVariantImage) {
-      const matchIdx = findImageIndexForColor(selectedColor);
-      if (matchIdx !== -1 && matchIdx !== selectedIndex) {
-        setSelectedIndex(matchIdx);
+    if (selectedVariantImage !== lastPropVariantImg.current) {
+      lastPropVariantImg.current = selectedVariantImage;
+      if (!selectedVariantImage || parsedImages.length === 0) return;
+      const targetIdx = parsedImages.findIndex(
+        (img) => img.clean === selectedVariantImage || img.raw === selectedVariantImage
+      );
+      if (targetIdx !== -1) {
+        setSelectedIndex(targetIdx);
       }
     }
-  }, [selectedColor, selectedVariantImage, parsedImages, selectedIndex]);
+  }, [selectedVariantImage, parsedImages]);
+
+  // Sync selectedColor from parent component only when prop value changes (for color-based products)
+  useEffect(() => {
+    if (selectedColor !== lastPropColor.current) {
+      lastPropColor.current = selectedColor;
+      if (hasVariants) return; // Do not let color swatches override gallery on variant-based products
+      if (selectedColor && !selectedVariantImage) {
+        const matchIdx = findImageIndexForColor(selectedColor);
+        if (matchIdx !== -1) {
+          setSelectedIndex(matchIdx);
+        }
+      }
+    }
+  }, [selectedColor, selectedVariantImage, parsedImages, hasVariants]);
 
   const handleSelectThumbnail = (index: number) => {
     setSelectedIndex(index);

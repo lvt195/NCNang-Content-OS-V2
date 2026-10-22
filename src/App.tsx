@@ -24,6 +24,7 @@ export const App: React.FC = () => {
       <Routes>
         {/* Public Storefront Routes */}
         <Route path="/" element={<CatalogPage />} />
+        <Route path="/catalog" element={<CatalogPage />} />
         <Route path="/products/:slug" element={<ProductPage />} />
 
         {/* Admin Login Route (Publicly accessible) */}

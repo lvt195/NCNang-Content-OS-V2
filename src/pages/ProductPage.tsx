@@ -154,6 +154,7 @@ export const ProductPage: React.FC = () => {
       } else {
         // Active image is an overview / lookbook photo of the product line
         setSelectedVariant(null);
+        setSelectedColor('');
       }
     } else {
       // 2. Color-based product:
@@ -322,7 +323,7 @@ export const ProductPage: React.FC = () => {
                   return (
                     <Link
                       key={cId}
-                      to={`/catalog?cat=${cId}`}
+                      to={`/?cat=${cId}`}
                       className="badge badge-draft"
                       style={{ fontSize: '0.78rem', textDecoration: 'none', cursor: 'pointer' }}
                       title={`Xem tất cả sản phẩm thuộc danh mục ${cat?.name || cId}`}
