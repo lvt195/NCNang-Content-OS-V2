@@ -43,6 +43,12 @@ async function main() {
   for (const filePath of changedFiles) {
     if (!fs.existsSync(filePath)) {
       console.log(`File removed: ${filePath}`);
+      treeEntries.push({
+        path: filePath,
+        mode: '100644',
+        type: 'blob',
+        sha: null
+      });
       continue;
     }
     const stat = fs.statSync(filePath);
