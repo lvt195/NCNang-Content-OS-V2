@@ -51,7 +51,7 @@ export const INITIAL_PRODUCTS: Product[] = [
     slug: 'ga-chun-dui-mau-be-vintage',
     name: 'Ga chun đũi mộc màu Be Cát',
     category: 'ga-giuong',
-    price: 165000,
+    price: 199000,
     currency: 'VND',
     colors: ['be'],
     type: 'single',
