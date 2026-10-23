@@ -696,7 +696,7 @@ export const AdminMediaLibraryPage: React.FC = () => {
       if (folderName === 'set4-cotton-370k' && prod.id.startsWith('SET370')) matchesFolder = true;
       if (folderName === 'set-bingbong-240k' && prod.id === 'SET4_BINGBONG_240K') matchesFolder = true;
       if (folderName === 'set-xinkk-220k' && prod.id === 'SET_XINKK_220K') matchesFolder = true;
-      if (folderName === 'set3-ni-280k' && (prod.id === 'SET280' || prod.id === 'SET_NHAP_NI_280K')) matchesFolder = true;
+      if (folderName === 'set3-ni-280k' && prod.id === 'SET280') matchesFolder = true;
       if (folderName === 'set-nhap-ve' && prod.id.startsWith('SET_NHAP')) matchesFolder = true;
 
       if (hasUrl || hasCover || hasVariant || hasId || matchesFolder) {
