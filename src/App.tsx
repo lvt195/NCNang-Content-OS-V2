@@ -17,6 +17,7 @@ import { AdminProductFormPage } from './admin/AdminProductFormPage';
 import { AdminBulkImportPage } from './admin/AdminBulkImportPage';
 import { AdminCategoriesPage } from './admin/AdminCategoriesPage';
 import { AdminMediaLibraryPage } from './admin/AdminMediaLibraryPage';
+import { AdminOrdersPage } from './admin/AdminOrdersPage';
 
 export const App: React.FC = () => {
   return (
@@ -34,6 +35,7 @@ export const App: React.FC = () => {
         <Route path="/admin" element={<AdminProtectedRoute />}>
           <Route element={<AdminLayout />}>
             <Route index element={<AdminDashboardPage />} />
+            <Route path="orders" element={<AdminOrdersPage />} />
             <Route path="products" element={<AdminProductsPage />} />
             <Route path="products/new" element={<AdminProductFormPage />} />
             <Route path="products/bulk" element={<AdminBulkImportPage />} />

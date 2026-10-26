@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { NavLink, Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
+  ShoppingBag,
   Package,
   Tags,
   LogOut,
@@ -50,6 +51,7 @@ export const AdminLayout: React.FC = () => {
 
   const navLinks = [
     { to: '/admin', label: 'Tổng quan', icon: LayoutDashboard, end: true },
+    { to: '/admin/orders', label: 'Check đơn hàng', icon: ShoppingBag, end: false },
     { to: '/admin/products', label: 'Sản phẩm', icon: Package, end: false },
     { to: '/admin/products/new', label: 'Thêm mới', icon: PlusCircle, end: false },
     { to: '/admin/products/bulk', label: 'Nhập theo Folder', icon: FolderPlus, end: false },

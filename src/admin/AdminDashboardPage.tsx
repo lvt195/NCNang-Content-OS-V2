@@ -14,10 +14,16 @@ import {
   Layers,
   Sparkles,
   RotateCcw,
+  ShoppingBag,
+  Scissors,
+  DollarSign,
+  ArrowRight,
 } from 'lucide-react';
 import { productService } from '../services/productService';
 import { analyticsService } from '../services/analyticsService';
+import { orderService } from '../services/orderService';
 import { Product, Category } from '../types/product';
+import { OrderSummary } from '../types/order';
 import { formatVND } from '../utils/formatCurrency';
 
 export const AdminDashboardPage: React.FC = () => {
@@ -25,6 +31,7 @@ export const AdminDashboardPage: React.FC = () => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [analytics, setAnalytics] = useState(() => analyticsService.getSummary());
+  const [orderSummary, setOrderSummary] = useState<OrderSummary>(() => orderService.getOrderSummary());
 
   const loadAll = async () => {
     setLoading(true);
@@ -36,6 +43,7 @@ export const AdminDashboardPage: React.FC = () => {
       setProducts(prods);
       setCategories(cats);
       setAnalytics(analyticsService.getSummary());
+      setOrderSummary(orderService.getOrderSummary());
     } catch (err) {
       console.error('Error loading dashboard stats:', err);
     } finally {
@@ -122,6 +130,154 @@ export const AdminDashboardPage: React.FC = () => {
           >
             <ExternalLink size={14} />
             <span>Xem Web</span>
+          </Link>
+        </div>
+      </div>
+
+      {/* SECTION 0: TÌNH TRẠNG ĐƠN HÀNG & TIỀN XƯỞNG */}
+      <div
+        style={{
+          background: 'linear-gradient(135deg, #fbf8f5 0%, #f4ede4 100%)',
+          borderRadius: '12px',
+          padding: '1.25rem',
+          border: '1px solid #e5ded5',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+            <div style={{ backgroundColor: '#7c6a59', color: '#ffffff', width: '30px', height: '30px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <ShoppingBag size={16} />
+            </div>
+            <div>
+              <h2 style={{ fontSize: '1.15rem', fontWeight: 700, color: '#2c2825', margin: 0 }}>
+                Theo Dõi Đơn Hàng & Tiền Xưởng May
+              </h2>
+              <p style={{ fontSize: '0.785rem', color: '#685e54', margin: '2px 0 0 0' }}>
+                Tổng quan đơn mới, tiến độ xưởng may và các khoản công thợ cần thanh toán
+              </p>
+            </div>
+          </div>
+          <Link
+            to="/admin/orders"
+            className="btn btn-primary btn-sm"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', textDecoration: 'none' }}
+          >
+            <span>Check & Quản lý đơn</span>
+            <ArrowRight size={14} />
+          </Link>
+        </div>
+
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
+            gap: '0.85rem',
+          }}
+        >
+          {/* Card: Đơn Mới */}
+          <Link
+            to="/admin/orders"
+            style={{
+              textDecoration: 'none',
+              backgroundColor: '#ffffff',
+              padding: '0.9rem 1rem',
+              borderRadius: '8px',
+              border: '1px solid #e8e1d5',
+              borderLeft: '4px solid #1a73e8',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.35rem',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#685e54' }}>Đơn hàng mới</span>
+              <span style={{ fontSize: '0.7rem', padding: '2px 6px', borderRadius: '4px', backgroundColor: '#e8f0fe', color: '#1a73e8', fontWeight: 600 }}>
+                Cần may
+              </span>
+            </div>
+            <span style={{ fontSize: '1.65rem', fontWeight: 700, color: '#1a73e8', lineHeight: 1.1 }}>
+              {orderSummary.newOrders}
+            </span>
+            <span style={{ fontSize: '0.725rem', color: '#8c8073' }}>Đang chờ gửi thông số xưởng</span>
+          </Link>
+
+          {/* Card: Xưởng đang may */}
+          <Link
+            to="/admin/orders"
+            style={{
+              textDecoration: 'none',
+              backgroundColor: '#ffffff',
+              padding: '0.9rem 1rem',
+              borderRadius: '8px',
+              border: '1px solid #e8e1d5',
+              borderLeft: '4px solid #f59e0b',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.35rem',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#685e54' }}>Xưởng đang may</span>
+              <Scissors size={14} color="#f59e0b" />
+            </div>
+            <span style={{ fontSize: '1.65rem', fontWeight: 700, color: '#d97706', lineHeight: 1.1 }}>
+              {orderSummary.workshopProcessingOrders}
+            </span>
+            <span style={{ fontSize: '0.725rem', color: '#8c8073' }}>Đang gia công chăn ga</span>
+          </Link>
+
+          {/* Card: Tiền xưởng còn nợ */}
+          <Link
+            to="/admin/orders"
+            style={{
+              textDecoration: 'none',
+              backgroundColor: '#ffffff',
+              padding: '0.9rem 1rem',
+              borderRadius: '8px',
+              border: '1px solid #fcd34d',
+              borderLeft: '4px solid #ef4444',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.35rem',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#991b1b' }}>Tiền xưởng cần trả</span>
+              <DollarSign size={14} color="#ef4444" />
+            </div>
+            <span style={{ fontSize: '1.45rem', fontWeight: 700, color: '#b91c1c', lineHeight: 1.1 }}>
+              {formatVND(orderSummary.unpaidWorkshopAmount)}
+            </span>
+            <span style={{ fontSize: '0.725rem', color: '#991b1b', fontWeight: 500 }}>
+              Đã trả: {formatVND(orderSummary.paidWorkshopAmount)}
+            </span>
+          </Link>
+
+          {/* Card: Đang giao hàng */}
+          <Link
+            to="/admin/orders"
+            style={{
+              textDecoration: 'none',
+              backgroundColor: '#ffffff',
+              padding: '0.9rem 1rem',
+              borderRadius: '8px',
+              border: '1px solid #e8e1d5',
+              borderLeft: '4px solid #06b6d4',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.35rem',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#685e54' }}>Đang giao cho khách</span>
+              <span style={{ fontSize: '0.7rem', padding: '2px 6px', borderRadius: '4px', backgroundColor: '#e0f2fe', color: '#0369a1', fontWeight: 600 }}>
+                COD / Ship
+              </span>
+            </div>
+            <span style={{ fontSize: '1.65rem', fontWeight: 700, color: '#0891b2', lineHeight: 1.1 }}>
+              {orderSummary.shippingOrders}
+            </span>
+            <span style={{ fontSize: '0.725rem', color: '#8c8073' }}>Tổng {orderSummary.totalOrders} đơn trong hệ thống</span>
           </Link>
         </div>
       </div>
