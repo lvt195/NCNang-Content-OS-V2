@@ -13,15 +13,27 @@ import {
   RotateCcw,
   Globe,
   ClipboardPaste,
+  Folder,
+  FolderOpen,
+  ArrowLeft,
+  Filter,
+  Grid,
 } from 'lucide-react';
 import { Order, OrderStatus, ORDER_STATUS_CONFIG } from '../types/order';
 import { orderService } from '../services/orderService';
 import { productService } from '../services/productService';
+import { mediaService } from '../services/mediaService';
+import { isSupabaseConfigured } from '../lib/supabase';
+import { Category } from '../types/product';
 import { formatVND } from '../utils/formatCurrency';
 
 interface WebImageItem {
   url: string;
   label: string;
+  folder: string;
+  categoryId?: string;
+  categoryName?: string;
+  productId?: string;
 }
 
 export const AdminOrdersPage: React.FC = () => {
@@ -30,10 +42,15 @@ export const AdminOrdersPage: React.FC = () => {
   const [filterTab, setFilterTab] = useState<'all' | 'new' | 'workshop_processing' | 'shipping' | 'completed' | 'unpaid'>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Danh sách ảnh có sẵn trên web
+  // Danh sách ảnh & danh mục có sẵn trên web
   const [webImages, setWebImages] = useState<WebImageItem[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
   const [gallerySearch, setGallerySearch] = useState('');
+  const [galleryViewMode, setGalleryViewMode] = useState<'folders' | 'all'>('folders');
+  const [currentGalleryFolder, setCurrentGalleryFolder] = useState<string>('');
+  const [galleryCategoryFilter, setGalleryCategoryFilter] = useState<string>('all');
+  const [galleryFolderFilter, setGalleryFolderFilter] = useState<string>('all');
 
   // Modal Thêm / Sửa
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -58,27 +75,50 @@ export const AdminOrdersPage: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [orderList, prods] = await Promise.all([
+      const [orderList, prods, cats] = await Promise.all([
         orderService.getOrders(),
         productService.getAllProductsAdmin().catch(() => []),
+        productService.getCategories().catch(() => []),
       ]);
       setOrders(orderList);
+      setCategories(cats);
 
-      // Gom tất cả ảnh từ sản phẩm web
+      const catMap = new Map<string, string>();
+      cats.forEach((c) => catMap.set(c.id, c.name));
+
       const imgList: WebImageItem[] = [];
       const seen = new Set<string>();
 
+      // 1. Gom ảnh từ sản phẩm
       prods.forEach((p) => {
+        const folderName = p.id || 'Sản phẩm khác';
+        const catId = p.category || (Array.isArray(p.categories) ? p.categories[0] : '');
+        const catName = catMap.get(catId) || 'Chung';
+
         if (p.coverImage && !seen.has(p.coverImage)) {
           seen.add(p.coverImage);
-          imgList.push({ url: p.coverImage, label: p.name });
+          imgList.push({
+            url: p.coverImage,
+            label: `${p.name} (Ảnh bìa)`,
+            folder: folderName,
+            categoryId: catId,
+            categoryName: catName,
+            productId: p.id,
+          });
         }
         if (Array.isArray(p.images)) {
-          p.images.forEach((img) => {
+          p.images.forEach((img, idx) => {
             const u = typeof img === 'string' ? img : (img as { url?: string })?.url;
             if (u && !seen.has(u)) {
               seen.add(u);
-              imgList.push({ url: u, label: p.name });
+              imgList.push({
+                url: u,
+                label: `${p.name} (Ảnh ${idx + 1})`,
+                folder: folderName,
+                categoryId: catId,
+                categoryName: catName,
+                productId: p.id,
+              });
             }
           });
         }
@@ -87,11 +127,41 @@ export const AdminOrdersPage: React.FC = () => {
           p.colors.forEach((c: any) => {
             if (typeof c === 'object' && c && c.imageUrl && !seen.has(c.imageUrl)) {
               seen.add(c.imageUrl);
-              imgList.push({ url: c.imageUrl, label: `${p.name} - ${c.name || 'Màu'}` });
+              imgList.push({
+                url: c.imageUrl,
+                label: `${p.name} - Màu ${c.name || ''}`,
+                folder: folderName,
+                categoryId: catId,
+                categoryName: catName,
+                productId: p.id,
+              });
             }
           });
         }
       });
+
+      // 2. Gom ảnh từ Storage nếu có cấu hình
+      try {
+        if (isSupabaseConfigured) {
+          const storageFiles = await mediaService.listAllFilesRecursive('', 3).catch(() => []);
+          storageFiles.forEach((file) => {
+            if (file.publicUrl && !seen.has(file.publicUrl)) {
+              seen.add(file.publicUrl);
+              const parts = file.fullPath.split('/');
+              const folderName = parts.length > 1 ? parts[0] : 'Kho gốc';
+              imgList.push({
+                url: file.publicUrl,
+                label: file.name,
+                folder: folderName,
+                categoryName: 'Kho ảnh lưu trữ',
+              });
+            }
+          });
+        }
+      } catch {
+        // ignore
+      }
+
       setWebImages(imgList);
     } catch (err) {
       console.error('Lỗi tải dữ liệu:', err);
@@ -108,7 +178,7 @@ export const AdminOrdersPage: React.FC = () => {
   const handlePasteBlobOrUrl = useCallback((clipboardData: DataTransfer | null) => {
     if (!clipboardData) return;
 
-    // 1. Kiểm tra file ảnh nhị phân trong Clipboard (chụp màn hình / copy ảnh từ Zalo, Telegram, web...)
+    // Kiểm tra file ảnh nhị phân trong Clipboard (chụp màn hình / copy ảnh từ Zalo)
     const items = clipboardData.items;
     if (items) {
       for (let i = 0; i < items.length; i++) {
@@ -133,7 +203,7 @@ export const AdminOrdersPage: React.FC = () => {
       }
     }
 
-    // 2. Kiểm tra text URL nếu người dùng paste link ảnh
+    // Kiểm tra text URL nếu người dùng paste link ảnh
     const text = clipboardData.getData('text')?.trim();
     if (text && (text.startsWith('http://') || text.startsWith('https://') || text.startsWith('/images/'))) {
       setFormImage(text);
@@ -151,11 +221,9 @@ export const AdminOrdersPage: React.FC = () => {
     if (!isModalOpen) return;
 
     const handleWindowPaste = (e: ClipboardEvent) => {
-      // Nếu đang gõ text trong ô textarea thông tin đơn thì không can thiệp nếu là text thường
       const activeEl = document.activeElement;
       const isTypingTextarea = activeEl && activeEl.tagName === 'TEXTAREA';
 
-      // Nhưng nếu trong clipboard là FILE ẢNH (chụp màn hình) thì luôn ưu tiên nhận ảnh
       const items = e.clipboardData?.items;
       let hasImageFile = false;
       if (items) {
@@ -171,7 +239,6 @@ export const AdminOrdersPage: React.FC = () => {
         e.preventDefault();
         handlePasteBlobOrUrl(e.clipboardData);
       } else if (!isTypingTextarea) {
-        // Nếu không focus ô text mà paste link ảnh thì nhận luôn
         const handled = handlePasteBlobOrUrl(e.clipboardData);
         if (handled) e.preventDefault();
       }
@@ -193,7 +260,7 @@ export const AdminOrdersPage: React.FC = () => {
     };
   }, [orders]);
 
-  // Lọc danh sách theo tab & từ khóa
+  // Lọc danh sách đơn hàng
   const filteredOrders = useMemo(() => {
     return orders.filter((order) => {
       if (filterTab === 'new' && order.status !== 'new') return false;
@@ -212,12 +279,63 @@ export const AdminOrdersPage: React.FC = () => {
     });
   }, [orders, filterTab, searchQuery]);
 
-  // Lọc ảnh trong kho ảnh web
-  const filteredWebImages = useMemo(() => {
-    if (!gallerySearch.trim()) return webImages;
+  // Danh sách các Folder và số lượng ảnh trong từng folder
+  const folderList = useMemo(() => {
+    const map = new Map<string, number>();
+    webImages.forEach((img) => {
+      const f = img.folder || 'Chung';
+      map.set(f, (map.get(f) || 0) + 1);
+    });
+    return Array.from(map.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [webImages]);
+
+  // Lọc ảnh trong Gallery theo Thư mục, Danh mục và Tìm kiếm
+  const galleryDisplayData = useMemo(() => {
     const q = gallerySearch.toLowerCase().trim();
-    return webImages.filter((img) => img.label.toLowerCase().includes(q));
-  }, [webImages, gallerySearch]);
+
+    // 1. Chế độ theo Thư Mục (Folders)
+    if (galleryViewMode === 'folders') {
+      if (!currentGalleryFolder) {
+        // Đang ở gốc -> lọc danh sách các folder
+        const filteredFolders = folderList.filter((f) => {
+          if (!q) return true;
+          return f.name.toLowerCase().includes(q);
+        });
+        return { isFolderView: true, folders: filteredFolders, images: [] };
+      } else {
+        // Đang ở trong 1 folder cụ thể -> lấy các ảnh thuộc folder đó
+        const imagesInFolder = webImages.filter((img) => {
+          if (img.folder !== currentGalleryFolder) return false;
+          if (q && !img.label.toLowerCase().includes(q)) return false;
+          return true;
+        });
+        return { isFolderView: false, folders: [], images: imagesInFolder };
+      }
+    }
+
+    // 2. Chế độ Xem tất cả có Bộ lọc (All / Filter)
+    const filtered = webImages.filter((img) => {
+      // Lọc danh mục
+      if (galleryCategoryFilter !== 'all' && img.categoryId !== galleryCategoryFilter) {
+        return false;
+      }
+      // Lọc folder
+      if (galleryFolderFilter !== 'all' && img.folder !== galleryFolderFilter) {
+        return false;
+      }
+      // Tìm kiếm
+      if (q) {
+        const matchLabel = img.label.toLowerCase().includes(q);
+        const matchFolder = img.folder.toLowerCase().includes(q);
+        if (!matchLabel && !matchFolder) return false;
+      }
+      return true;
+    });
+
+    return { isFolderView: false, folders: [], images: filtered };
+  }, [galleryViewMode, currentGalleryFolder, folderList, webImages, galleryCategoryFilter, galleryFolderFilter, gallerySearch]);
 
   // Đổi nhanh trạng thái Tiền xưởng (1 chạm)
   const handleToggleWorkshopPaid = async (order: Order) => {
@@ -875,7 +993,7 @@ export const AdminOrdersPage: React.FC = () => {
               </div>
 
               <form onSubmit={handleSaveOrder} style={{ display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
-                {/* 1. KHU VỰC CHỌN ẢNH (3 CÁCH: MÁY / ẢNH WEB / PASTE) */}
+                {/* 1. KHU VỰC CHỌN ẢNH (3 CÁCH: MÁY / ẢNH WEB CÓ FOLDER & FILTER / PASTE) */}
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.45rem' }}>
                     <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#2c2825', margin: 0 }}>
@@ -981,10 +1099,14 @@ export const AdminOrdersPage: React.FC = () => {
                           <span>Từ máy/điện thoại</span>
                         </button>
 
-                        {/* Nút 2: Chọn từ ảnh trên Web */}
+                        {/* Nút 2: Chọn từ ảnh trên Web có Folder & Filter */}
                         <button
                           type="button"
-                          onClick={() => setIsGalleryOpen(true)}
+                          onClick={() => {
+                            setCurrentGalleryFolder('');
+                            setGallerySearch('');
+                            setIsGalleryOpen(true);
+                          }}
                           className="btn btn-outline btn-sm"
                           style={{
                             fontSize: '0.8rem',
@@ -993,10 +1115,11 @@ export const AdminOrdersPage: React.FC = () => {
                             borderColor: '#7c6a59',
                             color: '#7c6a59',
                             backgroundColor: '#f5eee6',
+                            fontWeight: 600,
                           }}
                         >
                           <Globe size={14} />
-                          <span>Chọn ảnh từ Web ({webImages.length})</span>
+                          <span>Chọn từ Web (Folder & Filter)</span>
                         </button>
                       </div>
 
@@ -1191,14 +1314,14 @@ export const AdminOrdersPage: React.FC = () => {
           document.body
         )}
 
-      {/* MODAL CHỌN ẢNH TỪ KHO ẢNH WEB */}
+      {/* MODAL CHỌN ẢNH TỪ KHO ẢNH WEB (CÓ BỘ LỌC FILTER VÀ DUYỆT THEO FOLDER) */}
       {isGalleryOpen &&
         createPortal(
           <div
             style={{
               position: 'fixed',
               inset: 0,
-              backgroundColor: 'rgba(0,0,0,0.6)',
+              backgroundColor: 'rgba(0,0,0,0.65)',
               zIndex: 10001,
               display: 'flex',
               alignItems: 'center',
@@ -1210,13 +1333,13 @@ export const AdminOrdersPage: React.FC = () => {
             <div
               style={{
                 backgroundColor: '#ffffff',
-                borderRadius: '12px',
+                borderRadius: '14px',
                 width: '100%',
-                maxWidth: '680px',
-                maxHeight: '85vh',
+                maxWidth: '780px',
+                maxHeight: '88vh',
                 display: 'flex',
                 flexDirection: 'column',
-                boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
+                boxShadow: '0 25px 50px -12px rgba(0,0,0,0.3)',
                 overflow: 'hidden',
               }}
               onClick={(e) => e.stopPropagation()}
@@ -1233,11 +1356,14 @@ export const AdminOrdersPage: React.FC = () => {
                 }}
               >
                 <div>
-                  <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#2c2825', margin: 0 }}>
-                    Chọn Ảnh Mẫu Từ Website ({filteredWebImages.length} ảnh)
-                  </h3>
-                  <p style={{ fontSize: '0.785rem', color: '#685e54', margin: '2px 0 0 0' }}>
-                    Bấm vào 1 ảnh để tự động gán vào đơn hàng
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <FolderOpen size={20} color="#7c6a59" />
+                    <h3 style={{ fontSize: '1.15rem', fontWeight: 700, color: '#2c2825', margin: 0 }}>
+                      Kho Ảnh Website ({webImages.length} ảnh)
+                    </h3>
+                  </div>
+                  <p style={{ fontSize: '0.785rem', color: '#685e54', margin: '3px 0 0 0' }}>
+                    Chọn theo thư mục folder hoặc dùng bộ lọc danh mục để tìm mẫu nhanh nhất
                   </p>
                 </div>
                 <button
@@ -1249,23 +1375,86 @@ export const AdminOrdersPage: React.FC = () => {
                 </button>
               </div>
 
-              {/* Ô tìm kiếm trong Gallery */}
-              <div style={{ padding: '0.75rem 1.25rem', borderBottom: '1px solid #f0ebe4' }}>
-                <div style={{ position: 'relative' }}>
-                  <Search size={15} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#9c8f80' }} />
+              {/* Toolbar: Chuyển Tab (Folders vs Tất Cả) & Thanh điều hướng */}
+              <div
+                style={{
+                  padding: '0.65rem 1.25rem',
+                  borderBottom: '1px solid #f0ebe4',
+                  backgroundColor: '#ffffff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '0.75rem',
+                  flexWrap: 'wrap',
+                }}
+              >
+                {/* 2 Chế độ xem: Theo Thư Mục / Tất Cả Ảnh */}
+                <div style={{ display: 'inline-flex', backgroundColor: '#f5eee6', padding: '3px', borderRadius: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setGalleryViewMode('folders');
+                      setCurrentGalleryFolder('');
+                    }}
+                    style={{
+                      border: 'none',
+                      backgroundColor: galleryViewMode === 'folders' ? '#ffffff' : 'transparent',
+                      color: galleryViewMode === 'folders' ? '#7c6a59' : '#685e54',
+                      padding: '0.35rem 0.75rem',
+                      borderRadius: '6px',
+                      fontSize: '0.8rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                      boxShadow: galleryViewMode === 'folders' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                    }}
+                  >
+                    <Folder size={14} />
+                    <span>Duyệt theo Thư mục ({folderList.length})</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setGalleryViewMode('all')}
+                    style={{
+                      border: 'none',
+                      backgroundColor: galleryViewMode === 'all' ? '#ffffff' : 'transparent',
+                      color: galleryViewMode === 'all' ? '#7c6a59' : '#685e54',
+                      padding: '0.35rem 0.75rem',
+                      borderRadius: '6px',
+                      fontSize: '0.8rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                      boxShadow: galleryViewMode === 'all' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                    }}
+                  >
+                    <Grid size={14} />
+                    <span>Tất cả ảnh & Bộ lọc</span>
+                  </button>
+                </div>
+
+                {/* Ô tìm kiếm */}
+                <div style={{ position: 'relative', width: '240px' }}>
+                  <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#9c8f80' }} />
                   <input
                     type="text"
-                    placeholder="Tìm tên sản phẩm, màu sắc vải..."
+                    placeholder="Tìm tên mẫu, mã SP, màu vải..."
                     value={gallerySearch}
                     onChange={(e) => setGallerySearch(e.target.value)}
                     style={{
                       width: '100%',
-                      padding: '0.45rem 0.65rem 0.45rem 2rem',
-                      fontSize: '0.85rem',
+                      padding: '0.35rem 0.65rem 0.35rem 1.85rem',
+                      fontSize: '0.8rem',
                       borderRadius: '6px',
                       border: '1px solid #dcd3c5',
                       outline: 'none',
                       boxSizing: 'border-box',
+                      backgroundColor: '#faf8f5',
                     }}
                   />
                   {gallerySearch && (
@@ -1274,68 +1463,283 @@ export const AdminOrdersPage: React.FC = () => {
                       onClick={() => setGallerySearch('')}
                       style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', border: 'none', background: 'transparent', cursor: 'pointer', color: '#9c8f80' }}
                     >
-                      <X size={13} />
+                      <X size={12} />
                     </button>
                   )}
                 </div>
               </div>
 
-              {/* Lưới ảnh */}
-              <div style={{ flex: 1, overflowY: 'auto', padding: '1rem 1.25rem' }}>
-                {filteredWebImages.length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: '2.5rem 1rem', color: '#8c8073' }}>
-                    <p style={{ margin: 0 }}>Không tìm thấy ảnh phù hợp</p>
+              {/* BỘ LỌC CHI TIẾT (FILTER) HOẶC BREADCRUMB FOLDER */}
+              <div
+                style={{
+                  padding: '0.5rem 1.25rem',
+                  backgroundColor: '#faf8f5',
+                  borderBottom: '1px solid #e8e1d5',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.75rem',
+                  fontSize: '0.8rem',
+                  flexWrap: 'wrap',
+                }}
+              >
+                {galleryViewMode === 'folders' ? (
+                  /* Breadcrumb navigation trong chế độ Folder */
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%' }}>
+                    {currentGalleryFolder ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setCurrentGalleryFolder('')}
+                          style={{
+                            border: '1px solid #dcd3c5',
+                            backgroundColor: '#ffffff',
+                            color: '#7c6a59',
+                            padding: '0.25rem 0.6rem',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.3rem',
+                            fontWeight: 600,
+                            fontSize: '0.785rem',
+                          }}
+                        >
+                          <ArrowLeft size={13} />
+                          <span>Tất cả thư mục</span>
+                        </button>
+                        <span style={{ color: '#9c8f80' }}>/</span>
+                        <span style={{ fontWeight: 700, color: '#2c2825', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <FolderOpen size={15} color="#d97706" />
+                          {currentGalleryFolder}
+                        </span>
+                        <span style={{ fontSize: '0.75rem', color: '#8c8073' }}>
+                          ({galleryDisplayData.images.length} ảnh)
+                        </span>
+                      </>
+                    ) : (
+                      <span style={{ color: '#685e54', fontWeight: 600 }}>
+                        📁 Chọn một thư mục bên dưới để xem các mẫu ảnh vải:
+                      </span>
+                    )}
                   </div>
                 ) : (
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))',
-                      gap: '0.65rem',
-                    }}
-                  >
-                    {filteredWebImages.map((img, i) => (
-                      <div
-                        key={`${img.url}-${i}`}
-                        onClick={() => {
-                          setFormImage(img.url);
-                          setPasteUrlInput(img.url);
-                          setIsGalleryOpen(false);
-                        }}
+                  /* Bộ lọc Filter: Theo Danh mục & Folder */
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', flexWrap: 'wrap', width: '100%' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <Filter size={14} color="#7c6a59" />
+                      <span style={{ fontWeight: 600, color: '#685e54' }}>Lọc danh mục:</span>
+                      <select
+                        value={galleryCategoryFilter}
+                        onChange={(e) => setGalleryCategoryFilter(e.target.value)}
                         style={{
-                          aspectRatio: '1',
-                          borderRadius: '8px',
-                          overflow: 'hidden',
-                          border: formImage === img.url ? '3px solid #7c6a59' : '1px solid #e5ded5',
-                          cursor: 'pointer',
-                          backgroundColor: '#f5eee6',
-                          transition: 'transform 0.15s ease, box-shadow 0.15s ease',
-                          position: 'relative',
-                        }}
-                        title={img.label}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.transform = 'scale(1.04)';
-                          e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.12)';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.transform = 'scale(1)';
-                          e.currentTarget.style.boxShadow = 'none';
+                          padding: '0.25rem 0.5rem',
+                          borderRadius: '6px',
+                          border: '1px solid #dcd3c5',
+                          fontSize: '0.8rem',
+                          backgroundColor: '#ffffff',
+                          outline: 'none',
                         }}
                       >
-                        <img
-                          src={img.url}
-                          alt={img.label}
-                          loading="lazy"
-                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                        />
-                      </div>
-                    ))}
+                        <option value="all">Tất cả danh mục ({categories.length})</option>
+                        {categories.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <span style={{ fontWeight: 600, color: '#685e54' }}>Thư mục:</span>
+                      <select
+                        value={galleryFolderFilter}
+                        onChange={(e) => setGalleryFolderFilter(e.target.value)}
+                        style={{
+                          padding: '0.25rem 0.5rem',
+                          borderRadius: '6px',
+                          border: '1px solid #dcd3c5',
+                          fontSize: '0.8rem',
+                          backgroundColor: '#ffffff',
+                          outline: 'none',
+                        }}
+                      >
+                        <option value="all">Tất cả thư mục ({folderList.length})</option>
+                        {folderList.map((f) => (
+                          <option key={f.name} value={f.name}>
+                            {f.name} ({f.count})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <span style={{ marginLeft: 'auto', fontSize: '0.75rem', color: '#7c6a59', fontWeight: 600 }}>
+                      Hiển thị {galleryDisplayData.images.length} ảnh
+                    </span>
                   </div>
                 )}
               </div>
 
+              {/* VÙNG NỘI DUNG CHÍNH (LƯỚI FOLDER HOẶC LƯỚI ẢNH) */}
+              <div style={{ flex: 1, overflowY: 'auto', padding: '1.25rem' }}>
+                {/* 1. HIỂN THỊ CÁC THƯ MỤC FOLDERS */}
+                {galleryDisplayData.isFolderView ? (
+                  galleryDisplayData.folders.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '3rem 1rem', color: '#8c8073' }}>
+                      <p style={{ margin: 0 }}>Không tìm thấy thư mục phù hợp</p>
+                    </div>
+                  ) : (
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
+                        gap: '0.85rem',
+                      }}
+                    >
+                      {galleryDisplayData.folders.map((f) => (
+                        <div
+                          key={f.name}
+                          onClick={() => setCurrentGalleryFolder(f.name)}
+                          style={{
+                            padding: '1rem 0.75rem',
+                            borderRadius: '10px',
+                            border: '1px solid #e5ded5',
+                            backgroundColor: '#faf8f5',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            textAlign: 'center',
+                            gap: '0.45rem',
+                            transition: 'all 0.15s ease',
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = '#f5eee6';
+                            e.currentTarget.style.borderColor = '#7c6a59';
+                            e.currentTarget.style.transform = 'translateY(-2px)';
+                            e.currentTarget.style.boxShadow = '0 4px 10px rgba(0,0,0,0.06)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = '#faf8f5';
+                            e.currentTarget.style.borderColor = '#e5ded5';
+                            e.currentTarget.style.transform = 'translateY(0)';
+                            e.currentTarget.style.boxShadow = 'none';
+                          }}
+                          title={`Mở thư mục ${f.name} (${f.count} ảnh)`}
+                        >
+                          <Folder size={38} color="#d97706" style={{ fill: '#fef3c7' }} />
+                          <span
+                            style={{
+                              fontSize: '0.85rem',
+                              fontWeight: 700,
+                              color: '#2c2825',
+                              lineHeight: 1.25,
+                              wordBreak: 'break-word',
+                            }}
+                          >
+                            {f.name}
+                          </span>
+                          <span style={{ fontSize: '0.725rem', color: '#7c6a59', fontWeight: 600 }}>
+                            {f.count} ảnh
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )
+                ) : (
+                  /* 2. HIỂN THỊ LƯỚI ẢNH MẪU */
+                  galleryDisplayData.images.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '3rem 1rem', color: '#8c8073' }}>
+                      <AlertCircle size={28} style={{ color: '#d5cbbe', marginBottom: '0.4rem' }} />
+                      <p style={{ margin: 0, fontWeight: 600 }}>Không tìm thấy ảnh nào</p>
+                      <p style={{ fontSize: '0.785rem', marginTop: '0.25rem' }}>
+                        Thử đổi từ khóa hoặc chọn thư mục / danh mục khác
+                      </p>
+                    </div>
+                  ) : (
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))',
+                        gap: '0.85rem',
+                      }}
+                    >
+                      {galleryDisplayData.images.map((img, i) => {
+                        const isSelected = formImage === img.url;
+                        return (
+                          <div
+                            key={`${img.url}-${i}`}
+                            onClick={() => {
+                              setFormImage(img.url);
+                              setPasteUrlInput(img.url);
+                              setIsGalleryOpen(false);
+                            }}
+                            style={{
+                              borderRadius: '8px',
+                              overflow: 'hidden',
+                              border: isSelected ? '3px solid #7c6a59' : '1px solid #e5ded5',
+                              backgroundColor: '#ffffff',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+                              boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                            }}
+                            title={`Bấm để chọn: ${img.label}`}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.transform = 'scale(1.03)';
+                              e.currentTarget.style.boxShadow = '0 6px 14px rgba(0,0,0,0.12)';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.transform = 'scale(1)';
+                              e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.04)';
+                            }}
+                          >
+                            <div style={{ width: '100%', aspectRatio: '1', backgroundColor: '#f5eee6', overflow: 'hidden' }}>
+                              <img
+                                src={img.url}
+                                alt={img.label}
+                                loading="lazy"
+                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                              />
+                            </div>
+                            <div style={{ padding: '0.35rem 0.45rem', backgroundColor: '#faf8f5', borderTop: '1px solid #f0ebe4' }}>
+                              <span
+                                style={{
+                                  fontSize: '0.7rem',
+                                  color: '#2c2825',
+                                  fontWeight: 500,
+                                  lineHeight: 1.25,
+                                  display: '-webkit-box',
+                                  WebkitLineClamp: 2,
+                                  WebkitBoxOrient: 'vertical',
+                                  overflow: 'hidden',
+                                }}
+                              >
+                                {img.label}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )
+                )}
+              </div>
+
               {/* Footer Gallery */}
-              <div style={{ padding: '0.75rem 1.25rem', borderTop: '1px solid #e8e1d5', textAlign: 'right', backgroundColor: '#faf8f5' }}>
+              <div
+                style={{
+                  padding: '0.75rem 1.25rem',
+                  borderTop: '1px solid #e8e1d5',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  backgroundColor: '#faf8f5',
+                }}
+              >
+                <span style={{ fontSize: '0.785rem', color: '#685e54' }}>
+                  💡 Bấm vào ảnh bất kỳ để gán vào đơn ngay
+                </span>
                 <button
                   type="button"
                   onClick={() => setIsGalleryOpen(false)}
