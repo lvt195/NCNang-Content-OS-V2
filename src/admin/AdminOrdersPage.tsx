@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useRef } from 'react';
+import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Plus,
@@ -11,10 +11,18 @@ import {
   Trash2,
   AlertCircle,
   RotateCcw,
+  Globe,
+  ClipboardPaste,
 } from 'lucide-react';
 import { Order, OrderStatus, ORDER_STATUS_CONFIG } from '../types/order';
 import { orderService } from '../services/orderService';
+import { productService } from '../services/productService';
 import { formatVND } from '../utils/formatCurrency';
+
+interface WebImageItem {
+  url: string;
+  label: string;
+}
 
 export const AdminOrdersPage: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -22,17 +30,24 @@ export const AdminOrdersPage: React.FC = () => {
   const [filterTab, setFilterTab] = useState<'all' | 'new' | 'workshop_processing' | 'shipping' | 'completed' | 'unpaid'>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Danh sách ảnh có sẵn trên web
+  const [webImages, setWebImages] = useState<WebImageItem[]>([]);
+  const [isGalleryOpen, setIsGalleryOpen] = useState(false);
+  const [gallerySearch, setGallerySearch] = useState('');
+
   // Modal Thêm / Sửa
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
 
-  // Form State cực kỳ đơn giản
+  // Form State
   const [formImage, setFormImage] = useState<string>('');
+  const [pasteUrlInput, setPasteUrlInput] = useState<string>('');
   const [formText, setFormText] = useState<string>('');
   const [formSalePrice, setFormSalePrice] = useState<number | ''>(250000);
   const [formWorkshopCost, setFormWorkshopCost] = useState<number | ''>(150000);
   const [formWorkshopPaid, setFormWorkshopPaid] = useState<boolean>(false);
   const [formStatus, setFormStatus] = useState<OrderStatus>('new');
+  const [pasteNotification, setPasteNotification] = useState<string>('');
 
   // Phóng to ảnh (Lightbox)
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
@@ -40,21 +55,131 @@ export const AdminOrdersPage: React.FC = () => {
   // Ref cho input chọn file ảnh từ máy
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const loadOrders = async () => {
+  const loadData = async () => {
     setLoading(true);
     try {
-      const list = await orderService.getOrders();
-      setOrders(list);
+      const [orderList, prods] = await Promise.all([
+        orderService.getOrders(),
+        productService.getAllProductsAdmin().catch(() => []),
+      ]);
+      setOrders(orderList);
+
+      // Gom tất cả ảnh từ sản phẩm web
+      const imgList: WebImageItem[] = [];
+      const seen = new Set<string>();
+
+      prods.forEach((p) => {
+        if (p.coverImage && !seen.has(p.coverImage)) {
+          seen.add(p.coverImage);
+          imgList.push({ url: p.coverImage, label: p.name });
+        }
+        if (Array.isArray(p.images)) {
+          p.images.forEach((img) => {
+            const u = typeof img === 'string' ? img : (img as { url?: string })?.url;
+            if (u && !seen.has(u)) {
+              seen.add(u);
+              imgList.push({ url: u, label: p.name });
+            }
+          });
+        }
+        if (Array.isArray(p.colors)) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          p.colors.forEach((c: any) => {
+            if (typeof c === 'object' && c && c.imageUrl && !seen.has(c.imageUrl)) {
+              seen.add(c.imageUrl);
+              imgList.push({ url: c.imageUrl, label: `${p.name} - ${c.name || 'Màu'}` });
+            }
+          });
+        }
+      });
+      setWebImages(imgList);
     } catch (err) {
-      console.error('Lỗi tải danh sách đơn:', err);
+      console.error('Lỗi tải dữ liệu:', err);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadOrders();
+    loadData();
   }, []);
+
+  // Xử lý sự kiện Paste ảnh (Ctrl+V / Cmd+V)
+  const handlePasteBlobOrUrl = useCallback((clipboardData: DataTransfer | null) => {
+    if (!clipboardData) return;
+
+    // 1. Kiểm tra file ảnh nhị phân trong Clipboard (chụp màn hình / copy ảnh từ Zalo, Telegram, web...)
+    const items = clipboardData.items;
+    if (items) {
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.type.indexOf('image') !== -1) {
+          const file = item.getAsFile();
+          if (file) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+              const result = event.target?.result as string;
+              if (result) {
+                setFormImage(result);
+                setPasteUrlInput('');
+                setPasteNotification('✓ Đã dán ảnh từ clipboard thành công!');
+                setTimeout(() => setPasteNotification(''), 3000);
+              }
+            };
+            reader.readAsDataURL(file);
+            return true;
+          }
+        }
+      }
+    }
+
+    // 2. Kiểm tra text URL nếu người dùng paste link ảnh
+    const text = clipboardData.getData('text')?.trim();
+    if (text && (text.startsWith('http://') || text.startsWith('https://') || text.startsWith('/images/'))) {
+      setFormImage(text);
+      setPasteUrlInput(text);
+      setPasteNotification('✓ Đã nhận diện link ảnh!');
+      setTimeout(() => setPasteNotification(''), 3000);
+      return true;
+    }
+
+    return false;
+  }, []);
+
+  // Bắt sự kiện paste toàn cục khi Modal đang mở
+  useEffect(() => {
+    if (!isModalOpen) return;
+
+    const handleWindowPaste = (e: ClipboardEvent) => {
+      // Nếu đang gõ text trong ô textarea thông tin đơn thì không can thiệp nếu là text thường
+      const activeEl = document.activeElement;
+      const isTypingTextarea = activeEl && activeEl.tagName === 'TEXTAREA';
+
+      // Nhưng nếu trong clipboard là FILE ẢNH (chụp màn hình) thì luôn ưu tiên nhận ảnh
+      const items = e.clipboardData?.items;
+      let hasImageFile = false;
+      if (items) {
+        for (let i = 0; i < items.length; i++) {
+          if (items[i].type.indexOf('image') !== -1) {
+            hasImageFile = true;
+            break;
+          }
+        }
+      }
+
+      if (hasImageFile) {
+        e.preventDefault();
+        handlePasteBlobOrUrl(e.clipboardData);
+      } else if (!isTypingTextarea) {
+        // Nếu không focus ô text mà paste link ảnh thì nhận luôn
+        const handled = handlePasteBlobOrUrl(e.clipboardData);
+        if (handled) e.preventDefault();
+      }
+    };
+
+    window.addEventListener('paste', handleWindowPaste);
+    return () => window.removeEventListener('paste', handleWindowPaste);
+  }, [isModalOpen, handlePasteBlobOrUrl]);
 
   // Bộ đếm số đơn
   const counts = useMemo(() => {
@@ -71,14 +196,12 @@ export const AdminOrdersPage: React.FC = () => {
   // Lọc danh sách theo tab & từ khóa
   const filteredOrders = useMemo(() => {
     return orders.filter((order) => {
-      // Lọc tab
       if (filterTab === 'new' && order.status !== 'new') return false;
       if (filterTab === 'workshop_processing' && order.status !== 'workshop_processing') return false;
       if (filterTab === 'shipping' && order.status !== 'shipping') return false;
       if (filterTab === 'completed' && order.status !== 'completed') return false;
       if (filterTab === 'unpaid' && (order.workshopPaid || order.status === 'cancelled')) return false;
 
-      // Tìm kiếm text
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
         const matchId = order.id.toLowerCase().includes(q);
@@ -89,18 +212,23 @@ export const AdminOrdersPage: React.FC = () => {
     });
   }, [orders, filterTab, searchQuery]);
 
+  // Lọc ảnh trong kho ảnh web
+  const filteredWebImages = useMemo(() => {
+    if (!gallerySearch.trim()) return webImages;
+    const q = gallerySearch.toLowerCase().trim();
+    return webImages.filter((img) => img.label.toLowerCase().includes(q));
+  }, [webImages, gallerySearch]);
+
   // Đổi nhanh trạng thái Tiền xưởng (1 chạm)
   const handleToggleWorkshopPaid = async (order: Order) => {
     const nextPaid = !order.workshopPaid;
-    // Cập nhật giao diện tức thì
     setOrders((prev) =>
       prev.map((o) => (o.id === order.id ? { ...o, workshopPaid: nextPaid } : o))
     );
     try {
       await orderService.toggleWorkshopPaid(order.id, nextPaid);
     } catch {
-      // rollback nếu lỗi
-      loadOrders();
+      loadData();
     }
   };
 
@@ -112,7 +240,7 @@ export const AdminOrdersPage: React.FC = () => {
     try {
       await orderService.updateOrderStatus(order.id, nextStatus);
     } catch {
-      loadOrders();
+      loadData();
     }
   };
 
@@ -120,11 +248,13 @@ export const AdminOrdersPage: React.FC = () => {
   const handleOpenCreateModal = () => {
     setEditingOrder(null);
     setFormImage('');
+    setPasteUrlInput('');
     setFormText('');
     setFormSalePrice(250000);
     setFormWorkshopCost(150000);
     setFormWorkshopPaid(false);
     setFormStatus('new');
+    setPasteNotification('');
     setIsModalOpen(true);
   };
 
@@ -132,11 +262,13 @@ export const AdminOrdersPage: React.FC = () => {
   const handleOpenEditModal = (order: Order) => {
     setEditingOrder(order);
     setFormImage(order.imageUrl || '');
+    setPasteUrlInput(order.imageUrl?.startsWith('http') || order.imageUrl?.startsWith('/') ? order.imageUrl : '');
     setFormText(order.orderText || '');
     setFormSalePrice(order.salePrice || 0);
     setFormWorkshopCost(order.workshopCost || 0);
     setFormWorkshopPaid(Boolean(order.workshopPaid));
     setFormStatus(order.status);
+    setPasteNotification('');
     setIsModalOpen(true);
   };
 
@@ -155,6 +287,7 @@ export const AdminOrdersPage: React.FC = () => {
       const result = event.target?.result as string;
       if (result) {
         setFormImage(result);
+        setPasteUrlInput('');
       }
     };
     reader.readAsDataURL(file);
@@ -173,7 +306,6 @@ export const AdminOrdersPage: React.FC = () => {
     const workshopCost = typeof formWorkshopCost === 'number' ? formWorkshopCost : 0;
 
     if (editingOrder) {
-      // Cập nhật
       const updated: Partial<Order> = {
         imageUrl: formImage,
         orderText: formText.trim(),
@@ -188,7 +320,6 @@ export const AdminOrdersPage: React.FC = () => {
       setIsModalOpen(false);
       await orderService.updateOrder(editingOrder.id, updated);
     } else {
-      // Tạo mới
       const newOrder = await orderService.createOrder({
         imageUrl: formImage,
         orderText: formText.trim(),
@@ -220,7 +351,7 @@ export const AdminOrdersPage: React.FC = () => {
 
   return (
     <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-      {/* HEADER: Tiêu đề + Tìm kiếm + Nút Thêm mới */}
+      {/* HEADER: Tiêu đề + Tìm kiếm + Nút Thêm mới + Xóa sạch */}
       <div
         style={{
           display: 'flex',
@@ -475,7 +606,7 @@ export const AdminOrdersPage: React.FC = () => {
               Không có đơn hàng nào
             </p>
             <p style={{ fontSize: '0.825rem', marginTop: '0.25rem' }}>
-              {searchQuery ? 'Thử tìm với từ khóa khác' : 'Bấm "+ Thêm đơn mới" để tạo đơn đầu tiên'}
+              {searchQuery ? 'Thử tìm với từ khóa khác' : 'Bấm "+ Thêm đơn mới" để bắt đầu nhập đơn'}
             </p>
           </div>
         ) : (
@@ -700,7 +831,7 @@ export const AdminOrdersPage: React.FC = () => {
         )}
       </div>
 
-      {/* MODAL THÊM / SỬA ĐƠN HÀNG SIÊU ĐƠN GIẢN */}
+      {/* MODAL THÊM / SỬA ĐƠN HÀNG */}
       {isModalOpen &&
         createPortal(
           <div
@@ -721,8 +852,8 @@ export const AdminOrdersPage: React.FC = () => {
                 backgroundColor: '#ffffff',
                 borderRadius: '12px',
                 width: '100%',
-                maxWidth: '520px',
-                maxHeight: '90vh',
+                maxWidth: '560px',
+                maxHeight: '92vh',
                 overflowY: 'auto',
                 boxShadow: '0 20px 25px -5px rgba(0,0,0,0.2)',
                 padding: '1.5rem',
@@ -744,11 +875,17 @@ export const AdminOrdersPage: React.FC = () => {
               </div>
 
               <form onSubmit={handleSaveOrder} style={{ display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
-                {/* 1. Chọn Ảnh Mẫu */}
+                {/* 1. KHU VỰC CHỌN ẢNH (3 CÁCH: MÁY / ẢNH WEB / PASTE) */}
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#2c2825', marginBottom: '0.4rem' }}>
-                    1. Ảnh mẫu vải:
-                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.45rem' }}>
+                    <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#2c2825', margin: 0 }}>
+                      1. Ảnh mẫu vải:
+                    </label>
+                    <span style={{ fontSize: '0.725rem', color: '#7c6a59', fontWeight: 500 }}>
+                      📋 Có thể nhấn <strong>Ctrl + V</strong> để dán ảnh đã copy
+                    </span>
+                  </div>
+
                   <input
                     type="file"
                     ref={fileInputRef}
@@ -757,13 +894,34 @@ export const AdminOrdersPage: React.FC = () => {
                     style={{ display: 'none' }}
                   />
 
-                  <div style={{ display: 'flex', gap: '0.85rem', alignItems: 'center' }}>
+                  {/* Thông báo dán ảnh thành công */}
+                  {pasteNotification && (
+                    <div
+                      style={{
+                        padding: '0.35rem 0.65rem',
+                        backgroundColor: '#dcfce7',
+                        color: '#15803d',
+                        borderRadius: '6px',
+                        fontSize: '0.785rem',
+                        fontWeight: 600,
+                        marginBottom: '0.5rem',
+                      }}
+                    >
+                      {pasteNotification}
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', gap: '0.85rem', alignItems: 'flex-start' }}>
+                    {/* Khung xem trước ảnh */}
                     {formImage ? (
-                      <div style={{ position: 'relative', width: '90px', height: '90px', borderRadius: '8px', overflow: 'hidden', border: '1px solid #dcd3c5' }}>
+                      <div style={{ position: 'relative', width: '96px', height: '96px', borderRadius: '8px', overflow: 'hidden', border: '1px solid #dcd3c5', flexShrink: 0 }}>
                         <img src={formImage} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                         <button
                           type="button"
-                          onClick={() => setFormImage('')}
+                          onClick={() => {
+                            setFormImage('');
+                            setPasteUrlInput('');
+                          }}
                           style={{
                             position: 'absolute',
                             top: '4px',
@@ -772,23 +930,24 @@ export const AdminOrdersPage: React.FC = () => {
                             color: '#ffffff',
                             border: 'none',
                             borderRadius: '50%',
-                            width: '20px',
-                            height: '20px',
+                            width: '22px',
+                            height: '22px',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                             cursor: 'pointer',
                           }}
+                          title="Gỡ ảnh"
                         >
-                          <X size={12} />
+                          <X size={13} />
                         </button>
                       </div>
                     ) : (
                       <div
                         onClick={() => fileInputRef.current?.click()}
                         style={{
-                          width: '90px',
-                          height: '90px',
+                          width: '96px',
+                          height: '96px',
                           borderRadius: '8px',
                           border: '2px dashed #dcd3c5',
                           backgroundColor: '#faf8f5',
@@ -799,26 +958,83 @@ export const AdminOrdersPage: React.FC = () => {
                           cursor: 'pointer',
                           color: '#7c6a59',
                           gap: '0.25rem',
+                          flexShrink: 0,
                         }}
+                        title="Bấm để chọn file ảnh hoặc dán ảnh vào đây"
                       >
                         <Upload size={20} />
                         <span style={{ fontSize: '0.7rem', fontWeight: 600 }}>Tải ảnh lên</span>
                       </div>
                     )}
 
-                    <div style={{ flex: 1 }}>
-                      <button
-                        type="button"
-                        onClick={() => fileInputRef.current?.click()}
-                        className="btn btn-outline btn-sm"
-                        style={{ fontSize: '0.8rem', padding: '0.4rem 0.75rem', gap: '0.35rem' }}
-                      >
-                        <Upload size={14} />
-                        <span>{formImage ? 'Đổi ảnh khác' : 'Chọn ảnh từ máy / điện thoại'}</span>
-                      </button>
-                      <p style={{ fontSize: '0.725rem', color: '#8c8073', margin: '0.35rem 0 0 0' }}>
-                        Chụp ảnh Zalo hoặc ảnh mẫu vải để nhìn vào là biết ngay.
-                      </p>
+                    {/* Các nút lựa chọn ảnh */}
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                      <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap' }}>
+                        {/* Nút 1: Chọn ảnh từ máy */}
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          className="btn btn-outline btn-sm"
+                          style={{ fontSize: '0.8rem', padding: '0.4rem 0.65rem', gap: '0.35rem' }}
+                        >
+                          <Upload size={14} />
+                          <span>Từ máy/điện thoại</span>
+                        </button>
+
+                        {/* Nút 2: Chọn từ ảnh trên Web */}
+                        <button
+                          type="button"
+                          onClick={() => setIsGalleryOpen(true)}
+                          className="btn btn-outline btn-sm"
+                          style={{
+                            fontSize: '0.8rem',
+                            padding: '0.4rem 0.65rem',
+                            gap: '0.35rem',
+                            borderColor: '#7c6a59',
+                            color: '#7c6a59',
+                            backgroundColor: '#f5eee6',
+                          }}
+                        >
+                          <Globe size={14} />
+                          <span>Chọn ảnh từ Web ({webImages.length})</span>
+                        </button>
+                      </div>
+
+                      {/* Ô nhập / dán link ảnh trực tiếp */}
+                      <div style={{ position: 'relative' }}>
+                        <input
+                          type="text"
+                          placeholder="Dán link ảnh (URL) hoặc nhấn Ctrl+V dán ảnh"
+                          value={pasteUrlInput}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setPasteUrlInput(val);
+                            if (val.trim().startsWith('http') || val.trim().startsWith('/')) {
+                              setFormImage(val.trim());
+                            }
+                          }}
+                          style={{
+                            width: '100%',
+                            padding: '0.4rem 0.65rem 0.4rem 1.85rem',
+                            fontSize: '0.785rem',
+                            borderRadius: '6px',
+                            border: '1px solid #dcd3c5',
+                            backgroundColor: '#faf8f5',
+                            boxSizing: 'border-box',
+                            outline: 'none',
+                          }}
+                        />
+                        <ClipboardPaste
+                          size={13}
+                          style={{
+                            position: 'absolute',
+                            left: '8px',
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            color: '#9c8f80',
+                          }}
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -970,6 +1186,164 @@ export const AdminOrdersPage: React.FC = () => {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {/* MODAL CHỌN ẢNH TỪ KHO ẢNH WEB */}
+      {isGalleryOpen &&
+        createPortal(
+          <div
+            style={{
+              position: 'fixed',
+              inset: 0,
+              backgroundColor: 'rgba(0,0,0,0.6)',
+              zIndex: 10001,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '1rem',
+            }}
+            onClick={() => setIsGalleryOpen(false)}
+          >
+            <div
+              style={{
+                backgroundColor: '#ffffff',
+                borderRadius: '12px',
+                width: '100%',
+                maxWidth: '680px',
+                maxHeight: '85vh',
+                display: 'flex',
+                flexDirection: 'column',
+                boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
+                overflow: 'hidden',
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header Gallery */}
+              <div
+                style={{
+                  padding: '1rem 1.25rem',
+                  borderBottom: '1px solid #e8e1d5',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  backgroundColor: '#faf8f5',
+                }}
+              >
+                <div>
+                  <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#2c2825', margin: 0 }}>
+                    Chọn Ảnh Mẫu Từ Website ({filteredWebImages.length} ảnh)
+                  </h3>
+                  <p style={{ fontSize: '0.785rem', color: '#685e54', margin: '2px 0 0 0' }}>
+                    Bấm vào 1 ảnh để tự động gán vào đơn hàng
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsGalleryOpen(false)}
+                  style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#8c8073' }}
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* Ô tìm kiếm trong Gallery */}
+              <div style={{ padding: '0.75rem 1.25rem', borderBottom: '1px solid #f0ebe4' }}>
+                <div style={{ position: 'relative' }}>
+                  <Search size={15} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#9c8f80' }} />
+                  <input
+                    type="text"
+                    placeholder="Tìm tên sản phẩm, màu sắc vải..."
+                    value={gallerySearch}
+                    onChange={(e) => setGallerySearch(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '0.45rem 0.65rem 0.45rem 2rem',
+                      fontSize: '0.85rem',
+                      borderRadius: '6px',
+                      border: '1px solid #dcd3c5',
+                      outline: 'none',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                  {gallerySearch && (
+                    <button
+                      type="button"
+                      onClick={() => setGallerySearch('')}
+                      style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', border: 'none', background: 'transparent', cursor: 'pointer', color: '#9c8f80' }}
+                    >
+                      <X size={13} />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Lưới ảnh */}
+              <div style={{ flex: 1, overflowY: 'auto', padding: '1rem 1.25rem' }}>
+                {filteredWebImages.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '2.5rem 1rem', color: '#8c8073' }}>
+                    <p style={{ margin: 0 }}>Không tìm thấy ảnh phù hợp</p>
+                  </div>
+                ) : (
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))',
+                      gap: '0.65rem',
+                    }}
+                  >
+                    {filteredWebImages.map((img, i) => (
+                      <div
+                        key={`${img.url}-${i}`}
+                        onClick={() => {
+                          setFormImage(img.url);
+                          setPasteUrlInput(img.url);
+                          setIsGalleryOpen(false);
+                        }}
+                        style={{
+                          aspectRatio: '1',
+                          borderRadius: '8px',
+                          overflow: 'hidden',
+                          border: formImage === img.url ? '3px solid #7c6a59' : '1px solid #e5ded5',
+                          cursor: 'pointer',
+                          backgroundColor: '#f5eee6',
+                          transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+                          position: 'relative',
+                        }}
+                        title={img.label}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.transform = 'scale(1.04)';
+                          e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.12)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.transform = 'scale(1)';
+                          e.currentTarget.style.boxShadow = 'none';
+                        }}
+                      >
+                        <img
+                          src={img.url}
+                          alt={img.label}
+                          loading="lazy"
+                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Footer Gallery */}
+              <div style={{ padding: '0.75rem 1.25rem', borderTop: '1px solid #e8e1d5', textAlign: 'right', backgroundColor: '#faf8f5' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsGalleryOpen(false)}
+                  className="btn btn-outline btn-sm"
+                >
+                  Đóng
+                </button>
+              </div>
             </div>
           </div>,
           document.body
