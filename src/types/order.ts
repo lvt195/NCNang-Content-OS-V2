@@ -20,23 +20,29 @@ export interface OrderItem {
 
 export interface Order {
   id: string;               // Mã đơn hàng (vd: "DH-1001", "DH-2610-01")
-  customerName: string;     // Tên khách hàng
-  customerPhone: string;    // Số điện thoại
-  customerAddress?: string; // Địa chỉ giao hàng
-  trackingCode?: string;    // Mã vận đơn (GHTK, Viettel Post...)
-  items: OrderItem[];       // Các món đặt (thường có 1 ảnh đại diện cho mẫu chính)
-  totalAmount: number;      // Tổng tiền khách phải thanh toán (VND)
-  workshopTotalCost: number;// Tổng tiền xưởng may / vải (VND)
-  shippingFee: number;      // Tiền ship (VND)
-  customerPaid: boolean;    // Khách đã trả tiền chưa (hoặc thu COD)
-  workshopPaid: boolean;    // Đã trả tiền xưởng chưa
-  workshopPaidDate?: string;// Ngày thanh toán cho xưởng
+  imageUrl: string;         // 1 ảnh đại diện để biết mẫu nào (upload từ máy hoặc link)
+  orderText: string;        // Text thông tin đơn: Tên khách, SĐT, mẫu vải, kích thước, ghi chú
+  salePrice: number;        // Giá bán cho khách (VND)
+  workshopCost: number;     // Giá vốn / tiền xưởng may (VND)
+  workshopPaid: boolean;    // Đã trả tiền xưởng chưa (true/false)
   status: OrderStatus;      // Trạng thái đơn
-  notes?: string;           // Ghi chú đơn hàng (dặn dò xưởng hoặc khách)
-  orderDate: string;        // Ngày nhận đơn (YYYY-MM-DD hoặc ISO)
-  deliveredDate?: string;   // Ngày giao hàng
+  notes?: string;           // Ghi chú thêm (nếu có)
   createdAt: string;
-  updatedAt: string;
+  updatedAt?: string;
+
+  // Trường hỗ trợ tương thích ngược với dữ liệu cũ
+  customerName?: string;
+  customerPhone?: string;
+  customerAddress?: string;
+  trackingCode?: string;
+  items?: OrderItem[];
+  totalAmount?: number;
+  workshopTotalCost?: number;
+  shippingFee?: number;
+  customerPaid?: boolean;
+  workshopPaidDate?: string;
+  orderDate?: string;
+  deliveredDate?: string;
 }
 
 export interface OrderSummary {

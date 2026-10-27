@@ -1,972 +1,667 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  ShoppingBag,
-  PlusCircle,
+  Plus,
   Search,
-  CheckCircle2,
-  Clock,
-  Truck,
   Check,
   X,
-  AlertCircle,
-  Copy,
-  Phone,
-  MapPin,
-  Maximize2,
-  Layers,
+  Upload,
+  Image as ImageIcon,
   Edit2,
   Trash2,
+  AlertCircle,
   RotateCcw,
-  CreditCard,
-  Send,
 } from 'lucide-react';
-import { Order, OrderStatus, OrderSummary, ORDER_STATUS_CONFIG } from '../types/order';
+import { Order, OrderStatus, ORDER_STATUS_CONFIG } from '../types/order';
 import { orderService } from '../services/orderService';
-import { productService } from '../services/productService';
-import { Product } from '../types/product';
 import { formatVND } from '../utils/formatCurrency';
-import { getColorOption } from '../data/colors';
 
 export const AdminOrdersPage: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
-  const [successMsg, setSuccessMsg] = useState('');
-  const [errorMsg, setErrorMsg] = useState('');
-
-  // Filters
-  const [statusFilter, setStatusFilter] = useState<'all' | OrderStatus>('all');
-  const [workshopPaidFilter, setWorkshopPaidFilter] = useState<'all' | 'paid' | 'unpaid'>('all');
+  const [filterTab, setFilterTab] = useState<'all' | 'new' | 'workshop_processing' | 'shipping' | 'completed' | 'unpaid'>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Modals
+  // Modal Thêm / Sửa
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
-  const [zoomedImage, setZoomedImage] = useState<{ url: string; title: string; color?: string } | null>(null);
+
+  // Form State cực kỳ đơn giản
+  const [formImage, setFormImage] = useState<string>('');
+  const [formText, setFormText] = useState<string>('');
+  const [formSalePrice, setFormSalePrice] = useState<number | ''>(250000);
+  const [formWorkshopCost, setFormWorkshopCost] = useState<number | ''>(150000);
+  const [formWorkshopPaid, setFormWorkshopPaid] = useState<boolean>(false);
+  const [formStatus, setFormStatus] = useState<OrderStatus>('new');
+
+  // Modal Xóa
   const [orderToDelete, setOrderToDelete] = useState<Order | null>(null);
 
-  // Form State for Create/Edit Modal
-  const [formData, setFormData] = useState({
-    id: '',
-    customerName: '',
-    customerPhone: '',
-    customerAddress: '',
-    trackingCode: '',
-    productName: '',
-    productId: '',
-    imageUrl: '',
-    color: '',
-    size: '',
-    quantity: 1,
-    unitPrice: 240000,
-    workshopCost: 150000,
-    shippingFee: 30000,
-    customerPaid: false,
-    workshopPaid: false,
-    workshopPaidDate: '',
-    status: 'new' as OrderStatus,
-    notes: '',
-    orderDate: new Date().toISOString().split('T')[0],
-  });
+  // Phóng to ảnh (Lightbox)
+  const [zoomedImage, setZoomedImage] = useState<string | null>(null);
 
-  const loadData = async () => {
+  // Ref cho input chọn file ảnh từ máy
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const loadOrders = async () => {
     setLoading(true);
     try {
-      const [orderList, prodList] = await Promise.all([
-        orderService.getOrders(),
-        productService.getAllProductsAdmin().catch(() => []),
-      ]);
-      setOrders(orderList);
-      setProducts(prodList);
-    } catch (err: unknown) {
-      setErrorMsg(err instanceof Error ? err.message : 'Lỗi tải đơn hàng');
+      const list = await orderService.getOrders();
+      setOrders(list);
+    } catch (err) {
+      console.error('Lỗi tải danh sách đơn:', err);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadData();
+    loadOrders();
   }, []);
 
-  const summary: OrderSummary = useMemo(() => {
-    return orderService.getSummary(orders);
+  // Bộ đếm số đơn
+  const counts = useMemo(() => {
+    return {
+      all: orders.length,
+      new: orders.filter((o) => o.status === 'new').length,
+      processing: orders.filter((o) => o.status === 'workshop_processing').length,
+      shipping: orders.filter((o) => o.status === 'shipping').length,
+      completed: orders.filter((o) => o.status === 'completed').length,
+      unpaid: orders.filter((o) => !o.workshopPaid && o.status !== 'cancelled').length,
+    };
   }, [orders]);
 
-  // Filtered orders
+  // Lọc danh sách theo tab & từ khóa
   const filteredOrders = useMemo(() => {
     return orders.filter((order) => {
-      // Status filter
-      if (statusFilter !== 'all' && order.status !== statusFilter) {
-        return false;
-      }
+      // Lọc tab
+      if (filterTab === 'new' && order.status !== 'new') return false;
+      if (filterTab === 'workshop_processing' && order.status !== 'workshop_processing') return false;
+      if (filterTab === 'shipping' && order.status !== 'shipping') return false;
+      if (filterTab === 'completed' && order.status !== 'completed') return false;
+      if (filterTab === 'unpaid' && (order.workshopPaid || order.status === 'cancelled')) return false;
 
-      // Workshop paid filter
-      if (workshopPaidFilter === 'paid') {
-        if (!order.workshopPaid && order.status !== 'workshop_paid') return false;
-      } else if (workshopPaidFilter === 'unpaid') {
-        if (order.workshopPaid || order.status === 'workshop_paid') return false;
-      }
-
-      // Search Query
+      // Tìm kiếm text
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
         const matchId = order.id.toLowerCase().includes(q);
-        const matchCustomer = order.customerName.toLowerCase().includes(q);
-        const matchPhone = order.customerPhone.replace(/\s+/g, '').includes(q.replace(/\s+/g, ''));
-        const matchTracking = (order.trackingCode || '').toLowerCase().includes(q);
-        const matchProduct = order.items.some((i) => i.productName.toLowerCase().includes(q) || (i.color || '').toLowerCase().includes(q));
-        if (!matchId && !matchCustomer && !matchPhone && !matchTracking && !matchProduct) {
-          return false;
-        }
+        const matchText = (order.orderText || '').toLowerCase().includes(q);
+        if (!matchId && !matchText) return false;
       }
-
       return true;
     });
-  }, [orders, statusFilter, workshopPaidFilter, searchQuery]);
+  }, [orders, filterTab, searchQuery]);
 
-  // Handlers for quick status changes
-  const handleStatusChange = async (orderId: string, newStatus: OrderStatus) => {
+  // Đổi nhanh trạng thái Tiền xưởng (1 chạm)
+  const handleToggleWorkshopPaid = async (order: Order) => {
+    const nextPaid = !order.workshopPaid;
+    // Cập nhật giao diện tức thì
+    setOrders((prev) =>
+      prev.map((o) => (o.id === order.id ? { ...o, workshopPaid: nextPaid } : o))
+    );
     try {
-      const updated = await orderService.updateOrderStatus(orderId, newStatus);
-      setOrders((prev) => prev.map((o) => (o.id === orderId ? updated : o)));
-      setSuccessMsg(`Đã cập nhật trạng thái đơn ${orderId} sang "${ORDER_STATUS_CONFIG[newStatus].label}"`);
-      setTimeout(() => setSuccessMsg(''), 3000);
-    } catch (err: unknown) {
-      setErrorMsg(err instanceof Error ? err.message : 'Lỗi cập nhật');
+      await orderService.toggleWorkshopPaid(order.id, nextPaid);
+    } catch {
+      // rollback nếu lỗi
+      loadOrders();
     }
   };
 
-  const handleToggleWorkshopPaid = async (orderId: string, currentPaid: boolean) => {
-    const nextState = !currentPaid;
+  // Đổi trạng thái đơn nhanh
+  const handleChangeStatus = async (order: Order, nextStatus: OrderStatus) => {
+    setOrders((prev) =>
+      prev.map((o) => (o.id === order.id ? { ...o, status: nextStatus } : o))
+    );
     try {
-      const updated = await orderService.toggleWorkshopPaid(orderId, nextState);
-      setOrders((prev) => prev.map((o) => (o.id === orderId ? updated : o)));
-      setSuccessMsg(nextState ? `Đã xác nhận thanh toán tiền xưởng cho đơn ${orderId}` : `Đã chuyển đơn ${orderId} về chưa thanh toán xưởng`);
-      setTimeout(() => setSuccessMsg(''), 3000);
-    } catch (err: unknown) {
-      setErrorMsg(err instanceof Error ? err.message : 'Lỗi cập nhật tiền xưởng');
+      await orderService.updateOrderStatus(order.id, nextStatus);
+    } catch {
+      loadOrders();
     }
   };
 
-  // Open Create Modal
+  // Mở modal thêm mới
   const handleOpenCreateModal = () => {
-    const nextId = orderService.generateNextOrderId();
-    const defaultProduct = products[0];
     setEditingOrder(null);
-    setFormData({
-      id: nextId,
-      customerName: '',
-      customerPhone: '',
-      customerAddress: '',
-      trackingCode: '',
-      productName: defaultProduct?.name || 'Combo 4 món đũi tre cotton',
-      productId: defaultProduct?.id || '',
-      imageUrl: defaultProduct?.coverImage || defaultProduct?.images?.[0] || 'https://sbtngmjupjsbvxckeshe.supabase.co/storage/v1/object/public/product-images/SP785/1792147545122_6.jpg',
-      color: defaultProduct?.colors?.[0] || 'Xanh Cốm',
-      size: defaultProduct?.sizes?.[0] || '1m8 x 2m x 20cm',
-      quantity: 1,
-      unitPrice: defaultProduct?.price || 240000,
-      workshopCost: 155000,
-      shippingFee: 30000,
-      customerPaid: false,
-      workshopPaid: false,
-      workshopPaidDate: '',
-      status: 'new',
-      notes: '',
-      orderDate: new Date().toISOString().split('T')[0],
-    });
+    setFormImage('');
+    setFormText('');
+    setFormSalePrice(250000);
+    setFormWorkshopCost(150000);
+    setFormWorkshopPaid(false);
+    setFormStatus('new');
     setIsModalOpen(true);
   };
 
-  // Open Edit Modal
+  // Mở modal sửa
   const handleOpenEditModal = (order: Order) => {
     setEditingOrder(order);
-    const item = order.items[0] || {
-      productName: '',
-      quantity: 1,
-      unitPrice: order.totalAmount,
-    };
-    setFormData({
-      id: order.id,
-      customerName: order.customerName,
-      customerPhone: order.customerPhone,
-      customerAddress: order.customerAddress || '',
-      trackingCode: order.trackingCode || '',
-      productName: item.productName || '',
-      productId: item.productId || '',
-      imageUrl: item.imageUrl || '',
-      color: item.color || '',
-      size: item.size || '',
-      quantity: item.quantity || 1,
-      unitPrice: item.unitPrice || 0,
-      workshopCost: item.workshopCost || order.workshopTotalCost || 0,
-      shippingFee: order.shippingFee || 0,
-      customerPaid: order.customerPaid || false,
-      workshopPaid: order.workshopPaid || false,
-      workshopPaidDate: order.workshopPaidDate || '',
-      status: order.status,
-      notes: order.notes || '',
-      orderDate: order.orderDate || order.createdAt.split('T')[0],
-    });
+    setFormImage(order.imageUrl || '');
+    setFormText(order.orderText || '');
+    setFormSalePrice(order.salePrice || 0);
+    setFormWorkshopCost(order.workshopCost || 0);
+    setFormWorkshopPaid(Boolean(order.workshopPaid));
+    setFormStatus(order.status);
     setIsModalOpen(true);
   };
 
-  // Select a product from catalog in the modal
-  const handleSelectCatalogProduct = (prodId: string) => {
-    const prod = products.find((p) => p.id === prodId);
-    if (!prod) return;
-    setFormData((prev) => ({
-      ...prev,
-      productId: prod.id,
-      productName: prod.name,
-      imageUrl: prod.coverImage || prod.images?.[0] || prev.imageUrl,
-      unitPrice: prod.price,
-      color: prod.colors?.[0] || prev.color,
-      size: prod.sizes?.[0] || prev.size,
-    }));
-  };
+  // Xử lý chọn ảnh từ máy tính / điện thoại
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-  // Save Order
-  const handleSaveOrder = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formData.customerName.trim() || !formData.customerPhone.trim()) {
-      setErrorMsg('Vui lòng điền tên khách hàng và số điện thoại.');
+    if (!file.type.startsWith('image/')) {
+      alert('Vui lòng chọn file hình ảnh (JPG, PNG, WebP)');
       return;
     }
 
-    const calculatedTotal = formData.unitPrice * formData.quantity + formData.shippingFee;
-    const calculatedWorkshopTotal = formData.workshopCost * formData.quantity;
-
-    const orderPayload: Omit<Order, 'createdAt' | 'updatedAt'> = {
-      id: formData.id.trim() || orderService.generateNextOrderId(),
-      customerName: formData.customerName.trim(),
-      customerPhone: formData.customerPhone.trim(),
-      customerAddress: formData.customerAddress.trim(),
-      trackingCode: formData.trackingCode.trim(),
-      items: [
-        {
-          productId: formData.productId,
-          productName: formData.productName.trim() || 'Sản phẩm chăn ga',
-          imageUrl: formData.imageUrl.trim() || '/images/placeholder.webp',
-          color: formData.color.trim(),
-          size: formData.size.trim(),
-          quantity: Number(formData.quantity) || 1,
-          unitPrice: Number(formData.unitPrice) || 0,
-          workshopCost: Number(formData.workshopCost) || 0,
-        },
-      ],
-      totalAmount: calculatedTotal,
-      workshopTotalCost: calculatedWorkshopTotal,
-      shippingFee: Number(formData.shippingFee) || 0,
-      customerPaid: formData.customerPaid,
-      workshopPaid: formData.workshopPaid,
-      workshopPaidDate: formData.workshopPaid ? (formData.workshopPaidDate || new Date().toISOString().split('T')[0]) : undefined,
-      status: formData.status,
-      notes: formData.notes.trim(),
-      orderDate: formData.orderDate || new Date().toISOString().split('T')[0],
-    };
-
-    try {
-      if (editingOrder) {
-        const updated = await orderService.updateOrder(editingOrder.id, orderPayload);
-        setOrders((prev) => prev.map((o) => (o.id === editingOrder.id ? updated : o)));
-        setSuccessMsg(`Đã cập nhật đơn hàng ${updated.id} thành công!`);
-      } else {
-        const created = await orderService.createOrder(orderPayload);
-        setOrders((prev) => [created, ...prev]);
-        setSuccessMsg(`Đã tạo đơn hàng mới ${created.id} thành công!`);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const result = event.target?.result as string;
+      if (result) {
+        setFormImage(result);
       }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Lưu đơn (Thêm mới hoặc Cập nhật)
+  const handleSaveOrder = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!formText.trim()) {
+      alert('Vui lòng nhập thông tin đơn (tên khách / mẫu vải / kích thước...)');
+      return;
+    }
+
+    const salePrice = typeof formSalePrice === 'number' ? formSalePrice : 0;
+    const workshopCost = typeof formWorkshopCost === 'number' ? formWorkshopCost : 0;
+
+    if (editingOrder) {
+      // Cập nhật
+      const updated: Partial<Order> = {
+        imageUrl: formImage,
+        orderText: formText.trim(),
+        salePrice,
+        workshopCost,
+        workshopPaid: formWorkshopPaid,
+        status: formStatus,
+      };
+      setOrders((prev) =>
+        prev.map((o) => (o.id === editingOrder.id ? { ...o, ...updated } : o))
+      );
       setIsModalOpen(false);
-      setTimeout(() => setSuccessMsg(''), 3000);
-    } catch (err: unknown) {
-      setErrorMsg(err instanceof Error ? err.message : 'Lỗi khi lưu đơn hàng');
+      await orderService.updateOrder(editingOrder.id, updated);
+    } else {
+      // Tạo mới
+      const newOrder = await orderService.createOrder({
+        imageUrl: formImage,
+        orderText: formText.trim(),
+        salePrice,
+        workshopCost,
+        workshopPaid: formWorkshopPaid,
+        status: formStatus,
+      });
+      setOrders((prev) => [newOrder, ...prev]);
+      setIsModalOpen(false);
     }
   };
 
-  // Delete Order
-  const handleDeleteOrder = async () => {
+  // Xóa đơn
+  const handleDeleteConfirm = async () => {
     if (!orderToDelete) return;
-    try {
-      await orderService.deleteOrder(orderToDelete.id);
-      setOrders((prev) => prev.filter((o) => o.id !== orderToDelete.id));
-      setSuccessMsg(`Đã xóa đơn hàng ${orderToDelete.id}`);
-      setOrderToDelete(null);
-      setTimeout(() => setSuccessMsg(''), 3000);
-    } catch (err: unknown) {
-      setErrorMsg(err instanceof Error ? err.message : 'Lỗi xóa đơn hàng');
-    }
-  };
-
-  // Copy order message for Workshop
-  const handleCopyWorkshopMessage = (order: Order) => {
-    const item = order.items[0];
-    const text = `📋 ĐƠN MAY XƯỞNG (${order.id})\n` +
-      `- Mẫu: ${item?.productName || 'Chăn ga'}\n` +
-      `- Màu sắc: ${item?.color || 'Theo mẫu'}\n` +
-      `- Kích thước: ${item?.size || 'Tiêu chuẩn'}\n` +
-      `- Số lượng: ${item?.quantity || 1} bộ\n` +
-      `- Tiền xưởng: ${formatVND(order.workshopTotalCost)}\n` +
-      `- Dặn dò: ${order.notes || item?.note || 'May kỹ giùm em'}`;
-    navigator.clipboard.writeText(text);
-    setSuccessMsg(`Đã sao chép tin nhắn gửi xưởng cho đơn ${order.id}!`);
-    setTimeout(() => setSuccessMsg(''), 2500);
-  };
-
-  // Copy order message for Customer/Shipper
-  const handleCopyCustomerMessage = (order: Order) => {
-    const item = order.items[0];
-    const text = `📦 ĐƠN HÀNG NHÀ CÓ MÙI NẮNG (${order.id})\n` +
-      `- Khách: ${order.customerName} - ${order.customerPhone}\n` +
-      `- Địa chỉ: ${order.customerAddress || 'Nhận tại tiệm'}\n` +
-      `- Mẫu: ${item?.productName} (${item?.color} - ${item?.size}) x${item?.quantity}\n` +
-      `- Thu hộ COD: ${order.customerPaid ? '0đ (Đã thanh toán trước)' : formatVND(order.totalAmount)}\n` +
-      (order.trackingCode ? `- Mã vận đơn: ${order.trackingCode}\n` : '') +
-      `- Ghi chú: ${order.notes || 'Hàng vải đũi tự nhiên'}`;
-    navigator.clipboard.writeText(text);
-    setSuccessMsg(`Đã sao chép thông tin gửi khách/shipper đơn ${order.id}!`);
-    setTimeout(() => setSuccessMsg(''), 2500);
+    const id = orderToDelete.id;
+    setOrders((prev) => prev.filter((o) => o.id !== id));
+    setOrderToDelete(null);
+    await orderService.deleteOrder(id);
   };
 
   return (
-    <div style={{ maxWidth: '1440px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-      {/* Top Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
+    <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+      {/* HEADER: Tiêu đề + Tìm kiếm + Nút Thêm mới */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '1rem',
+          backgroundColor: '#ffffff',
+          padding: '1.25rem 1.5rem',
+          borderRadius: '12px',
+          border: '1px solid #e8e1d5',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+        }}
+      >
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-            <h1 style={{ fontSize: '1.6rem', fontWeight: 600, color: '#2c2825', margin: 0 }}>
-              Quản lý & Check đơn hàng
+            <h1 style={{ fontSize: '1.45rem', fontWeight: 700, color: '#2c2825', margin: 0 }}>
+              Check Đơn Hàng
             </h1>
             <span
               style={{
-                backgroundColor: 'var(--accent-warm-tint, #f5efe6)',
-                color: 'var(--accent-brown, #7c6a59)',
-                padding: '0.2rem 0.65rem',
+                fontSize: '0.85rem',
+                fontWeight: 700,
+                color: '#7c6a59',
+                backgroundColor: '#f5eee6',
+                padding: '3px 10px',
                 borderRadius: '16px',
-                fontSize: '0.8rem',
-                fontWeight: 600,
-                border: '1px solid #e5d8cb',
               }}
             >
-              {orders.length} đơn
+              Tổng {counts.all} đơn
             </span>
           </div>
-          <p style={{ fontSize: '0.875rem', color: '#685e54', marginTop: '0.25rem', margin: 0 }}>
-            Kiểm tra tiến độ đơn mới, xưởng may, tiền xưởng và tình trạng ship hàng
+          <p style={{ fontSize: '0.825rem', color: '#685e54', margin: '0.25rem 0 0 0' }}>
+            Theo dõi mẫu vải, giá bán, tiền xưởng và tiến độ giao hàng
           </p>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
-          <button
-            type="button"
-            className="btn btn-outline btn-sm"
-            onClick={loadData}
-            title="Làm mới danh sách"
-          >
-            <RotateCcw size={15} />
-            <span>Làm mới</span>
-          </button>
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={handleOpenCreateModal}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}
-          >
-            <PlusCircle size={17} />
-            <span>Thêm đơn hàng</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Notifications */}
-      {successMsg && (
-        <div style={{ backgroundColor: '#edf7ed', border: '1px solid #c8e6c9', color: '#1b5e20', padding: '0.75rem 1rem', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem' }}>
-          <CheckCircle2 size={18} />
-          <span>{successMsg}</span>
-        </div>
-      )}
-      {errorMsg && (
-        <div style={{ backgroundColor: '#fdeeed', border: '1px solid #f9c7c4', color: '#b71c1c', padding: '0.75rem 1rem', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem' }}>
-          <AlertCircle size={18} />
-          <span>{errorMsg}</span>
-        </div>
-      )}
-
-      {/* Top Summary Metric Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
-        {/* Metric 1: Đơn mới */}
-        <div
-          onClick={() => setStatusFilter(statusFilter === 'new' ? 'all' : 'new')}
-          style={{
-            backgroundColor: '#ffffff',
-            borderRadius: '10px',
-            padding: '1.15rem',
-            border: statusFilter === 'new' ? '2px solid #2563eb' : '1px solid var(--border-subtle, #e8e1d5)',
-            cursor: 'pointer',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
-            transition: 'all 0.15s ease',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.45rem' }}>
-            <span style={{ fontSize: '0.825rem', fontWeight: 600, color: '#4b5563', textTransform: 'uppercase' }}>Đơn mới</span>
-            <div style={{ width: '28px', height: '28px', borderRadius: '6px', backgroundColor: '#eff6ff', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Clock size={16} />
-            </div>
-          </div>
-          <div style={{ fontSize: '1.6rem', fontWeight: 700, color: '#1f2937' }}>
-            {summary.newOrders}
-          </div>
-          <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>Chờ xác nhận & gửi xưởng</span>
-        </div>
-
-        {/* Metric 2: Xưởng đang may */}
-        <div
-          onClick={() => setStatusFilter(statusFilter === 'workshop_processing' ? 'all' : 'workshop_processing')}
-          style={{
-            backgroundColor: '#ffffff',
-            borderRadius: '10px',
-            padding: '1.15rem',
-            border: statusFilter === 'workshop_processing' ? '2px solid #d97706' : '1px solid var(--border-subtle, #e8e1d5)',
-            cursor: 'pointer',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
-            transition: 'all 0.15s ease',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.45rem' }}>
-            <span style={{ fontSize: '0.825rem', fontWeight: 600, color: '#4b5563', textTransform: 'uppercase' }}>Xưởng đang may</span>
-            <div style={{ width: '28px', height: '28px', borderRadius: '6px', backgroundColor: '#fef3c7', color: '#d97706', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Layers size={16} />
-            </div>
-          </div>
-          <div style={{ fontSize: '1.6rem', fontWeight: 700, color: '#1f2937' }}>
-            {summary.workshopProcessingOrders}
-          </div>
-          <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>Đang may theo kích thước</span>
-        </div>
-
-        {/* Metric 3: Đã trả tiền xưởng (User emphasis!) */}
-        <div
-          onClick={() => setWorkshopPaidFilter(workshopPaidFilter === 'paid' ? 'all' : 'paid')}
-          style={{
-            backgroundColor: '#ffffff',
-            borderRadius: '10px',
-            padding: '1.15rem',
-            border: workshopPaidFilter === 'paid' ? '2px solid #7c3aed' : '1px solid var(--border-subtle, #e8e1d5)',
-            cursor: 'pointer',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
-            transition: 'all 0.15s ease',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.45rem' }}>
-            <span style={{ fontSize: '0.825rem', fontWeight: 600, color: '#4b5563', textTransform: 'uppercase' }}>Đã trả xưởng</span>
-            <div style={{ width: '28px', height: '28px', borderRadius: '6px', backgroundColor: '#ede9fe', color: '#7c3aed', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <CreditCard size={16} />
-            </div>
-          </div>
-          <div style={{ fontSize: '1.35rem', fontWeight: 700, color: '#7c3aed' }}>
-            {formatVND(summary.paidWorkshopAmount)}
-          </div>
-          <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
-            {orders.filter((o) => o.workshopPaid).length} đơn đã thanh toán
-          </span>
-        </div>
-
-        {/* Metric 4: Đang ship */}
-        <div
-          onClick={() => setStatusFilter(statusFilter === 'shipping' ? 'all' : 'shipping')}
-          style={{
-            backgroundColor: '#ffffff',
-            borderRadius: '10px',
-            padding: '1.15rem',
-            border: statusFilter === 'shipping' ? '2px solid #0284c7' : '1px solid var(--border-subtle, #e8e1d5)',
-            cursor: 'pointer',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
-            transition: 'all 0.15s ease',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.45rem' }}>
-            <span style={{ fontSize: '0.825rem', fontWeight: 600, color: '#4b5563', textTransform: 'uppercase' }}>Đang ship</span>
-            <div style={{ width: '28px', height: '28px', borderRadius: '6px', backgroundColor: '#e0f2fe', color: '#0284c7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Truck size={16} />
-            </div>
-          </div>
-          <div style={{ fontSize: '1.6rem', fontWeight: 700, color: '#1f2937' }}>
-            {summary.shippingOrders}
-          </div>
-          <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>Shipper đang giao khách</span>
-        </div>
-
-        {/* Metric 5: Tiền xưởng còn nợ */}
-        <div
-          onClick={() => setWorkshopPaidFilter(workshopPaidFilter === 'unpaid' ? 'all' : 'unpaid')}
-          style={{
-            backgroundColor: '#ffffff',
-            borderRadius: '10px',
-            padding: '1.15rem',
-            border: workshopPaidFilter === 'unpaid' ? '2px solid #ea580c' : '1px solid var(--border-subtle, #e8e1d5)',
-            cursor: 'pointer',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
-            transition: 'all 0.15s ease',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.45rem' }}>
-            <span style={{ fontSize: '0.825rem', fontWeight: 600, color: '#b45309', textTransform: 'uppercase' }}>Xưởng cần trả</span>
-            <div style={{ width: '28px', height: '28px', borderRadius: '6px', backgroundColor: '#ffedd5', color: '#ea580c', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <AlertCircle size={16} />
-            </div>
-          </div>
-          <div style={{ fontSize: '1.35rem', fontWeight: 700, color: '#ea580c' }}>
-            {formatVND(summary.unpaidWorkshopAmount)}
-          </div>
-          <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
-            {orders.filter((o) => !o.workshopPaid && o.status !== 'cancelled').length} đơn chưa trả xưởng
-          </span>
-        </div>
-      </div>
-
-      {/* Filter and Search Bar */}
-      <div
-        style={{
-          backgroundColor: '#ffffff',
-          borderRadius: '10px',
-          padding: '1rem 1.25rem',
-          border: '1px solid var(--border-subtle, #e8e1d5)',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '0.85rem',
-        }}
-      >
-        {/* Search input + workshop paid filter pills */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
-          {/* Search box */}
-          <div style={{ position: 'relative', flex: '1', minWidth: '260px' }}>
-            <Search size={16} style={{ position: 'absolute', top: '50%', left: '12px', transform: 'translateY(-50%)', color: '#9ca3af' }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+          {/* Ô tìm kiếm */}
+          <div style={{ position: 'relative', width: '220px' }}>
+            <Search size={15} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#9c8f80' }} />
             <input
               type="text"
-              placeholder="Tìm theo tên khách, SĐT, mã đơn, mẫu vải..."
-              className="form-input"
+              placeholder="Tìm khách, mẫu vải..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              style={{ paddingLeft: '2.25rem', width: '100%' }}
+              style={{
+                width: '100%',
+                padding: '0.45rem 0.65rem 0.45rem 2rem',
+                fontSize: '0.85rem',
+                borderRadius: '8px',
+                border: '1px solid #dcd3c5',
+                backgroundColor: '#faf8f5',
+                color: '#2c2825',
+                outline: 'none',
+              }}
             />
             {searchQuery && (
               <button
                 type="button"
                 onClick={() => setSearchQuery('')}
-                style={{ position: 'absolute', top: '50%', right: '10px', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer' }}
+                style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', border: 'none', background: 'transparent', cursor: 'pointer', color: '#9c8f80' }}
               >
-                <X size={15} />
+                <X size={13} />
               </button>
             )}
           </div>
 
-          {/* Quick filter by workshop paid status */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '0.8rem', color: '#6b7280', fontWeight: 500 }}>Tiền xưởng:</span>
-            {[
-              { id: 'all', label: 'Tất cả' },
-              { id: 'unpaid', label: '⚠️ Chưa trả xưởng' },
-              { id: 'paid', label: '✓ Đã trả xưởng' },
-            ].map((f) => (
-              <button
-                key={f.id}
-                type="button"
-                className={`filter-chip ${workshopPaidFilter === f.id ? 'active' : ''}`}
-                onClick={() => setWorkshopPaidFilter(f.id as any)}
-                style={{ padding: '0.28rem 0.65rem', fontSize: '0.785rem' }}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Status Tabs */}
-        <div style={{ display: 'flex', gap: '0.45rem', overflowX: 'auto', paddingBottom: '0.25rem', borderTop: '1px solid #f3ede2', paddingTop: '0.75rem', scrollbarWidth: 'none' }}>
+          {/* Nút Thêm đơn mới */}
           <button
             type="button"
-            className={`filter-chip ${statusFilter === 'all' ? 'active' : ''}`}
-            onClick={() => setStatusFilter('all')}
-            style={{ flexShrink: 0 }}
+            onClick={handleOpenCreateModal}
+            className="btn btn-primary"
+            style={{
+              gap: '0.45rem',
+              fontWeight: 600,
+              fontSize: '0.9rem',
+              padding: '0.55rem 1.15rem',
+              boxShadow: '0 2px 6px rgba(124, 106, 89, 0.25)',
+            }}
           >
-            Tất cả ({orders.length})
+            <Plus size={18} />
+            <span>Thêm đơn mới</span>
           </button>
-          {(['new', 'workshop_processing', 'workshop_paid', 'shipping', 'completed', 'cancelled'] as OrderStatus[]).map((st) => {
-            const count = orders.filter((o) => o.status === st).length;
-            const config = ORDER_STATUS_CONFIG[st];
-            return (
-              <button
-                key={st}
-                type="button"
-                className={`filter-chip ${statusFilter === st ? 'active' : ''}`}
-                onClick={() => setStatusFilter(st)}
-                style={{ flexShrink: 0 }}
-              >
-                <span>{config.label}</span>
-                <span style={{ opacity: 0.75 }}>({count})</span>
-              </button>
-            );
-          })}
         </div>
       </div>
 
-      {/* Orders Table & Cards */}
-      <div className="admin-table-card" style={{ backgroundColor: '#ffffff', borderRadius: '10px', overflow: 'hidden', border: '1px solid var(--border-subtle, #e8e1d5)' }}>
+      {/* BỘ ĐẾM SỐ ĐƠN & TABS LỌC 1-CHẠM */}
+      <div
+        style={{
+          display: 'flex',
+          gap: '0.5rem',
+          flexWrap: 'wrap',
+          backgroundColor: '#ffffff',
+          padding: '0.65rem',
+          borderRadius: '10px',
+          border: '1px solid #e8e1d5',
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => setFilterTab('all')}
+          style={{
+            padding: '0.45rem 0.9rem',
+            borderRadius: '6px',
+            border: 'none',
+            fontSize: '0.85rem',
+            fontWeight: 600,
+            cursor: 'pointer',
+            backgroundColor: filterTab === 'all' ? '#7c6a59' : '#f5eee6',
+            color: filterTab === 'all' ? '#ffffff' : '#5c4e43',
+            transition: 'all 0.15s ease',
+          }}
+        >
+          Tất cả ({counts.all})
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setFilterTab('new')}
+          style={{
+            padding: '0.45rem 0.9rem',
+            borderRadius: '6px',
+            border: 'none',
+            fontSize: '0.85rem',
+            fontWeight: 600,
+            cursor: 'pointer',
+            backgroundColor: filterTab === 'new' ? '#1d4ed8' : '#eff6ff',
+            color: filterTab === 'new' ? '#ffffff' : '#1d4ed8',
+            transition: 'all 0.15s ease',
+          }}
+        >
+          Đơn mới ({counts.new})
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setFilterTab('workshop_processing')}
+          style={{
+            padding: '0.45rem 0.9rem',
+            borderRadius: '6px',
+            border: 'none',
+            fontSize: '0.85rem',
+            fontWeight: 600,
+            cursor: 'pointer',
+            backgroundColor: filterTab === 'workshop_processing' ? '#b45309' : '#fef3c7',
+            color: filterTab === 'workshop_processing' ? '#ffffff' : '#b45309',
+            transition: 'all 0.15s ease',
+          }}
+        >
+          Xưởng đang may ({counts.processing})
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setFilterTab('shipping')}
+          style={{
+            padding: '0.45rem 0.9rem',
+            borderRadius: '6px',
+            border: 'none',
+            fontSize: '0.85rem',
+            fontWeight: 600,
+            cursor: 'pointer',
+            backgroundColor: filterTab === 'shipping' ? '#0369a1' : '#e0f2fe',
+            color: filterTab === 'shipping' ? '#ffffff' : '#0369a1',
+            transition: 'all 0.15s ease',
+          }}
+        >
+          Đang ship ({counts.shipping})
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setFilterTab('completed')}
+          style={{
+            padding: '0.45rem 0.9rem',
+            borderRadius: '6px',
+            border: 'none',
+            fontSize: '0.85rem',
+            fontWeight: 600,
+            cursor: 'pointer',
+            backgroundColor: filterTab === 'completed' ? '#15803d' : '#dcfce7',
+            color: filterTab === 'completed' ? '#ffffff' : '#15803d',
+            transition: 'all 0.15s ease',
+          }}
+        >
+          Hoàn thành ({counts.completed})
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setFilterTab('unpaid')}
+          style={{
+            marginLeft: 'auto',
+            padding: '0.45rem 0.9rem',
+            borderRadius: '6px',
+            border: filterTab === 'unpaid' ? 'none' : '1px dashed #ef4444',
+            fontSize: '0.85rem',
+            fontWeight: 700,
+            cursor: 'pointer',
+            backgroundColor: filterTab === 'unpaid' ? '#dc2626' : '#fef2f2',
+            color: filterTab === 'unpaid' ? '#ffffff' : '#dc2626',
+            transition: 'all 0.15s ease',
+          }}
+          title="Lọc các đơn chưa thanh toán cho xưởng may"
+        >
+          ⚠️ Chưa trả tiền xưởng ({counts.unpaid})
+        </button>
+      </div>
+
+      {/* DANH SÁCH ĐƠN HÀNG */}
+      <div
+        style={{
+          backgroundColor: '#ffffff',
+          borderRadius: '12px',
+          border: '1px solid #e8e1d5',
+          overflow: 'hidden',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+        }}
+      >
         {loading ? (
-          <div style={{ padding: '3.5rem 1rem', textAlign: 'center', color: '#766352' }}>
-            <RotateCcw size={24} className="spin" />
-            <p style={{ marginTop: '0.5rem', fontSize: '0.9rem' }}>Đang tải danh sách đơn hàng...</p>
+          <div style={{ textAlign: 'center', padding: '3.5rem 1rem', color: '#766352' }}>
+            <RotateCcw size={24} className="spin" style={{ color: '#7c6a59' }} />
+            <p style={{ marginTop: '0.5rem', fontSize: '0.9rem' }}>Đang tải danh sách đơn...</p>
           </div>
         ) : filteredOrders.length === 0 ? (
-          <div style={{ padding: '3.5rem 1rem', textAlign: 'center', color: '#6b7280' }}>
-            <ShoppingBag size={40} style={{ color: '#d1c7bc', marginBottom: '0.75rem' }} />
-            <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: '#374151', margin: 0 }}>
-              Không tìm thấy đơn hàng nào
-            </h3>
-            <p style={{ fontSize: '0.85rem', color: '#9ca3af', marginTop: '0.35rem' }}>
-              {searchQuery || statusFilter !== 'all' || workshopPaidFilter !== 'all'
-                ? 'Không khớp với bộ lọc hiện tại. Thử chọn lại trạng thái hoặc bấm "Xóa lọc".'
-                : 'Hiện tại chưa có đơn hàng nào được ghi nhận.'}
+          <div style={{ textAlign: 'center', padding: '3.5rem 1rem', color: '#8c8073' }}>
+            <AlertCircle size={32} style={{ color: '#d5cbbe', marginBottom: '0.5rem' }} />
+            <p style={{ fontSize: '0.95rem', fontWeight: 600, color: '#5c4e43', margin: 0 }}>
+              Không có đơn hàng nào
             </p>
-            {(searchQuery || statusFilter !== 'all' || workshopPaidFilter !== 'all') && (
-              <button
-                type="button"
-                className="btn btn-outline btn-sm"
-                onClick={() => {
-                  setStatusFilter('all');
-                  setWorkshopPaidFilter('all');
-                  setSearchQuery('');
-                }}
-                style={{ marginTop: '0.75rem' }}
-              >
-                Đặt lại bộ lọc
-              </button>
-            )}
+            <p style={{ fontSize: '0.825rem', marginTop: '0.25rem' }}>
+              {searchQuery ? 'Thử tìm với từ khóa khác' : 'Bấm "+ Thêm đơn mới" để tạo đơn đầu tiên'}
+            </p>
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
-            <table className="admin-table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.875rem' }}>
               <thead>
-                <tr style={{ backgroundColor: '#faf8f5', borderBottom: '1px solid var(--border-subtle, #e8e1d5)' }}>
-                  <th style={{ padding: '0.85rem 1rem', fontSize: '0.8rem', fontWeight: 600, color: '#685e54', width: '100px' }}>
-                    Mẫu ảnh
-                  </th>
-                  <th style={{ padding: '0.85rem 1rem', fontSize: '0.8rem', fontWeight: 600, color: '#685e54' }}>
-                    Mã & Khách hàng
-                  </th>
-                  <th style={{ padding: '0.85rem 1rem', fontSize: '0.8rem', fontWeight: 600, color: '#685e54' }}>
-                    Quy cách & Mẫu đặt
-                  </th>
-                  <th style={{ padding: '0.85rem 1rem', fontSize: '0.8rem', fontWeight: 600, color: '#685e54' }}>
-                    Tiền đơn / Tiền xưởng
-                  </th>
-                  <th style={{ padding: '0.85rem 1rem', fontSize: '0.8rem', fontWeight: 600, color: '#685e54', minWidth: '160px' }}>
-                    Trạng thái đơn
-                  </th>
-                  <th style={{ padding: '0.85rem 1rem', fontSize: '0.8rem', fontWeight: 600, color: '#685e54', textAlign: 'right' }}>
-                    Thao tác
-                  </th>
+                <tr style={{ backgroundColor: '#faf8f5', borderBottom: '1px solid #e8e1d5', color: '#685e54', fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                  <th style={{ padding: '0.75rem 1rem', width: '85px', textAlign: 'center' }}>Ảnh mẫu</th>
+                  <th style={{ padding: '0.75rem 1rem' }}>Thông tin đơn</th>
+                  <th style={{ padding: '0.75rem 1rem', width: '140px' }}>Giá tiền</th>
+                  <th style={{ padding: '0.75rem 1rem', width: '160px', textAlign: 'center' }}>Tiền xưởng</th>
+                  <th style={{ padding: '0.75rem 1rem', width: '150px' }}>Trạng thái</th>
+                  <th style={{ padding: '0.75rem 1rem', width: '90px', textAlign: 'right' }}>Thao tác</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredOrders.map((order) => {
-                  const item = order.items[0] || {
-                    productName: 'Chăn ga',
-                    quantity: 1,
-                    unitPrice: order.totalAmount,
-                  };
-                  const statusConfig = ORDER_STATUS_CONFIG[order.status] || ORDER_STATUS_CONFIG.new;
-                  const itemImg = item.imageUrl || '/images/placeholder.webp';
-
+                {filteredOrders.map((order, idx) => {
+                  const statusConf = ORDER_STATUS_CONFIG[order.status] || ORDER_STATUS_CONFIG.new;
                   return (
                     <tr
                       key={order.id}
                       style={{
-                        borderBottom: '1px solid #f3ede2',
-                        transition: 'background-color 0.15s ease',
+                        borderBottom: idx === filteredOrders.length - 1 ? 'none' : '1px solid #f0ebe4',
+                        backgroundColor: idx % 2 === 0 ? '#ffffff' : '#fdfcfb',
                       }}
                     >
-                      {/* 1. ẢNH ĐỂ BIẾT MẪU NÀO (Featured requirement) */}
-                      <td style={{ padding: '0.85rem 1rem', verticalAlign: 'top' }}>
-                        <div
-                          style={{
-                            position: 'relative',
-                            width: '76px',
-                            height: '76px',
-                            borderRadius: '8px',
-                            overflow: 'hidden',
-                            backgroundColor: '#faf8f5',
-                            border: '1.5px solid var(--border-subtle, #e8e1d5)',
-                            cursor: 'pointer',
-                            boxShadow: '0 2px 6px rgba(0,0,0,0.06)',
-                          }}
-                          onClick={() => setZoomedImage({ url: itemImg, title: item.productName, color: item.color })}
-                          title="Bấm để phóng to xem mẫu vải chi tiết"
-                        >
-                          <img
-                            src={itemImg}
-                            alt={item.productName}
-                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).src = '/images/placeholder.webp';
+                      {/* Cột 1: 1 Ảnh mẫu to rõ */}
+                      <td style={{ padding: '0.85rem 1rem', textAlign: 'center', verticalAlign: 'middle' }}>
+                        {order.imageUrl ? (
+                          <div
+                            onClick={() => setZoomedImage(order.imageUrl)}
+                            style={{
+                              width: '72px',
+                              height: '72px',
+                              borderRadius: '8px',
+                              overflow: 'hidden',
+                              border: '1px solid #dcd3c5',
+                              cursor: 'pointer',
+                              display: 'inline-block',
+                              boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+                              transition: 'transform 0.15s ease',
+                              backgroundColor: '#f5eee6',
                             }}
-                          />
+                            title="Bấm để xem to ảnh mẫu"
+                          >
+                            <img
+                              src={order.imageUrl}
+                              alt="Mẫu vải"
+                              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            />
+                          </div>
+                        ) : (
                           <div
                             style={{
-                              position: 'absolute',
-                              bottom: '3px',
-                              right: '3px',
-                              backgroundColor: 'rgba(0,0,0,0.5)',
-                              color: '#ffffff',
-                              borderRadius: '4px',
-                              padding: '2px',
-                              display: 'flex',
+                              width: '72px',
+                              height: '72px',
+                              borderRadius: '8px',
+                              border: '1px dashed #dcd3c5',
+                              backgroundColor: '#f5eee6',
+                              display: 'inline-flex',
                               alignItems: 'center',
                               justifyContent: 'center',
+                              color: '#9c8f80',
                             }}
+                            title="Chưa có ảnh"
                           >
-                            <Maximize2 size={11} />
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* 2. Mã đơn & Thông tin khách hàng */}
-                      <td style={{ padding: '0.85rem 1rem', verticalAlign: 'top' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.25rem' }}>
-                          <span style={{ fontWeight: 700, color: 'var(--accent-brown, #7c6a59)', fontSize: '0.9rem' }}>
-                            {order.id}
-                          </span>
-                          <span style={{ fontSize: '0.725rem', color: '#9ca3af' }}>
-                            ({order.orderDate || order.createdAt.split('T')[0]})
-                          </span>
-                        </div>
-                        <div style={{ fontWeight: 600, color: '#1f2937', fontSize: '0.875rem' }}>
-                          {order.customerName}
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.2rem' }}>
-                          <a
-                            href={`tel:${order.customerPhone}`}
-                            style={{ fontSize: '0.8rem', color: '#2563eb', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '3px' }}
-                            title="Gọi điện cho khách"
-                          >
-                            <Phone size={12} />
-                            <span>{order.customerPhone}</span>
-                          </a>
-                        </div>
-                        {order.customerAddress && (
-                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '3px', fontSize: '0.75rem', color: '#6b7280', marginTop: '0.3rem', maxWidth: '240px', lineHeight: 1.3 }}>
-                            <MapPin size={12} style={{ flexShrink: 0, marginTop: '2px' }} />
-                            <span>{order.customerAddress}</span>
-                          </div>
-                        )}
-                        {order.trackingCode && (
-                          <div style={{ marginTop: '0.35rem', display: 'inline-flex', alignItems: 'center', gap: '3px', backgroundColor: '#f0fdf4', color: '#166534', padding: '0.15rem 0.45rem', borderRadius: '4px', fontSize: '0.72rem', fontWeight: 600 }}>
-                            <Truck size={11} />
-                            <span>Vận đơn: {order.trackingCode}</span>
+                            <ImageIcon size={22} />
                           </div>
                         )}
                       </td>
 
-                      {/* 3. Quy cách mẫu đặt */}
-                      <td style={{ padding: '0.85rem 1rem', verticalAlign: 'top' }}>
-                        <div style={{ fontWeight: 600, color: '#2c2825', fontSize: '0.875rem', lineHeight: 1.35 }}>
-                          {item.productName}
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginTop: '0.35rem', flexWrap: 'wrap' }}>
-                          {item.color && (
-                            <span
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                backgroundColor: '#faf8f5',
-                                padding: '0.2rem 0.5rem',
-                                borderRadius: '12px',
-                                fontSize: '0.75rem',
-                                color: '#4b5563',
-                                border: '1px solid #ebd9c2',
-                              }}
-                            >
-                              <span
-                                style={{
-                                  width: '8px',
-                                  height: '8px',
-                                  borderRadius: '50%',
-                                  backgroundColor: getColorOption(item.color).hex,
-                                  display: 'inline-block',
-                                }}
-                              />
-                              <span>Màu: {getColorOption(item.color).label}</span>
-                            </span>
-                          )}
-                          {item.size && (
-                            <span
-                              style={{
-                                backgroundColor: '#f3f4f6',
-                                padding: '0.2rem 0.5rem',
-                                borderRadius: '12px',
-                                fontSize: '0.75rem',
-                                color: '#4b5563',
-                              }}
-                            >
-                              Size: {item.size}
-                            </span>
-                          )}
-                          <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#374151' }}>
-                            SL: {item.quantity}
+                      {/* Cột 2: Text thông tin đơn */}
+                      <td style={{ padding: '0.85rem 1rem', verticalAlign: 'middle' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                          <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#7c6a59' }}>
+                            #{order.id}
+                          </span>
+                          <span style={{ fontSize: '0.725rem', color: '#9c8f80' }}>
+                            {new Date(order.createdAt).toLocaleDateString('vi-VN')}
                           </span>
                         </div>
+                        <p
+                          style={{
+                            margin: 0,
+                            fontSize: '0.925rem',
+                            fontWeight: 500,
+                            color: '#2c2825',
+                            lineHeight: 1.45,
+                            whiteSpace: 'pre-wrap',
+                          }}
+                        >
+                          {order.orderText || '(Chưa có thông tin)'}
+                        </p>
                         {order.notes && (
-                          <div style={{ fontSize: '0.75rem', color: '#b45309', backgroundColor: '#fef3c7', padding: '0.25rem 0.5rem', borderRadius: '4px', marginTop: '0.4rem', lineHeight: 1.3 }}>
-                            💬 {order.notes}
-                          </div>
+                          <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.785rem', color: '#b45309', fontStyle: 'italic' }}>
+                            Ghi chú: {order.notes}
+                          </p>
                         )}
                       </td>
 
-                      {/* 4. Tiền bán / Tiền xưởng */}
-                      <td style={{ padding: '0.85rem 1rem', verticalAlign: 'top' }}>
-                        <div style={{ fontSize: '0.925rem', fontWeight: 700, color: '#1f2937' }}>
-                          {formatVND(order.totalAmount)}
-                        </div>
-                        <div style={{ fontSize: '0.75rem', color: order.customerPaid ? '#15803d' : '#ea580c', fontWeight: 500, marginTop: '2px' }}>
-                          {order.customerPaid ? '✓ Khách đã thanh toán' : '⏳ Thu hộ COD'}
-                        </div>
-
-                        {/* Tiền xưởng (User emphasis: đã trả tiền xưởng) */}
-                        <div style={{ marginTop: '0.5rem', borderTop: '1px dashed #e5e7eb', paddingTop: '0.4rem' }}>
-                          <div style={{ fontSize: '0.785rem', color: '#4b5563' }}>
-                            Tiền xưởng: <strong>{formatVND(order.workshopTotalCost)}</strong>
+                      {/* Cột 3: Giá bán & Giá xưởng */}
+                      <td style={{ padding: '0.85rem 1rem', verticalAlign: 'middle' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                          <div>
+                            <span style={{ fontSize: '0.7rem', color: '#685e54', display: 'block' }}>Khách trả:</span>
+                            <span style={{ fontSize: '0.95rem', fontWeight: 700, color: '#15803d' }}>
+                              {formatVND(order.salePrice || 0)}
+                            </span>
                           </div>
-                          <div style={{ marginTop: '0.25rem' }}>
-                            <button
-                              type="button"
-                              onClick={() => handleToggleWorkshopPaid(order.id, order.workshopPaid)}
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                padding: '0.2rem 0.55rem',
-                                borderRadius: '12px',
-                                fontSize: '0.72rem',
-                                fontWeight: 600,
-                                cursor: 'pointer',
-                                transition: 'all 0.15s ease',
-                                border: order.workshopPaid ? '1px solid #c4b5fd' : '1px solid #fed7aa',
-                                backgroundColor: order.workshopPaid ? '#ede9fe' : '#fff7ed',
-                                color: order.workshopPaid ? '#6d28d9' : '#c2410c',
-                              }}
-                              title="Bấm để chuyển đổi trạng thái đã trả / chưa trả tiền xưởng"
-                            >
-                              {order.workshopPaid ? <Check size={11} strokeWidth={3} /> : <Clock size={11} />}
-                              <span>{order.workshopPaid ? 'ĐÃ TRẢ TIỀN XƯỞNG' : 'CHƯA TRẢ XƯỞNG'}</span>
-                            </button>
+                          <div style={{ marginTop: '0.2rem' }}>
+                            <span style={{ fontSize: '0.7rem', color: '#685e54', display: 'block' }}>Tiền xưởng:</span>
+                            <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#7c6a59' }}>
+                              {formatVND(order.workshopCost || 0)}
+                            </span>
                           </div>
                         </div>
                       </td>
 
-                      {/* 5. Trạng thái đơn (Quick dropdown selector) */}
-                      <td style={{ padding: '0.85rem 1rem', verticalAlign: 'top' }}>
-                        <div style={{ position: 'relative' }}>
-                          <select
-                            value={order.status}
-                            onChange={(e) => handleStatusChange(order.id, e.target.value as OrderStatus)}
-                            style={{
-                              padding: '0.35rem 0.65rem',
-                              borderRadius: '20px',
-                              fontSize: '0.8rem',
-                              fontWeight: 600,
-                              cursor: 'pointer',
-                              border: `1.5px solid ${statusConfig.border}`,
-                              backgroundColor: statusConfig.bg,
-                              color: statusConfig.color,
-                              width: '100%',
-                              outline: 'none',
-                            }}
-                          >
-                            <option value="new">Đơn mới</option>
-                            <option value="workshop_processing">Xưởng đang may</option>
-                            <option value="workshop_paid">Đã trả tiền xưởng</option>
-                            <option value="shipping">Đang ship</option>
-                            <option value="completed">Hoàn thành</option>
-                            <option value="cancelled">Đã hủy</option>
-                          </select>
-                        </div>
-
-                        {/* Quick action: Copy message to Workshop or Shipper */}
-                        <div style={{ display: 'flex', gap: '0.3rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
-                          <button
-                            type="button"
-                            onClick={() => handleCopyWorkshopMessage(order)}
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '3px',
-                              background: '#faf8f5',
-                              border: '1px solid #d5cbbf',
-                              borderRadius: '4px',
-                              padding: '0.2rem 0.45rem',
-                              fontSize: '0.7rem',
-                              color: '#685e54',
-                              cursor: 'pointer',
-                            }}
-                            title="Sao chép tin nhắn thông số gửi xưởng may"
-                          >
-                            <Send size={10} />
-                            <span>Gửi xưởng</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => handleCopyCustomerMessage(order)}
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '3px',
-                              background: '#faf8f5',
-                              border: '1px solid #d5cbbf',
-                              borderRadius: '4px',
-                              padding: '0.2rem 0.45rem',
-                              fontSize: '0.7rem',
-                              color: '#685e54',
-                              cursor: 'pointer',
-                            }}
-                            title="Sao chép thông tin gửi khách / shipper"
-                          >
-                            <Copy size={10} />
-                            <span>Gửi ship</span>
-                          </button>
-                        </div>
+                      {/* Cột 4: Nút Tiền Xưởng 1 Chạm */}
+                      <td style={{ padding: '0.85rem 1rem', verticalAlign: 'middle', textAlign: 'center' }}>
+                        <button
+                          type="button"
+                          onClick={() => handleToggleWorkshopPaid(order)}
+                          style={{
+                            padding: '0.45rem 0.75rem',
+                            borderRadius: '8px',
+                            border: order.workshopPaid ? '1px solid #86efac' : '1px solid #fca5a5',
+                            backgroundColor: order.workshopPaid ? '#f0fdf4' : '#fef2f2',
+                            color: order.workshopPaid ? '#15803d' : '#b91c1c',
+                            fontWeight: 700,
+                            fontSize: '0.8rem',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.35rem',
+                            transition: 'all 0.15s ease',
+                            boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+                          }}
+                          title="Bấm để đổi trạng thái thanh toán tiền xưởng"
+                        >
+                          {order.workshopPaid ? (
+                            <>
+                              <Check size={14} />
+                              <span>Đã trả xưởng</span>
+                            </>
+                          ) : (
+                            <>
+                              <AlertCircle size={14} />
+                              <span>Chưa trả xưởng</span>
+                            </>
+                          )}
+                        </button>
                       </td>
 
-                      {/* 6. Thao tác */}
-                      <td style={{ padding: '0.85rem 1rem', verticalAlign: 'top', textAlign: 'right' }}>
-                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                      {/* Cột 5: Dropdown Trạng Thái Đơn */}
+                      <td style={{ padding: '0.85rem 1rem', verticalAlign: 'middle' }}>
+                        <select
+                          value={order.status}
+                          onChange={(e) => handleChangeStatus(order, e.target.value as OrderStatus)}
+                          style={{
+                            padding: '0.4rem 0.65rem',
+                            borderRadius: '6px',
+                            border: `1px solid ${statusConf.border}`,
+                            backgroundColor: statusConf.bg,
+                            color: statusConf.color,
+                            fontSize: '0.8rem',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            outline: 'none',
+                            width: '100%',
+                          }}
+                        >
+                          <option value="new">🆕 Đơn mới</option>
+                          <option value="workshop_processing">✂️ Xưởng đang may</option>
+                          <option value="shipping">🚚 Đang ship</option>
+                          <option value="completed">✅ Hoàn thành</option>
+                          <option value="cancelled">❌ Đã hủy</option>
+                        </select>
+                      </td>
+
+                      {/* Cột 6: Thao tác (Sửa, Xóa) */}
+                      <td style={{ padding: '0.85rem 1rem', verticalAlign: 'middle', textAlign: 'right' }}>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.35rem' }}>
                           <button
                             type="button"
                             onClick={() => handleOpenEditModal(order)}
-                            className="btn btn-outline btn-sm"
-                            style={{ padding: '0.3rem 0.5rem', borderRadius: '6px' }}
-                            title="Chỉnh sửa đơn hàng"
+                            style={{
+                              padding: '0.4rem',
+                              border: '1px solid #dcd3c5',
+                              backgroundColor: '#ffffff',
+                              borderRadius: '6px',
+                              cursor: 'pointer',
+                              color: '#685e54',
+                            }}
+                            title="Sửa đơn"
                           >
-                            <Edit2 size={13} />
+                            <Edit2 size={14} />
                           </button>
                           <button
                             type="button"
                             onClick={() => setOrderToDelete(order)}
                             style={{
-                              padding: '0.3rem 0.5rem',
-                              borderRadius: '6px',
+                              padding: '0.4rem',
                               border: '1px solid #fecaca',
-                              backgroundColor: '#fef2f2',
-                              color: '#dc2626',
+                              backgroundColor: '#ffffff',
+                              borderRadius: '6px',
                               cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
+                              color: '#dc2626',
                             }}
-                            title="Xóa đơn hàng"
+                            title="Xóa đơn"
                           >
-                            <Trash2 size={13} />
+                            <Trash2 size={14} />
                           </button>
                         </div>
                       </td>
@@ -979,323 +674,273 @@ export const AdminOrdersPage: React.FC = () => {
         )}
       </div>
 
-      {/* CREATE / EDIT ORDER MODAL */}
+      {/* MODAL THÊM / SỬA ĐƠN HÀNG SIÊU ĐƠN GIẢN */}
       {isModalOpen &&
         createPortal(
           <div
             style={{
               position: 'fixed',
               inset: 0,
-              zIndex: 10000,
+              backgroundColor: 'rgba(0,0,0,0.5)',
+              zIndex: 9999,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               padding: '1rem',
-              backgroundColor: 'rgba(0, 0, 0, 0.55)',
-              backdropFilter: 'blur(3px)',
             }}
+            onClick={() => setIsModalOpen(false)}
           >
             <div
               style={{
-                position: 'relative',
-                width: '100%',
-                maxWidth: '680px',
-                maxHeight: '92vh',
-                overflowY: 'auto',
                 backgroundColor: '#ffffff',
                 borderRadius: '12px',
-                boxShadow: '0 25px 50px -12px rgba(0,0,0,0.35)',
-                padding: '1.75rem',
+                width: '100%',
+                maxWidth: '520px',
+                maxHeight: '90vh',
+                overflowY: 'auto',
+                boxShadow: '0 20px 25px -5px rgba(0,0,0,0.2)',
+                padding: '1.5rem',
               }}
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Header */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem', borderBottom: '1px solid #f2ede4', paddingBottom: '0.75rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <ShoppingBag size={20} color="var(--accent-brown, #7c6a59)" />
-                  <h3 style={{ fontSize: '1.2rem', fontWeight: 600, margin: 0 }}>
-                    {editingOrder ? `Chỉnh sửa đơn hàng: ${formData.id}` : 'Thêm đơn hàng mới'}
-                  </h3>
-                </div>
+              {/* Header Modal */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem', borderBottom: '1px solid #f0ebe4', paddingBottom: '0.75rem' }}>
+                <h3 style={{ fontSize: '1.15rem', fontWeight: 700, color: '#2c2825', margin: 0 }}>
+                  {editingOrder ? `Sửa Đơn #${editingOrder.id}` : 'Thêm Đơn Hàng Mới'}
+                </h3>
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  style={{ background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer', padding: '4px' }}
+                  style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#8c8073' }}
                 >
-                  <X size={20} />
+                  <X size={18} />
                 </button>
               </div>
 
-              <form onSubmit={handleSaveOrder}>
-                {/* Section 1: Chọn mẫu từ kho sản phẩm (Auto-fill image + info) */}
-                <div style={{ backgroundColor: '#faf8f5', border: '1px solid #ebd9c2', borderRadius: '8px', padding: '1rem', marginBottom: '1.25rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
-                    <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#685e54', margin: 0 }}>
-                      Chọn mẫu từ kho sản phẩm (Tự lấy ảnh & thông số):
-                    </label>
-                    <span style={{ fontSize: '0.75rem', color: '#8c8073' }}>
-                      {products.length} sản phẩm khả dụng
-                    </span>
-                  </div>
+              <form onSubmit={handleSaveOrder} style={{ display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
+                {/* 1. Chọn Ảnh Mẫu */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#2c2825', marginBottom: '0.4rem' }}>
+                    1. Ảnh mẫu vải:
+                  </label>
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    accept="image/*"
+                    onChange={handleFileChange}
+                    style={{ display: 'none' }}
+                  />
 
-                  <select
-                    className="form-select"
-                    value={formData.productId}
-                    onChange={(e) => handleSelectCatalogProduct(e.target.value)}
-                    style={{ width: '100%', marginBottom: '0.75rem' }}
-                  >
-                    <option value="">-- Chọn sản phẩm có sẵn trong kho --</option>
-                    {products.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        [{p.id}] {p.name} - {formatVND(p.price)}
-                      </option>
-                    ))}
-                  </select>
-
-                  {/* 1 ẢNH ĐỂ BIẾT MẪU NÀO (Preview & input) */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                    <div
-                      style={{
-                        width: '74px',
-                        height: '74px',
-                        borderRadius: '8px',
-                        overflow: 'hidden',
-                        border: '1.5px solid #d5cbbf',
-                        backgroundColor: '#ffffff',
-                        flexShrink: 0,
-                      }}
-                    >
-                      <img
-                        src={formData.imageUrl || '/images/placeholder.webp'}
-                        alt="Mẫu đặt"
-                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src = '/images/placeholder.webp';
+                  <div style={{ display: 'flex', gap: '0.85rem', alignItems: 'center' }}>
+                    {formImage ? (
+                      <div style={{ position: 'relative', width: '90px', height: '90px', borderRadius: '8px', overflow: 'hidden', border: '1px solid #dcd3c5' }}>
+                        <img src={formImage} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        <button
+                          type="button"
+                          onClick={() => setFormImage('')}
+                          style={{
+                            position: 'absolute',
+                            top: '4px',
+                            right: '4px',
+                            background: 'rgba(0,0,0,0.6)',
+                            color: '#ffffff',
+                            border: 'none',
+                            borderRadius: '50%',
+                            width: '20px',
+                            height: '20px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
+                    ) : (
+                      <div
+                        onClick={() => fileInputRef.current?.click()}
+                        style={{
+                          width: '90px',
+                          height: '90px',
+                          borderRadius: '8px',
+                          border: '2px dashed #dcd3c5',
+                          backgroundColor: '#faf8f5',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                          color: '#7c6a59',
+                          gap: '0.25rem',
                         }}
-                      />
-                    </div>
+                      >
+                        <Upload size={20} />
+                        <span style={{ fontSize: '0.7rem', fontWeight: 600 }}>Tải ảnh lên</span>
+                      </div>
+                    )}
+
                     <div style={{ flex: 1 }}>
-                      <label className="form-label" style={{ fontSize: '0.785rem', marginBottom: '0.2rem' }}>
-                        Link ảnh mẫu (đại diện cho mẫu chăn ga):
-                      </label>
-                      <input
-                        type="text"
-                        className="form-input"
-                        placeholder="https://... hoặc /images/..."
-                        value={formData.imageUrl}
-                        onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
-                        style={{ fontSize: '0.8rem', padding: '0.35rem 0.65rem' }}
-                      />
-                      <span style={{ fontSize: '0.7rem', color: '#8c8073' }}>
-                        Ảnh này giúp nhận diện mẫu vải ngay trên danh sách đơn.
-                      </span>
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="btn btn-outline btn-sm"
+                        style={{ fontSize: '0.8rem', padding: '0.4rem 0.75rem', gap: '0.35rem' }}
+                      >
+                        <Upload size={14} />
+                        <span>{formImage ? 'Đổi ảnh khác' : 'Chọn ảnh từ máy / điện thoại'}</span>
+                      </button>
+                      <p style={{ fontSize: '0.725rem', color: '#8c8073', margin: '0.35rem 0 0 0' }}>
+                        Chụp ảnh Zalo hoặc ảnh mẫu vải để nhìn vào là biết ngay.
+                      </p>
                     </div>
                   </div>
                 </div>
 
-                {/* Section 2: Thông tin mẫu đặt & Số lượng */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.85rem', marginBottom: '1rem' }}>
-                  <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                    <label className="form-label">Tên mẫu / Sản phẩm *</label>
-                    <input
-                      type="text"
-                      required
-                      className="form-input"
-                      value={formData.productName}
-                      onChange={(e) => setFormData({ ...formData, productName: e.target.value })}
-                      placeholder="VD: Combo 4 món đũi tre cotton thoáng mát"
-                    />
-                  </div>
+                {/* 2. Text Thông Tin Đơn */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#2c2825', marginBottom: '0.4rem' }}>
+                    2. Thông tin đơn hàng (Tên khách, SĐT, mẫu vải, kích thước đệm...): <span style={{ color: '#dc2626' }}>*</span>
+                  </label>
+                  <textarea
+                    rows={3}
+                    placeholder="VD: Chị Mai (0983 124 556) - Set đũi tre Xanh Cốm 1m8 x 2m x 20cm - Giao Đặng Thai Mai, Tây Hồ"
+                    value={formText}
+                    onChange={(e) => setFormText(e.target.value)}
+                    required
+                    style={{
+                      width: '100%',
+                      padding: '0.65rem',
+                      fontSize: '0.875rem',
+                      borderRadius: '8px',
+                      border: '1px solid #dcd3c5',
+                      outline: 'none',
+                      lineHeight: 1.45,
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                </div>
 
-                  <div className="form-group">
-                    <label className="form-label">Màu sắc</label>
-                    <input
-                      type="text"
-                      className="form-input"
-                      value={formData.color}
-                      onChange={(e) => setFormData({ ...formData, color: e.target.value })}
-                      placeholder="VD: Xanh Cốm, Be Cát..."
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label className="form-label">Kích thước</label>
-                    <input
-                      type="text"
-                      className="form-input"
-                      value={formData.size}
-                      onChange={(e) => setFormData({ ...formData, size: e.target.value })}
-                      placeholder="VD: 1m8 x 2m x 20cm"
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label className="form-label">Số lượng</label>
+                {/* 3. Giá bán & Giá xưởng */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.85rem' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.825rem', fontWeight: 600, color: '#2c2825', marginBottom: '0.35rem' }}>
+                      Giá bán (Khách trả):
+                    </label>
                     <input
                       type="number"
-                      min={1}
-                      className="form-input"
-                      value={formData.quantity}
-                      onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value, 10) || 1 })}
+                      step={5000}
+                      value={formSalePrice}
+                      onChange={(e) => setFormSalePrice(e.target.value === '' ? '' : Number(e.target.value))}
+                      style={{
+                        width: '100%',
+                        padding: '0.5rem 0.65rem',
+                        fontSize: '0.9rem',
+                        fontWeight: 700,
+                        color: '#15803d',
+                        borderRadius: '6px',
+                        border: '1px solid #dcd3c5',
+                        boxSizing: 'border-box',
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.825rem', fontWeight: 600, color: '#2c2825', marginBottom: '0.35rem' }}>
+                      Giá xưởng (Vải + công):
+                    </label>
+                    <input
+                      type="number"
+                      step={5000}
+                      value={formWorkshopCost}
+                      onChange={(e) => setFormWorkshopCost(e.target.value === '' ? '' : Number(e.target.value))}
+                      style={{
+                        width: '100%',
+                        padding: '0.5rem 0.65rem',
+                        fontSize: '0.9rem',
+                        fontWeight: 600,
+                        color: '#7c6a59',
+                        borderRadius: '6px',
+                        border: '1px solid #dcd3c5',
+                        boxSizing: 'border-box',
+                      }}
                     />
                   </div>
                 </div>
 
-                {/* Section 3: Thông tin khách hàng */}
-                <div style={{ borderTop: '1px solid #f2ede4', paddingTop: '1rem', marginBottom: '1rem' }}>
-                  <h4 style={{ fontSize: '0.9rem', fontWeight: 600, color: '#374151', marginBottom: '0.75rem' }}>
-                    Thông tin khách nhận hàng
-                  </h4>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.85rem' }}>
-                    <div className="form-group">
-                      <label className="form-label">Tên khách hàng *</label>
-                      <input
-                        type="text"
-                        required
-                        className="form-input"
-                        value={formData.customerName}
-                        onChange={(e) => setFormData({ ...formData, customerName: e.target.value })}
-                        placeholder="VD: Chị Mai Lan"
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">Số điện thoại *</label>
-                      <input
-                        type="text"
-                        required
-                        className="form-input"
-                        value={formData.customerPhone}
-                        onChange={(e) => setFormData({ ...formData, customerPhone: e.target.value })}
-                        placeholder="VD: 0983 124 556"
-                      />
-                    </div>
-                    <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                      <label className="form-label">Địa chỉ nhận hàng</label>
-                      <input
-                        type="text"
-                        className="form-input"
-                        value={formData.customerAddress}
-                        onChange={(e) => setFormData({ ...formData, customerAddress: e.target.value })}
-                        placeholder="Số nhà, đường, phường/xã, quận/huyện, tỉnh/TP"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Section 4: Tiền nong & Trả tiền xưởng */}
-                <div style={{ borderTop: '1px solid #f2ede4', paddingTop: '1rem', marginBottom: '1rem' }}>
-                  <h4 style={{ fontSize: '0.9rem', fontWeight: 600, color: '#374151', marginBottom: '0.75rem' }}>
-                    Giá bán, Tiền xưởng & Vận chuyển
-                  </h4>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.85rem' }}>
-                    <div className="form-group">
-                      <label className="form-label">Giá bán khách (VND)</label>
-                      <input
-                        type="number"
-                        step={1000}
-                        className="form-input"
-                        value={formData.unitPrice}
-                        onChange={(e) => setFormData({ ...formData, unitPrice: parseInt(e.target.value, 10) || 0 })}
-                      />
-                    </div>
-
-                    <div className="form-group">
-                      <label className="form-label" style={{ color: '#b45309' }}>Tiền trả xưởng (VND) *</label>
-                      <input
-                        type="number"
-                        step={1000}
-                        className="form-input"
-                        value={formData.workshopCost}
-                        onChange={(e) => setFormData({ ...formData, workshopCost: parseInt(e.target.value, 10) || 0 })}
-                      />
-                    </div>
-
-                    <div className="form-group">
-                      <label className="form-label">Phí ship (VND)</label>
-                      <input
-                        type="number"
-                        step={1000}
-                        className="form-input"
-                        value={formData.shippingFee}
-                        onChange={(e) => setFormData({ ...formData, shippingFee: parseInt(e.target.value, 10) || 0 })}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Workshop Paid Checkbox & Customer Paid Checkbox */}
-                  <div style={{ display: 'flex', gap: '1.5rem', marginTop: '0.75rem', padding: '0.75rem', backgroundColor: '#faf8f5', borderRadius: '6px', border: '1px solid #ebd9c2', flexWrap: 'wrap' }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, color: '#6d28d9' }}>
-                      <input
-                        type="checkbox"
-                        checked={formData.workshopPaid}
-                        onChange={(e) => setFormData({ ...formData, workshopPaid: e.target.checked })}
-                      />
-                      <span>✓ Đã thanh toán tiền xưởng</span>
+                {/* 4. Trạng thái tiền xưởng & Trạng thái đơn */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.85rem', alignItems: 'center' }}>
+                  {/* Bật tắt tiền xưởng */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.825rem', fontWeight: 600, color: '#2c2825', marginBottom: '0.35rem' }}>
+                      Tiền xưởng:
                     </label>
-
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, color: '#166534' }}>
-                      <input
-                        type="checkbox"
-                        checked={formData.customerPaid}
-                        onChange={(e) => setFormData({ ...formData, customerPaid: e.target.checked })}
-                      />
-                      <span>✓ Khách đã thanh toán (không thu COD)</span>
-                    </label>
-                  </div>
-                </div>
-
-                {/* Section 5: Trạng thái & Vận đơn */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.85rem', marginBottom: '1rem' }}>
-                  <div className="form-group">
-                    <label className="form-label">Trạng thái đơn hàng</label>
-                    <select
-                      className="form-select"
-                      value={formData.status}
-                      onChange={(e) => setFormData({ ...formData, status: e.target.value as OrderStatus })}
+                    <label
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        padding: '0.5rem 0.65rem',
+                        borderRadius: '6px',
+                        border: formWorkshopPaid ? '1px solid #86efac' : '1px solid #fca5a5',
+                        backgroundColor: formWorkshopPaid ? '#f0fdf4' : '#fef2f2',
+                        cursor: 'pointer',
+                        fontSize: '0.825rem',
+                        fontWeight: 700,
+                        color: formWorkshopPaid ? '#15803d' : '#b91c1c',
+                      }}
                     >
-                      <option value="new">Đơn mới</option>
-                      <option value="workshop_processing">Xưởng đang may</option>
-                      <option value="workshop_paid">Đã trả tiền xưởng</option>
-                      <option value="shipping">Đang ship</option>
-                      <option value="completed">Hoàn thành</option>
-                      <option value="cancelled">Đã hủy</option>
+                      <input
+                        type="checkbox"
+                        checked={formWorkshopPaid}
+                        onChange={(e) => setFormWorkshopPaid(e.target.checked)}
+                        style={{ width: '16px', height: '16px' }}
+                      />
+                      <span>{formWorkshopPaid ? 'Đã trả xưởng' : 'Chưa trả xưởng'}</span>
+                    </label>
+                  </div>
+
+                  {/* Trạng thái đơn */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.825rem', fontWeight: 600, color: '#2c2825', marginBottom: '0.35rem' }}>
+                      Trạng thái đơn:
+                    </label>
+                    <select
+                      value={formStatus}
+                      onChange={(e) => setFormStatus(e.target.value as OrderStatus)}
+                      style={{
+                        width: '100%',
+                        padding: '0.5rem 0.65rem',
+                        fontSize: '0.85rem',
+                        borderRadius: '6px',
+                        border: '1px solid #dcd3c5',
+                        boxSizing: 'border-box',
+                      }}
+                    >
+                      <option value="new">🆕 Đơn mới</option>
+                      <option value="workshop_processing">✂️ Xưởng đang may</option>
+                      <option value="shipping">🚚 Đang ship</option>
+                      <option value="completed">✅ Hoàn thành</option>
+                      <option value="cancelled">❌ Đã hủy</option>
                     </select>
                   </div>
-
-                  <div className="form-group">
-                    <label className="form-label">Mã vận đơn (Shipper)</label>
-                    <input
-                      type="text"
-                      className="form-input"
-                      value={formData.trackingCode}
-                      onChange={(e) => setFormData({ ...formData, trackingCode: e.target.value })}
-                      placeholder="VD: GHTK882910, VTP..."
-                    />
-                  </div>
-
-                  <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                    <label className="form-label">Ghi chú dặn dò (Khách / Xưởng)</label>
-                    <input
-                      type="text"
-                      className="form-input"
-                      value={formData.notes}
-                      onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                      placeholder="VD: Khách dặn may đệm cao 25cm, giao chiều sau 18h..."
-                    />
-                  </div>
                 </div>
 
-                {/* Actions */}
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', borderTop: '1px solid #f2ede4', paddingTop: '1rem' }}>
+                {/* Nút Submit */}
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.5rem', paddingTop: '0.75rem', borderTop: '1px solid #f0ebe4' }}>
                   <button
                     type="button"
-                    className="btn btn-outline"
                     onClick={() => setIsModalOpen(false)}
+                    className="btn btn-outline btn-sm"
                   >
-                    Hủy bỏ
+                    Hủy
                   </button>
-                  <button type="submit" className="btn btn-primary">
-                    {editingOrder ? 'Lưu thay đổi' : 'Tạo đơn hàng'}
+                  <button
+                    type="submit"
+                    className="btn btn-primary btn-sm"
+                    style={{ padding: '0.5rem 1.25rem', fontWeight: 700 }}
+                  >
+                    {editingOrder ? 'Lưu thay đổi' : 'Tạo đơn'}
                   </button>
                 </div>
               </form>
@@ -1304,109 +949,115 @@ export const AdminOrdersPage: React.FC = () => {
           document.body
         )}
 
-      {/* ZOOM IMAGE LIGHTBOX */}
+      {/* MODAL PHÓNG TO ẢNH (LIGHTBOX) */}
       {zoomedImage &&
         createPortal(
           <div
             style={{
               position: 'fixed',
               inset: 0,
-              zIndex: 10001,
-              backgroundColor: 'rgba(0,0,0,0.92)',
+              backgroundColor: 'rgba(0,0,0,0.85)',
+              zIndex: 10000,
               display: 'flex',
-              flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
               padding: '1.5rem',
             }}
             onClick={() => setZoomedImage(null)}
           >
-            <div
-              style={{
-                position: 'absolute',
-                top: '1.25rem',
-                left: '1.5rem',
-                right: '1.5rem',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                color: '#ffffff',
-              }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div>
-                <strong style={{ fontSize: '1.05rem' }}>{zoomedImage.title}</strong>
-                {zoomedImage.color && (
-                  <span style={{ marginLeft: '0.65rem', backgroundColor: 'rgba(255,255,255,0.2)', padding: '0.2rem 0.6rem', borderRadius: '12px', fontSize: '0.8rem' }}>
-                    Màu: {zoomedImage.color}
-                  </span>
-                )}
-              </div>
+            <div style={{ position: 'relative', maxWidth: '90vw', maxHeight: '90vh' }}>
+              <img
+                src={zoomedImage}
+                alt="Chi tiết mẫu vải"
+                style={{
+                  maxWidth: '100%',
+                  maxHeight: '90vh',
+                  borderRadius: '10px',
+                  boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)',
+                  objectFit: 'contain',
+                }}
+              />
               <button
                 type="button"
                 onClick={() => setZoomedImage(null)}
-                style={{ background: 'none', border: 'none', color: '#ffffff', cursor: 'pointer', padding: '6px' }}
+                style={{
+                  position: 'absolute',
+                  top: '-12px',
+                  right: '-12px',
+                  backgroundColor: '#ffffff',
+                  color: '#2c2825',
+                  border: 'none',
+                  borderRadius: '50%',
+                  width: '32px',
+                  height: '32px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 6px rgba(0,0,0,0.2)',
+                }}
               >
-                <X size={26} />
+                <X size={18} />
               </button>
-            </div>
-
-            <div style={{ maxWidth: '90vw', maxHeight: '82vh' }} onClick={(e) => e.stopPropagation()}>
-              <img
-                src={zoomedImage.url}
-                alt={zoomedImage.title}
-                style={{ maxWidth: '100%', maxHeight: '82vh', objectFit: 'contain', borderRadius: '8px', boxShadow: '0 20px 50px rgba(0,0,0,0.5)' }}
-              />
             </div>
           </div>,
           document.body
         )}
 
-      {/* DELETE CONFIRM MODAL */}
+      {/* MODAL XÁC NHẬN XÓA */}
       {orderToDelete &&
         createPortal(
           <div
             style={{
               position: 'fixed',
               inset: 0,
-              zIndex: 10000,
+              backgroundColor: 'rgba(0,0,0,0.5)',
+              zIndex: 9999,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               padding: '1rem',
-              backgroundColor: 'rgba(0,0,0,0.5)',
             }}
+            onClick={() => setOrderToDelete(null)}
           >
             <div
               style={{
                 backgroundColor: '#ffffff',
                 borderRadius: '10px',
-                padding: '1.5rem',
-                maxWidth: '420px',
                 width: '100%',
-                boxShadow: '0 20px 40px rgba(0,0,0,0.25)',
+                maxWidth: '380px',
+                padding: '1.25rem',
+                boxShadow: '0 20px 25px -5px rgba(0,0,0,0.2)',
               }}
+              onClick={(e) => e.stopPropagation()}
             >
-              <h4 style={{ fontSize: '1.1rem', fontWeight: 600, color: '#dc2626', margin: '0 0 0.5rem 0' }}>
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#dc2626', margin: '0 0 0.5rem 0' }}>
                 Xác nhận xóa đơn hàng?
-              </h4>
-              <p style={{ fontSize: '0.875rem', color: '#4b5563', margin: '0 0 1.25rem 0' }}>
-                Bạn có chắc chắn muốn xóa đơn <strong>{orderToDelete.id}</strong> của khách{' '}
-                <strong>{orderToDelete.customerName}</strong> không? Hành động này không thể hoàn tác.
+              </h3>
+              <p style={{ fontSize: '0.85rem', color: '#685e54', margin: '0 0 1rem 0' }}>
+                Bạn có chắc chắn muốn xóa đơn #{orderToDelete.id} này không? Thao tác không thể khôi phục.
               </p>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.65rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
                 <button
                   type="button"
-                  className="btn btn-outline btn-sm"
                   onClick={() => setOrderToDelete(null)}
+                  className="btn btn-outline btn-sm"
                 >
                   Hủy
                 </button>
                 <button
                   type="button"
-                  className="btn btn-sm"
-                  style={{ backgroundColor: '#dc2626', color: '#ffffff', border: 'none' }}
-                  onClick={handleDeleteOrder}
+                  onClick={handleDeleteConfirm}
+                  style={{
+                    backgroundColor: '#dc2626',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '6px',
+                    padding: '0.45rem 1rem',
+                    fontWeight: 600,
+                    fontSize: '0.85rem',
+                    cursor: 'pointer',
+                  }}
                 >
                   Xóa đơn
                 </button>
