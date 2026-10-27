@@ -18,6 +18,9 @@ import {
   ArrowLeft,
   Filter,
   Grid,
+  User,
+  Truck,
+  Copy,
 } from 'lucide-react';
 import { Order, OrderStatus, ORDER_STATUS_CONFIG } from '../types/order';
 import { orderService } from '../services/orderService';
@@ -57,6 +60,10 @@ export const AdminOrdersPage: React.FC = () => {
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
 
   // Form State
+  const [formCustomerName, setFormCustomerName] = useState<string>('');
+  const [formTrackingCode, setFormTrackingCode] = useState<string>('');
+  const [formHasShippingFee, setFormHasShippingFee] = useState<boolean>(true);
+  const [formShippingFee, setFormShippingFee] = useState<number | ''>(30000);
   const [formImage, setFormImage] = useState<string>('');
   const [pasteUrlInput, setPasteUrlInput] = useState<string>('');
   const [formText, setFormText] = useState<string>('');
@@ -65,6 +72,7 @@ export const AdminOrdersPage: React.FC = () => {
   const [formWorkshopPaid, setFormWorkshopPaid] = useState<boolean>(false);
   const [formStatus, setFormStatus] = useState<OrderStatus>('new');
   const [pasteNotification, setPasteNotification] = useState<string>('');
+  const [copiedTrackingCode, setCopiedTrackingCode] = useState<string>('');
 
   // Phóng to ảnh (Lightbox)
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
@@ -272,8 +280,10 @@ export const AdminOrdersPage: React.FC = () => {
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
         const matchId = order.id.toLowerCase().includes(q);
+        const matchCustomer = (order.customerName || '').toLowerCase().includes(q);
+        const matchTracking = (order.trackingCode || '').toLowerCase().includes(q);
         const matchText = (order.orderText || '').toLowerCase().includes(q);
-        if (!matchId && !matchText) return false;
+        if (!matchId && !matchCustomer && !matchTracking && !matchText) return false;
       }
       return true;
     });
@@ -365,6 +375,10 @@ export const AdminOrdersPage: React.FC = () => {
   // Mở modal thêm mới
   const handleOpenCreateModal = () => {
     setEditingOrder(null);
+    setFormCustomerName('');
+    setFormTrackingCode('');
+    setFormHasShippingFee(true);
+    setFormShippingFee(30000);
     setFormImage('');
     setPasteUrlInput('');
     setFormText('');
@@ -379,6 +393,11 @@ export const AdminOrdersPage: React.FC = () => {
   // Mở modal sửa
   const handleOpenEditModal = (order: Order) => {
     setEditingOrder(order);
+    setFormCustomerName(order.customerName || '');
+    setFormTrackingCode(order.trackingCode || '');
+    const hasShip = Boolean(order.hasShippingFee ?? (order.shippingFee && order.shippingFee > 0));
+    setFormHasShippingFee(hasShip);
+    setFormShippingFee(order.shippingFee ?? 30000);
     setFormImage(order.imageUrl || '');
     setPasteUrlInput(order.imageUrl?.startsWith('http') || order.imageUrl?.startsWith('/') ? order.imageUrl : '');
     setFormText(order.orderText || '');
@@ -415,20 +434,27 @@ export const AdminOrdersPage: React.FC = () => {
   const handleSaveOrder = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    const customerName = formCustomerName.trim() || 'Khách lẻ';
     if (!formText.trim()) {
-      alert('Vui lòng nhập thông tin đơn (tên khách / mẫu vải / kích thước...)');
+      alert('Vui lòng nhập thông tin đơn (mẫu vải, kích thước, SĐT hoặc địa chỉ...)');
       return;
     }
 
     const salePrice = typeof formSalePrice === 'number' ? formSalePrice : 0;
     const workshopCost = typeof formWorkshopCost === 'number' ? formWorkshopCost : 0;
+    const shippingFee = formHasShippingFee ? (typeof formShippingFee === 'number' ? formShippingFee : 0) : 0;
+    const trackingCode = formTrackingCode.trim();
 
     if (editingOrder) {
       const updated: Partial<Order> = {
+        customerName,
         imageUrl: formImage,
         orderText: formText.trim(),
         salePrice,
         workshopCost,
+        hasShippingFee: formHasShippingFee,
+        shippingFee,
+        trackingCode,
         workshopPaid: formWorkshopPaid,
         status: formStatus,
       };
@@ -439,10 +465,14 @@ export const AdminOrdersPage: React.FC = () => {
       await orderService.updateOrder(editingOrder.id, updated);
     } else {
       const newOrder = await orderService.createOrder({
+        customerName,
         imageUrl: formImage,
         orderText: formText.trim(),
         salePrice,
         workshopCost,
+        hasShippingFee: formHasShippingFee,
+        shippingFee,
+        trackingCode,
         workshopPaid: formWorkshopPaid,
         status: formStatus,
       });
@@ -798,12 +828,29 @@ export const AdminOrdersPage: React.FC = () => {
 
                       {/* Cột 2: Text thông tin đơn */}
                       <td style={{ padding: '0.85rem 1rem', verticalAlign: 'middle' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem', flexWrap: 'wrap' }}>
                           <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#7c6a59' }}>
                             #{order.id}
                           </span>
                           <span style={{ fontSize: '0.725rem', color: '#9c8f80' }}>
                             {new Date(order.createdAt).toLocaleDateString('vi-VN')}
+                          </span>
+                          {/* Tên người đặt */}
+                          <span
+                            style={{
+                              fontSize: '0.8rem',
+                              fontWeight: 700,
+                              color: '#2c2825',
+                              backgroundColor: '#f5eee6',
+                              padding: '2px 8px',
+                              borderRadius: '4px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.25rem',
+                            }}
+                          >
+                            <User size={12} color="#7c6a59" />
+                            {order.customerName || 'Khách lẻ'}
                           </span>
                         </div>
                         <p
@@ -818,6 +865,50 @@ export const AdminOrdersPage: React.FC = () => {
                         >
                           {order.orderText || '(Chưa có thông tin)'}
                         </p>
+                        {/* Mã vận đơn (nếu có) */}
+                        {order.trackingCode && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.35rem' }}>
+                            <span
+                              style={{
+                                fontSize: '0.75rem',
+                                fontWeight: 700,
+                                color: '#0369a1',
+                                backgroundColor: '#e0f2fe',
+                                padding: '2px 8px',
+                                borderRadius: '4px',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.3rem',
+                              }}
+                            >
+                              <Truck size={12} />
+                              Mã VĐ: {order.trackingCode}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard.writeText(order.trackingCode || '');
+                                setCopiedTrackingCode(order.id);
+                                setTimeout(() => setCopiedTrackingCode(''), 2000);
+                              }}
+                              style={{
+                                border: 'none',
+                                background: 'transparent',
+                                cursor: 'pointer',
+                                color: '#0369a1',
+                                fontSize: '0.725rem',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '2px',
+                                padding: '2px',
+                              }}
+                              title="Sao chép mã vận đơn"
+                            >
+                              {copiedTrackingCode === order.id ? <Check size={12} color="#15803d" /> : <Copy size={12} />}
+                              <span>{copiedTrackingCode === order.id ? 'Đã copy' : 'Copy'}</span>
+                            </button>
+                          </div>
+                        )}
                         {order.notes && (
                           <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.785rem', color: '#b45309', fontStyle: 'italic' }}>
                             Ghi chú: {order.notes}
@@ -829,10 +920,22 @@ export const AdminOrdersPage: React.FC = () => {
                       <td style={{ padding: '0.85rem 1rem', verticalAlign: 'middle' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
                           <div>
-                            <span style={{ fontSize: '0.7rem', color: '#685e54', display: 'block' }}>Khách trả:</span>
+                            <span style={{ fontSize: '0.7rem', color: '#685e54', display: 'block' }}>Tiền hàng:</span>
                             <span style={{ fontSize: '0.95rem', fontWeight: 700, color: '#15803d' }}>
                               {formatVND(order.salePrice || 0)}
                             </span>
+                          </div>
+                          {/* Tiền ship */}
+                          <div style={{ fontSize: '0.725rem', marginTop: '1px' }}>
+                            {order.hasShippingFee && order.shippingFee ? (
+                              <span style={{ color: '#0369a1', fontWeight: 600 }}>
+                                +{formatVND(order.shippingFee)} ship
+                              </span>
+                            ) : (
+                              <span style={{ color: '#15803d', fontWeight: 600 }}>
+                                Freeship
+                              </span>
+                            )}
                           </div>
                           <div style={{ marginTop: '0.2rem' }}>
                             <span style={{ fontSize: '0.7rem', color: '#685e54', display: 'block' }}>Tiền xưởng:</span>
@@ -993,11 +1096,64 @@ export const AdminOrdersPage: React.FC = () => {
               </div>
 
               <form onSubmit={handleSaveOrder} style={{ display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
-                {/* 1. KHU VỰC CHỌN ẢNH (3 CÁCH: MÁY / ẢNH WEB CÓ FOLDER & FILTER / PASTE) */}
+                {/* 1. TÊN NGƯỜI ĐẶT & MÃ VẬN ĐƠN */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '0.85rem' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#2c2825', marginBottom: '0.35rem' }}>
+                      Tên người đặt: <span style={{ color: '#dc2626' }}>*</span>
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        type="text"
+                        placeholder="VD: Chị Mai Lan, Anh Huy..."
+                        value={formCustomerName}
+                        onChange={(e) => setFormCustomerName(e.target.value)}
+                        required
+                        style={{
+                          width: '100%',
+                          padding: '0.5rem 0.65rem 0.5rem 2rem',
+                          fontSize: '0.875rem',
+                          fontWeight: 600,
+                          borderRadius: '6px',
+                          border: '1px solid #dcd3c5',
+                          outline: 'none',
+                          boxSizing: 'border-box',
+                        }}
+                      />
+                      <User size={15} style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', color: '#9c8f80' }} />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#2c2825', marginBottom: '0.35rem' }}>
+                      Mã vận đơn (nếu có):
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        type="text"
+                        placeholder="VD: GHTK882193, VTP..."
+                        value={formTrackingCode}
+                        onChange={(e) => setFormTrackingCode(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '0.5rem 0.65rem 0.5rem 2rem',
+                          fontSize: '0.875rem',
+                          borderRadius: '6px',
+                          border: '1px solid #dcd3c5',
+                          outline: 'none',
+                          boxSizing: 'border-box',
+                        }}
+                      />
+                      <Truck size={15} style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', color: '#9c8f80' }} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. KHU VỰC CHỌN ẢNH (3 CÁCH: MÁY / ẢNH WEB CÓ FOLDER & FILTER / PASTE) */}
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.45rem' }}>
                     <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#2c2825', margin: 0 }}>
-                      1. Ảnh mẫu vải:
+                      Ảnh mẫu vải:
                     </label>
                     <span style={{ fontSize: '0.725rem', color: '#7c6a59', fontWeight: 500 }}>
                       📋 Có thể nhấn <strong>Ctrl + V</strong> để dán ảnh đã copy
@@ -1190,7 +1346,7 @@ export const AdminOrdersPage: React.FC = () => {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.85rem' }}>
                   <div>
                     <label style={{ display: 'block', fontSize: '0.825rem', fontWeight: 600, color: '#2c2825', marginBottom: '0.35rem' }}>
-                      Giá bán (Khách trả):
+                      Giá bán (Tiền hàng):
                     </label>
                     <input
                       type="number"
@@ -1231,6 +1387,73 @@ export const AdminOrdersPage: React.FC = () => {
                       }}
                     />
                   </div>
+                </div>
+
+                {/* 4. CỤM CHECKBOX TIỀN SHIP */}
+                <div
+                  style={{
+                    padding: '0.75rem',
+                    borderRadius: '8px',
+                    border: '1px solid #e5ded5',
+                    backgroundColor: '#faf8f5',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.5rem',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
+                    <label
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.45rem',
+                        cursor: 'pointer',
+                        fontSize: '0.85rem',
+                        fontWeight: 700,
+                        color: formHasShippingFee ? '#0369a1' : '#685e54',
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={formHasShippingFee}
+                        onChange={(e) => setFormHasShippingFee(e.target.checked)}
+                        style={{ width: '16px', height: '16px' }}
+                      />
+                      <span>Thu tiền ship của khách</span>
+                    </label>
+
+                    {!formHasShippingFee && (
+                      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#15803d', backgroundColor: '#dcfce7', padding: '2px 8px', borderRadius: '4px' }}>
+                        Freeship (Miễn phí ship)
+                      </span>
+                    )}
+                  </div>
+
+                  {formHasShippingFee && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
+                      <div style={{ width: '150px' }}>
+                        <input
+                          type="number"
+                          step={5000}
+                          placeholder="Tiền ship"
+                          value={formShippingFee}
+                          onChange={(e) => setFormShippingFee(e.target.value === '' ? '' : Number(e.target.value))}
+                          style={{
+                            width: '100%',
+                            padding: '0.4rem 0.6rem',
+                            fontSize: '0.85rem',
+                            fontWeight: 600,
+                            borderRadius: '6px',
+                            border: '1px solid #dcd3c5',
+                            boxSizing: 'border-box',
+                          }}
+                        />
+                      </div>
+                      <span style={{ fontSize: '0.785rem', color: '#685e54' }}>
+                        Tổng thu khách: <strong style={{ color: '#15803d' }}>{formatVND((typeof formSalePrice === 'number' ? formSalePrice : 0) + (typeof formShippingFee === 'number' ? formShippingFee : 0))}</strong>
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {/* 4. Trạng thái tiền xưởng & Trạng thái đơn */}

@@ -15,8 +15,8 @@ try {
 class OrderService {
   private normalizeOrder(o: any): Order {
     const imageUrl = o.imageUrl || o.items?.[0]?.imageUrl || '';
+    const customerName = (o.customerName || '').trim() || 'Khách lẻ';
     const orderText = o.orderText || [
-      o.customerName,
       o.items?.[0]?.productName,
       o.items?.[0]?.color,
       o.items?.[0]?.size,
@@ -25,15 +25,22 @@ class OrderService {
     ].filter(Boolean).join(' • ') || 'Đơn hàng mới';
     const salePrice = Number(o.salePrice ?? o.totalAmount ?? 0);
     const workshopCost = Number(o.workshopCost ?? o.workshopTotalCost ?? 0);
+    const hasShippingFee = Boolean(o.hasShippingFee ?? (o.shippingFee && o.shippingFee > 0));
+    const shippingFee = Number(o.shippingFee ?? (hasShippingFee ? 30000 : 0));
+    const trackingCode = (o.trackingCode || '').trim();
     const workshopPaid = Boolean(o.workshopPaid || o.status === 'workshop_paid');
     const status: OrderStatus = o.status === 'workshop_paid' ? 'workshop_processing' : (o.status || 'new');
 
     return {
       id: o.id || this.generateNextOrderId(),
+      customerName,
       imageUrl,
       orderText,
       salePrice,
       workshopCost,
+      hasShippingFee,
+      shippingFee,
+      trackingCode,
       workshopPaid,
       status,
       notes: o.notes || '',
@@ -41,7 +48,6 @@ class OrderService {
       updatedAt: o.updatedAt || new Date().toISOString(),
       totalAmount: salePrice,
       workshopTotalCost: workshopCost,
-      customerName: o.customerName,
       customerPhone: o.customerPhone,
       items: o.items,
     };
@@ -275,16 +281,19 @@ class OrderService {
   private mapFromDb = (row: any): Order => {
     return this.normalizeOrder({
       id: row.id,
+      customerName: row.customer_name || '',
       imageUrl: row.image_url || row.items?.[0]?.imageUrl || '',
-      orderText: row.order_text || row.customer_name || '',
+      orderText: row.order_text || '',
       salePrice: Number(row.sale_price ?? row.total_amount ?? 0),
       workshopCost: Number(row.workshop_cost ?? row.workshop_total_cost ?? 0),
+      hasShippingFee: Boolean(row.has_shipping_fee ?? (row.shipping_fee && row.shipping_fee > 0)),
+      shippingFee: Number(row.shipping_fee || 0),
+      trackingCode: row.tracking_code || '',
       workshopPaid: Boolean(row.workshop_paid),
       status: row.status as OrderStatus,
       notes: row.notes || '',
       createdAt: row.created_at || new Date().toISOString(),
       updatedAt: row.updated_at || new Date().toISOString(),
-      customerName: row.customer_name,
       customerPhone: row.customer_phone,
       items: row.items,
     });
@@ -293,16 +302,19 @@ class OrderService {
   private mapToDb = (o: Order): any => {
     return {
       id: o.id,
+      customer_name: o.customerName,
       image_url: o.imageUrl,
       order_text: o.orderText,
       sale_price: o.salePrice,
       workshop_cost: o.workshopCost,
+      shipping_fee: o.shippingFee,
+      has_shipping_fee: o.hasShippingFee,
+      tracking_code: o.trackingCode,
       workshop_paid: o.workshopPaid,
       status: o.status,
       notes: o.notes,
       total_amount: o.salePrice,
       workshop_total_cost: o.workshopCost,
-      customer_name: o.customerName || o.orderText.slice(0, 50),
       customer_phone: o.customerPhone || '',
       updated_at: o.updatedAt,
     };

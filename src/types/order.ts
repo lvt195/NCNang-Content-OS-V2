@@ -20,10 +20,14 @@ export interface OrderItem {
 
 export interface Order {
   id: string;               // Mã đơn hàng (vd: "DH-1001", "DH-2610-01")
-  imageUrl: string;         // 1 ảnh đại diện để biết mẫu nào (upload từ máy hoặc link)
-  orderText: string;        // Text thông tin đơn: Tên khách, SĐT, mẫu vải, kích thước, ghi chú
+  customerName: string;     // Tên người đặt (vd: Chị Mai Lan, Anh Quốc Huy...)
+  imageUrl: string;         // 1 ảnh đại diện để biết mẫu nào (upload từ máy, link hoặc web)
+  orderText: string;        // Text thông tin đơn: SĐT, mẫu vải, kích thước đệm, địa chỉ, dặn dò
   salePrice: number;        // Giá bán cho khách (VND)
   workshopCost: number;     // Giá vốn / tiền xưởng may (VND)
+  hasShippingFee: boolean;  // Checkbox: Có thu tiền ship của khách hay không
+  shippingFee: number;      // Tiền ship (VND, vd: 30000)
+  trackingCode?: string;    // Mã vận đơn (GHTK, Viettel Post...)
   workshopPaid: boolean;    // Đã trả tiền xưởng chưa (true/false)
   status: OrderStatus;      // Trạng thái đơn
   notes?: string;           // Ghi chú thêm (nếu có)
@@ -31,14 +35,11 @@ export interface Order {
   updatedAt?: string;
 
   // Trường hỗ trợ tương thích ngược với dữ liệu cũ
-  customerName?: string;
   customerPhone?: string;
   customerAddress?: string;
-  trackingCode?: string;
   items?: OrderItem[];
   totalAmount?: number;
   workshopTotalCost?: number;
-  shippingFee?: number;
   customerPaid?: boolean;
   workshopPaidDate?: string;
   orderDate?: string;
