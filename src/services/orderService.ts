@@ -1,71 +1,16 @@
 import { Order, OrderStatus, OrderSummary } from '../types/order';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
-const STORAGE_KEY = 'ncnang_admin_orders_v1';
+const STORAGE_KEY = 'ncnang_admin_orders_v2';
 
-// Seed sample orders to help the user test and visualize immediately
-const SAMPLE_ORDERS: Order[] = [
-  {
-    id: 'DH-1005',
-    imageUrl: 'https://sbtngmjupjsbvxckeshe.supabase.co/storage/v1/object/public/product-images/SP785/1792147545122_6.jpg',
-    orderText: 'Chị Mai Lan (0983 124 556) • Set đũi tre Xanh Cốm 1m8 x 2m x 20cm • Số 45 Ngõ 12 Đặng Thai Mai, HN',
-    salePrice: 270000,
-    workshopCost: 155000,
-    workshopPaid: false,
-    status: 'new',
-    notes: 'Khách dặn giao sau 18h',
-    createdAt: new Date(Date.now() - 2 * 3600 * 1000).toISOString(),
-    updatedAt: new Date(Date.now() - 2 * 3600 * 1000).toISOString(),
-  },
-  {
-    id: 'DH-1004',
-    imageUrl: 'https://sbtngmjupjsbvxckeshe.supabase.co/storage/v1/object/public/product-images/SP785/1792147546980_3.jpg',
-    orderText: 'Anh Quốc Huy (0912 889 001) • 1 Ga chun đũi Xanh Ocean 2m x 2m2 đệm dày 25cm • CC Safira Q.9 Thủ Đức',
-    salePrice: 310000,
-    workshopCost: 175000,
-    workshopPaid: false,
-    status: 'workshop_processing',
-    notes: 'Xưởng hẹn xong chiều ngày 27/10',
-    createdAt: new Date(Date.now() - 24 * 3600 * 1000).toISOString(),
-    updatedAt: new Date(Date.now() - 10 * 3600 * 1000).toISOString(),
-  },
-  {
-    id: 'DH-1003',
-    imageUrl: '/images/BCG001/be_cat_01.webp',
-    orderText: 'Chị Thu Trang (0978 445 221) • Set 4 món Linen Be Cát 1m6 x 2m • 188 Nguyễn Thị Minh Khai, Q.3 TP.HCM',
-    salePrice: 350000,
-    workshopCost: 190000,
-    workshopPaid: true,
-    status: 'shipping',
-    notes: 'Đã chuyển tiền công xưởng',
-    createdAt: new Date(Date.now() - 48 * 3600 * 1000).toISOString(),
-    updatedAt: new Date(Date.now() - 12 * 3600 * 1000).toISOString(),
-  },
-  {
-    id: 'DH-1002',
-    imageUrl: '/images/GA001/moc_01.webp',
-    orderText: 'Anh Minh Tuấn (0903 671 289) • 2 Ga bọc đũi Trắng Mộc 1m8 x 2m • Landmark 81 Bình Thạnh',
-    salePrice: 390000,
-    workshopCost: 210000,
-    workshopPaid: true,
-    status: 'shipping',
-    notes: 'Shipper GHTK đang giao',
-    createdAt: new Date(Date.now() - 72 * 3600 * 1000).toISOString(),
-    updatedAt: new Date(Date.now() - 6 * 3600 * 1000).toISOString(),
-  },
-  {
-    id: 'DH-1001',
-    imageUrl: 'https://sbtngmjupjsbvxckeshe.supabase.co/storage/v1/object/public/product-images/SP785/1792147545122_6.jpg',
-    orderText: 'Chị Kim Ngân (0945 332 119) • Set đũi tre Xanh Cốm 1m6 x 2m • KBT Nam Long, Q.7 TP.HCM',
-    salePrice: 240000,
-    workshopCost: 155000,
-    workshopPaid: true,
-    status: 'completed',
-    notes: 'Khách nhận ưng ý',
-    createdAt: new Date(Date.now() - 140 * 3600 * 1000).toISOString(),
-    updatedAt: new Date(Date.now() - 90 * 3600 * 1000).toISOString(),
-  },
-];
+// Clear legacy sample storage key if present
+try {
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('ncnang_admin_orders_v1');
+  }
+} catch {
+  // ignore
+}
 
 class OrderService {
   private normalizeOrder(o: any): Order {
@@ -106,13 +51,12 @@ class OrderService {
     try {
       const data = localStorage.getItem(STORAGE_KEY);
       if (!data) {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(SAMPLE_ORDERS));
-        return SAMPLE_ORDERS;
+        return [];
       }
       const raw = JSON.parse(data) as any[];
-      return Array.isArray(raw) ? raw.map((o) => this.normalizeOrder(o)) : SAMPLE_ORDERS;
+      return Array.isArray(raw) ? raw.map((o) => this.normalizeOrder(o)) : [];
     } catch {
-      return SAMPLE_ORDERS;
+      return [];
     }
   }
 
@@ -121,6 +65,22 @@ class OrderService {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(orders));
     } catch (err) {
       console.warn('Lỗi lưu orders vào localStorage:', err);
+    }
+  }
+
+  public async clearAllOrders(): Promise<void> {
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify([]));
+    } catch (err) {
+      console.warn('Lỗi clear orders:', err);
+    }
+    try {
+      if (isSupabaseConfigured && supabase) {
+        await supabase.from('orders').delete().neq('id', '');
+      }
+    } catch {
+      // Ignore
     }
   }
 

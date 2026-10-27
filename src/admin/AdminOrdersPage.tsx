@@ -34,9 +34,6 @@ export const AdminOrdersPage: React.FC = () => {
   const [formWorkshopPaid, setFormWorkshopPaid] = useState<boolean>(false);
   const [formStatus, setFormStatus] = useState<OrderStatus>('new');
 
-  // Modal Xóa
-  const [orderToDelete, setOrderToDelete] = useState<Order | null>(null);
-
   // Phóng to ảnh (Lightbox)
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
 
@@ -205,13 +202,20 @@ export const AdminOrdersPage: React.FC = () => {
     }
   };
 
-  // Xóa đơn
-  const handleDeleteConfirm = async () => {
-    if (!orderToDelete) return;
-    const id = orderToDelete.id;
-    setOrders((prev) => prev.filter((o) => o.id !== id));
-    setOrderToDelete(null);
-    await orderService.deleteOrder(id);
+  // Xóa đơn nhanh bằng confirm chuẩn
+  const handleDeleteOrder = async (order: Order) => {
+    if (window.confirm(`Bạn có chắc muốn xóa đơn #${order.id} không?`)) {
+      setOrders((prev) => prev.filter((o) => o.id !== order.id));
+      await orderService.deleteOrder(order.id);
+    }
+  };
+
+  // Xóa sạch tất cả dữ liệu đơn
+  const handleClearAll = async () => {
+    if (window.confirm('Bạn có chắc chắn muốn XÓA TẤT CẢ các đơn hàng hiện có để làm trống danh sách không?')) {
+      setOrders([]);
+      await orderService.clearAllOrders();
+    }
   };
 
   return (
@@ -301,6 +305,28 @@ export const AdminOrdersPage: React.FC = () => {
             <Plus size={18} />
             <span>Thêm đơn mới</span>
           </button>
+
+          {/* Nút Xóa sạch tất cả đơn */}
+          {orders.length > 0 && (
+            <button
+              type="button"
+              onClick={handleClearAll}
+              className="btn btn-sm"
+              style={{
+                backgroundColor: '#fef2f2',
+                border: '1px solid #fca5a5',
+                color: '#dc2626',
+                fontWeight: 600,
+                fontSize: '0.825rem',
+                gap: '0.35rem',
+                padding: '0.55rem 0.85rem',
+              }}
+              title="Xóa sạch toàn bộ đơn để làm trống danh sách"
+            >
+              <Trash2 size={15} />
+              <span>Xóa sạch đơn</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -650,7 +676,7 @@ export const AdminOrdersPage: React.FC = () => {
                           </button>
                           <button
                             type="button"
-                            onClick={() => setOrderToDelete(order)}
+                            onClick={() => handleDeleteOrder(order)}
                             style={{
                               padding: '0.4rem',
                               border: '1px solid #fecaca',
@@ -659,7 +685,7 @@ export const AdminOrdersPage: React.FC = () => {
                               cursor: 'pointer',
                               color: '#dc2626',
                             }}
-                            title="Xóa đơn"
+                            title="Xóa đơn này"
                           >
                             <Trash2 size={14} />
                           </button>
@@ -999,69 +1025,6 @@ export const AdminOrdersPage: React.FC = () => {
               >
                 <X size={18} />
               </button>
-            </div>
-          </div>,
-          document.body
-        )}
-
-      {/* MODAL XÁC NHẬN XÓA */}
-      {orderToDelete &&
-        createPortal(
-          <div
-            style={{
-              position: 'fixed',
-              inset: 0,
-              backgroundColor: 'rgba(0,0,0,0.5)',
-              zIndex: 9999,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '1rem',
-            }}
-            onClick={() => setOrderToDelete(null)}
-          >
-            <div
-              style={{
-                backgroundColor: '#ffffff',
-                borderRadius: '10px',
-                width: '100%',
-                maxWidth: '380px',
-                padding: '1.25rem',
-                boxShadow: '0 20px 25px -5px rgba(0,0,0,0.2)',
-              }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#dc2626', margin: '0 0 0.5rem 0' }}>
-                Xác nhận xóa đơn hàng?
-              </h3>
-              <p style={{ fontSize: '0.85rem', color: '#685e54', margin: '0 0 1rem 0' }}>
-                Bạn có chắc chắn muốn xóa đơn #{orderToDelete.id} này không? Thao tác không thể khôi phục.
-              </p>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
-                <button
-                  type="button"
-                  onClick={() => setOrderToDelete(null)}
-                  className="btn btn-outline btn-sm"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="button"
-                  onClick={handleDeleteConfirm}
-                  style={{
-                    backgroundColor: '#dc2626',
-                    color: '#ffffff',
-                    border: 'none',
-                    borderRadius: '6px',
-                    padding: '0.45rem 1rem',
-                    fontWeight: 600,
-                    fontSize: '0.85rem',
-                    cursor: 'pointer',
-                  }}
-                >
-                  Xóa đơn
-                </button>
-              </div>
             </div>
           </div>,
           document.body
