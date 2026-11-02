@@ -700,7 +700,7 @@ export const AdminMediaLibraryPage: React.FC = () => {
       if (folderName === 'set4-dui-trang-370k' && prod.id === 'SET4_DUI_TRANG_370K') matchesFolder = true;
       if (folderName === 'set4-dui-tron-350k' && prod.id === 'SET4_DUI_TRON_350K') matchesFolder = true;
       if (folderName === 'set4-dui-ren-450k' && prod.id === 'SET4_DUI_REN_450K') matchesFolder = true;
-      if (folderName === 'set4-ni-nhung-399k' && prod.id === 'SET4_NI_NHUNG_399K') matchesFolder = true;
+      if (folderName === 'set4-ni-nhung-399k' && (prod.id === 'SET4_DUI_XOP_399K' || prod.id === 'SET4_NI_NHUNG_399K')) matchesFolder = true;
       if (folderName === 'set3-ga-bingbong-350k' && prod.id === 'SET3_BINGBONG_350K') matchesFolder = true;
       if (folderName === 'chan-thun-bingbong-300k' && prod.id === 'LE_CHAN_BINGBONG_300K') matchesFolder = true;
 
