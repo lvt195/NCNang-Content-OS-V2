@@ -703,6 +703,11 @@ export const AdminMediaLibraryPage: React.FC = () => {
       if (folderName === 'set4-ni-nhung-399k' && (prod.id === 'SET4_DUI_XOP_399K' || prod.id === 'SET4_NI_NHUNG_399K')) matchesFolder = true;
       if (folderName === 'set3-ga-bingbong-350k' && prod.id === 'SET3_BINGBONG_350K') matchesFolder = true;
       if (folderName === 'chan-thun-bingbong-300k' && prod.id === 'LE_CHAN_BINGBONG_300K') matchesFolder = true;
+      if (folderName === 'set5-ni-nhung-1599k' && prod.id === 'SET5_NI_NHUNG_1599K') matchesFolder = true;
+      if (folderName === 'set4-ni-sua-cuu-600k' && prod.id === 'SET4_NI_SUA_CUU_600K') matchesFolder = true;
+      if (folderName === 'set4-long-cuu-500k' && prod.id === 'SET4_LONG_CUU_500K') matchesFolder = true;
+      if (folderName === 'chan-king-size-600k' && prod.id === 'LE_CHAN_KING_SIZE_600K') matchesFolder = true;
+      if (folderName === 'chan-dong-xuat-han' && prod.id === 'LE_CHAN_DONG_XUAT_HAN') matchesFolder = true;
 
       if (hasUrl || hasCover || hasVariant || hasId || matchesFolder) {
         prodCats.forEach((c) => matchedCats.add(c));
