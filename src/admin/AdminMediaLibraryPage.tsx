@@ -708,6 +708,13 @@ export const AdminMediaLibraryPage: React.FC = () => {
       if (folderName === 'set4-long-cuu-500k' && prod.id === 'SET4_LONG_CUU_500K') matchesFolder = true;
       if (folderName === 'chan-king-size-600k' && prod.id === 'LE_CHAN_KING_SIZE_600K') matchesFolder = true;
       if (folderName === 'chan-dong-xuat-han' && prod.id === 'LE_CHAN_DONG_XUAT_HAN') matchesFolder = true;
+      if (folderName === 'chan-san-ho-389k' && prod.id === 'LE_CHAN_SAN_HO_389K') matchesFolder = true;
+      if (folderName === 'chan-4can-530k' && prod.id === 'LE_CHAN_NHUNG_4KG_530K') matchesFolder = true;
+      if (folderName === 'chan-chan-bong-449k' && prod.id === 'LE_CHAN_CHAN_BONG_449K') matchesFolder = true;
+      if (folderName === 'set4-ni-kitty-619k' && prod.id === 'SET4_NI_SUA_THEU_619K') matchesFolder = true;
+      if (folderName === 'set4-ni-vien-650k' && prod.id === 'SET4_NI_CUU_VIEN_650K') matchesFolder = true;
+      if (folderName === 'set4-ni-tuyen-chon-800k' && prod.id === 'SET4_NI_CUU_TUYEN_CHON_800K') matchesFolder = true;
+      if (folderName === 'set3-ni-299k' && prod.id === 'SET3_NI_299K') matchesFolder = true;
 
       if (hasUrl || hasCover || hasVariant || hasId || matchesFolder) {
         prodCats.forEach((c) => matchedCats.add(c));
