@@ -1,6 +1,7 @@
 import { Product, FilterState } from '../types/product';
 import { SITE_CONFIG } from '../config/site';
 import { doesProductMatchColor } from '../data/colors';
+import { inferProductMaterial } from '../data/materials';
 
 /**
  * Remove Vietnamese accents for diacritic-insensitive search
@@ -81,7 +82,17 @@ export function filterProducts(products: Product[], filters: FilterState): Produ
       if (!matchesAnyRange) return false;
     }
 
-    // 5. Search Query Filter (Name or Product Code ID)
+    // 5. Material Filter (supports multi-selecting materials)
+    const activeMaterials = filters.materials && filters.materials.length > 0
+      ? filters.materials
+      : (filters.material && filters.material !== 'all' ? [filters.material] : []);
+
+    if (activeMaterials.length > 0) {
+      const pMat = p.material || inferProductMaterial(p.name, p.description, p.id);
+      if (!activeMaterials.includes(pMat)) return false;
+    }
+
+    // 6. Search Query Filter (Name or Product Code ID)
     if (normalizedQuery) {
       const normName = normalizeVietnamese(p.name);
       const normId = normalizeVietnamese(p.id);

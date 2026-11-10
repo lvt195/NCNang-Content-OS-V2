@@ -41,6 +41,7 @@ export interface Product {
   coverImage?: string;
   sizes: string[];
   description: string;
+  material?: string;
   comboItems?: ComboItem[];
   variants?: ProductVariant[];
   featured?: boolean;
@@ -96,6 +97,8 @@ export interface FilterState {
   colors?: string[];
   type: string;
   types?: string[];
+  material?: string;
+  materials?: string[];
   searchQuery: string;
   sortBy: SortOption;
 }

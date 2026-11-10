@@ -1,8 +1,9 @@
-import React from 'react';
-import { RotateCcw, SlidersHorizontal, ChevronUp, Check } from 'lucide-react';
+import React, { useState } from 'react';
+import { RotateCcw, SlidersHorizontal, ChevronUp, ChevronDown, Check } from 'lucide-react';
 import { FilterState, Category, Product } from '../types/product';
 import { SITE_CONFIG } from '../config/site';
 import { getParentColorGroups, doesProductMatchColor } from '../data/colors';
+import { MATERIALS, inferProductMaterial } from '../data/materials';
 
 interface ProductFiltersProps {
   filters: FilterState;
@@ -41,11 +42,18 @@ export const ProductFilters: React.FC<ProductFiltersProps> = ({
     ? filters.types
     : (filters.type && filters.type !== 'all' ? [filters.type] : []);
 
+  const selectedMaterials = filters.materials && filters.materials.length > 0
+    ? filters.materials
+    : (filters.material && filters.material !== 'all' ? [filters.material] : []);
+
+  const [isMaterialOpen, setIsMaterialOpen] = useState(true);
+
   const isAnyFilterActive =
     selectedCategories.length > 0 ||
     selectedColors.length > 0 ||
     selectedPriceRanges.length > 0 ||
     selectedTypes.length > 0 ||
+    selectedMaterials.length > 0 ||
     Boolean(filters.searchQuery);
 
   const handleToggleCategory = (catId: string) => {
@@ -104,6 +112,20 @@ export const ProductFilters: React.FC<ProductFiltersProps> = ({
     });
   };
 
+  const handleToggleMaterial = (matId: string) => {
+    if (matId === 'all') {
+      onFilterChange({ material: 'all', materials: [] });
+      return;
+    }
+    const next = selectedMaterials.includes(matId)
+      ? selectedMaterials.filter((m) => m !== matId)
+      : [...selectedMaterials, matId];
+    onFilterChange({
+      material: next.length === 1 ? next[0] : (next.length === 0 ? 'all' : next.join(',')),
+      materials: next,
+    });
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -127,7 +149,7 @@ export const ProductFilters: React.FC<ProductFiltersProps> = ({
                 border: '1px solid #ebd9c2',
               }}
             >
-              Đang lọc {selectedCategories.length + selectedColors.length + selectedPriceRanges.length + selectedTypes.length} tiêu chí
+              Đang lọc {selectedCategories.length + selectedColors.length + selectedPriceRanges.length + selectedTypes.length + selectedMaterials.length} tiêu chí
             </span>
           )}
         </div>
@@ -209,7 +231,103 @@ export const ProductFilters: React.FC<ProductFiltersProps> = ({
           </div>
         </div>
 
-        {/* Column 2: Loại sản phẩm & Mức giá */}
+        {/* Column 2: Chất liệu (Trổ xuống các loại chất liệu) */}
+        <div className="filter-group-col">
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: '0.4rem',
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setIsMaterialOpen(!isMaterialOpen)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                padding: 0,
+                textAlign: 'left',
+              }}
+              title={isMaterialOpen ? 'Thu gọn danh sách chất liệu' : 'Bấm để trổ xuống các loại chất liệu'}
+            >
+              <h4 className="filter-group-heading" style={{ margin: 0, display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                <span>Chất liệu</span>
+                <span style={{ textTransform: 'none', fontWeight: 500, fontSize: '0.75rem', color: 'var(--accent-brown)' }}>
+                  ({selectedMaterials.length > 0 ? `${selectedMaterials.length} đã chọn` : 'Tất cả'})
+                </span>
+              </h4>
+              {isMaterialOpen ? (
+                <ChevronUp size={14} color="var(--accent-brown)" />
+              ) : (
+                <ChevronDown size={14} color="var(--accent-brown)" />
+              )}
+            </button>
+
+            {selectedMaterials.length > 0 && (
+              <button
+                type="button"
+                onClick={() => handleToggleMaterial('all')}
+                style={{
+                  fontSize: '0.75rem',
+                  color: 'var(--accent-brown)',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: 0,
+                }}
+              >
+                Bỏ chọn
+              </button>
+            )}
+          </div>
+
+          {/* Trổ xuống danh sách các loại chất liệu */}
+          {isMaterialOpen && (
+            <div className="filter-options-list">
+              <button
+                type="button"
+                className={`filter-item-btn ${selectedMaterials.length === 0 ? 'active' : ''}`}
+                onClick={() => handleToggleMaterial('all')}
+              >
+                <span>Tất cả chất liệu</span>
+                <span className="filter-count-badge">({products.length})</span>
+              </button>
+
+              {MATERIALS.map((mat) => {
+                const count = products.filter((p) => {
+                  const pMat = p.material || inferProductMaterial(p.name, p.description, p.id);
+                  return pMat === mat.id;
+                }).length;
+                const isActive = selectedMaterials.includes(mat.id);
+
+                return (
+                  <button
+                    key={mat.id}
+                    type="button"
+                    className={`filter-item-btn ${isActive ? 'active' : ''}`}
+                    onClick={() => handleToggleMaterial(mat.id)}
+                    title={mat.description}
+                  >
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}>
+                      {isActive && <Check size={13} color="var(--accent-brown)" style={{ strokeWidth: 2.5 }} />}
+                      <span style={{ fontSize: '0.9rem' }}>{mat.icon}</span>
+                      <span>{mat.shortName}</span>
+                    </span>
+                    <span className="filter-count-badge">({count})</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Column 3: Loại sản phẩm & Mức giá */}
         <div className="filter-group-col">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
             <h4 className="filter-group-heading" style={{ margin: 0 }}>Loại sản phẩm</h4>
@@ -478,11 +596,18 @@ export const ProductFilters: React.FC<ProductFiltersProps> = ({
 
         .filters-card-grid {
           display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: 1.75rem;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 1.5rem;
         }
 
-        @media (max-width: 860px) {
+        @media (max-width: 1100px) {
+          .filters-card-grid {
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1.25rem;
+          }
+        }
+
+        @media (max-width: 640px) {
           .filters-card-grid {
             grid-template-columns: 1fr;
             gap: 1.25rem;

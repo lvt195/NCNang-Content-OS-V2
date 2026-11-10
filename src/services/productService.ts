@@ -2,6 +2,7 @@ import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { Product, Category, ProductCategory } from '../types/product';
 import { INITIAL_PRODUCTS } from '../data/initialProducts';
 import { DEFAULT_CATEGORIES } from '../data/categories';
+import { inferProductMaterial } from '../data/materials';
 
 // Map database row to TypeScript Product
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -50,6 +51,20 @@ function mapRowToProduct(row: any): Product {
 
   const primaryCategory = (categories[0] || row.category_id || 'mon-le') as ProductCategory;
 
+  // Material detection: explicit column, tag in description, or smart fallback
+  let material: string | undefined = undefined;
+  if (row.material) {
+    material = row.material;
+  } else if (typeof row.description === 'string') {
+    const matMatch = row.description.match(/<!--material:(.*?)-->/);
+    if (matMatch && matMatch[1]) {
+      material = matMatch[1].trim();
+    }
+  }
+  if (!material) {
+    material = inferProductMaterial(row.name, row.description, row.id);
+  }
+
   return {
     id: row.id,
     slug: row.slug,
@@ -63,6 +78,7 @@ function mapRowToProduct(row: any): Product {
     colors: Array.isArray(row.colors) ? row.colors : [],
     sizes: Array.isArray(row.sizes) ? row.sizes : [],
     description: row.description || '',
+    material: material,
     comboItems: Array.isArray(row.combo_items) ? row.combo_items : [],
     variants: variants,
     images: images,
@@ -94,6 +110,16 @@ function mapProductToRow(product: Partial<Product>) {
       desc = desc.replace(/<!--cats:(.*?)-->/, `<!--cats:${JSON.stringify(cats)}-->`);
     } else {
       desc = `${desc}\n<!--cats:${JSON.stringify(cats)}-->`;
+    }
+  }
+
+  // Synchronize embedded <!--material:...--> tag in description
+  const mat = product.material || inferProductMaterial(product.name, product.description, product.id);
+  if (mat) {
+    if (desc.includes('<!--material:')) {
+      desc = desc.replace(/<!--material:(.*?)-->/, `<!--material:${mat}-->`);
+    } else {
+      desc = `${desc}\n<!--material:${mat}-->`;
     }
   }
 

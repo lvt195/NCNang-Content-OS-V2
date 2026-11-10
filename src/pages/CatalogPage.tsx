@@ -14,6 +14,7 @@ import {
   ZoomIn,
   ZoomOut,
   Check,
+  Layers,
 } from 'lucide-react';
 import { Product, Category, FilterState, SortOption } from '../types/product';
 import { productService } from '../services/productService';
@@ -23,6 +24,7 @@ import { Footer } from '../components/Footer';
 import { ProductCard } from '../components/ProductCard';
 import { ProductFilters } from '../components/ProductFilters';
 import { getColorOption } from '../data/colors';
+import { MATERIALS, getMaterialOption, inferProductMaterial } from '../data/materials';
 import { SITE_CONFIG } from '../config/site';
 import { analyticsService } from '../services/analyticsService';
 import { formatVND } from '../utils/formatCurrency';
@@ -47,13 +49,19 @@ export const CatalogPage: React.FC = () => {
   const [isSortOpen, setIsSortOpen] = useState(false);
   const sortRef = useRef<HTMLDivElement>(null);
 
+  const [isMaterialDropdownOpen, setIsMaterialDropdownOpen] = useState(false);
+  const materialRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent | TouchEvent) => {
       if (sortRef.current && !sortRef.current.contains(e.target as Node)) {
         setIsSortOpen(false);
       }
+      if (materialRef.current && !materialRef.current.contains(e.target as Node)) {
+        setIsMaterialDropdownOpen(false);
+      }
     };
-    if (isSortOpen) {
+    if (isSortOpen || isMaterialDropdownOpen) {
       document.addEventListener('mousedown', handleClickOutside);
       document.addEventListener('touchstart', handleClickOutside);
     }
@@ -61,7 +69,7 @@ export const CatalogPage: React.FC = () => {
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('touchstart', handleClickOutside);
     };
-  }, [isSortOpen]);
+  }, [isSortOpen, isMaterialDropdownOpen]);
 
   // Keyboard navigation for Quick View Modal
   useEffect(() => {
@@ -91,6 +99,7 @@ export const CatalogPage: React.FC = () => {
   // Read initial query params from URL if present
   const initialSearch = searchParams.get('q') || '';
   const initialCategory = searchParams.get('cat') || 'all';
+  const initialMaterial = searchParams.get('mat') || 'all';
 
   const [filters, setFilters] = useState<FilterState>({
     category: initialCategory,
@@ -101,14 +110,17 @@ export const CatalogPage: React.FC = () => {
     colors: [],
     type: 'all',
     types: [],
+    material: initialMaterial,
+    materials: initialMaterial !== 'all' ? [initialMaterial] : [],
     searchQuery: initialSearch,
     sortBy: 'featured',
   });
 
-  // Sync searchQuery and category with URL query parameter
+  // Sync searchQuery, category, and material with URL query parameter
   useEffect(() => {
     const q = searchParams.get('q');
     const cat = searchParams.get('cat') || 'all';
+    const mat = searchParams.get('mat') || 'all';
 
     setFilters((prev) => {
       let changed = false;
@@ -121,6 +133,11 @@ export const CatalogPage: React.FC = () => {
       if (cat !== prev.category) {
         updates.category = cat;
         updates.categories = cat !== 'all' ? [cat] : [];
+        changed = true;
+      }
+      if (mat !== prev.material) {
+        updates.material = mat;
+        updates.materials = mat !== 'all' ? [mat] : [];
         changed = true;
       }
 
@@ -177,9 +194,15 @@ export const CatalogPage: React.FC = () => {
   const handleResetFilters = () => {
     setFilters({
       category: 'all',
+      categories: [],
       priceRangeId: 'all',
+      priceRanges: [],
       color: 'all',
+      colors: [],
       type: 'all',
+      types: [],
+      material: 'all',
+      materials: [],
       searchQuery: '',
       sortBy: 'featured',
     });
@@ -198,6 +221,7 @@ export const CatalogPage: React.FC = () => {
     if (filters.priceRangeId && filters.priceRangeId !== 'all') count++;
     if (filters.color && filters.color !== 'all') count++;
     if (filters.type && filters.type !== 'all') count++;
+    if ((filters.material && filters.material !== 'all') || (filters.materials && filters.materials.length > 0)) count++;
     if (filters.searchQuery) count++;
     return count;
   }, [filters]);
@@ -304,6 +328,166 @@ export const CatalogPage: React.FC = () => {
                     </span>
                   )}
                 </button>
+
+                {/* Custom Material selector - Trổ xuống các loại chất liệu */}
+                <div ref={materialRef} style={{ position: 'relative' }}>
+                  <button
+                    type="button"
+                    onClick={() => setIsMaterialDropdownOpen(!isMaterialDropdownOpen)}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                      padding: '0.35rem 0.65rem',
+                      borderRadius: 'var(--radius-sm)',
+                      border: '1px solid var(--border-subtle)',
+                      backgroundColor:
+                        (filters.materials && filters.materials.length > 0) ||
+                        (filters.material && filters.material !== 'all')
+                          ? 'var(--accent-warm-tint)'
+                          : 'var(--bg-surface)',
+                      fontSize: '0.8rem',
+                      color:
+                        (filters.materials && filters.materials.length > 0) ||
+                        (filters.material && filters.material !== 'all')
+                          ? 'var(--accent-brown)'
+                          : 'var(--text-primary)',
+                      cursor: 'pointer',
+                      fontWeight:
+                        (filters.materials && filters.materials.length > 0) ||
+                        (filters.material && filters.material !== 'all')
+                          ? 600
+                          : 500,
+                    }}
+                    aria-label="Chọn chất liệu sản phẩm"
+                  >
+                    <Layers size={13} style={{ color: 'var(--accent-brown)' }} />
+                    <span>
+                      {filters.materials && filters.materials.length > 0
+                        ? `${filters.materials.length} chất liệu`
+                        : filters.material && filters.material !== 'all'
+                        ? getMaterialOption(filters.material).shortName
+                        : 'Chất liệu'}
+                    </span>
+                    <ChevronDown size={13} style={{ color: 'var(--text-muted)' }} />
+                  </button>
+
+                  {isMaterialDropdownOpen && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        left: 0,
+                        top: 'calc(100% + 4px)',
+                        backgroundColor: '#ffffff',
+                        border: '1px solid var(--border-subtle)',
+                        borderRadius: 'var(--radius-md)',
+                        boxShadow: '0 8px 24px rgba(0,0,0,0.14)',
+                        zIndex: 100,
+                        minWidth: '220px',
+                        overflow: 'hidden',
+                        padding: '4px',
+                      }}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleFilterChange({ material: 'all', materials: [] });
+                          setIsMaterialDropdownOpen(false);
+                        }}
+                        style={{
+                          width: '100%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '0.45rem 0.65rem',
+                          border: 'none',
+                          backgroundColor:
+                            (!filters.materials || filters.materials.length === 0) &&
+                            (!filters.material || filters.material === 'all')
+                              ? 'var(--accent-warm-tint)'
+                              : 'transparent',
+                          color:
+                            (!filters.materials || filters.materials.length === 0) &&
+                            (!filters.material || filters.material === 'all')
+                              ? 'var(--accent-brown)'
+                              : 'var(--text-primary)',
+                          fontWeight:
+                            (!filters.materials || filters.materials.length === 0) &&
+                            (!filters.material || filters.material === 'all')
+                              ? 600
+                              : 400,
+                          fontSize: '0.8rem',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                        }}
+                      >
+                        <span>Tất cả chất liệu</span>
+                        <span style={{ fontSize: '0.725rem', opacity: 0.7 }}>({products.length})</span>
+                      </button>
+
+                      {MATERIALS.map((mat) => {
+                        const count = products.filter((p) => {
+                          const pMat = p.material || inferProductMaterial(p.name, p.description, p.id);
+                          return pMat === mat.id;
+                        }).length;
+                        const isSelected =
+                          (filters.materials && filters.materials.includes(mat.id)) ||
+                          filters.material === mat.id;
+
+                        return (
+                          <button
+                            key={mat.id}
+                            type="button"
+                            onClick={() => {
+                              const current = filters.materials || [];
+                              const next = current.includes(mat.id)
+                                ? current.filter((m) => m !== mat.id)
+                                : [...current, mat.id];
+                              handleFilterChange({
+                                material:
+                                  next.length === 1
+                                    ? next[0]
+                                    : next.length === 0
+                                    ? 'all'
+                                    : next.join(','),
+                                materials: next,
+                              });
+                            }}
+                            style={{
+                              width: '100%',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              padding: '0.45rem 0.65rem',
+                              border: 'none',
+                              backgroundColor: isSelected
+                                ? 'var(--accent-warm-tint)'
+                                : 'transparent',
+                              color: isSelected
+                                ? 'var(--accent-brown)'
+                                : 'var(--text-primary)',
+                              fontWeight: isSelected ? 600 : 400,
+                              fontSize: '0.8rem',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              textAlign: 'left',
+                            }}
+                          >
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                              <span>{mat.icon}</span>
+                              <span>{mat.shortName}</span>
+                            </span>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                              <span style={{ fontSize: '0.725rem', opacity: 0.7 }}>({count})</span>
+                              {isSelected && <Check size={13} color="var(--accent-brown)" />}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
 
                 {/* Custom Sort selector - eliminates Android detached spinner popup */}
                 <div ref={sortRef} style={{ position: 'relative' }}>
@@ -454,6 +638,17 @@ export const CatalogPage: React.FC = () => {
                     <span className="badge badge-draft" style={{ gap: '4px', padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}>
                       {filters.type === 'combo' ? 'Combo' : 'Món lẻ'}
                       <button type="button" onClick={() => handleFilterChange({ type: 'all' })}>
+                        <X size={12} />
+                      </button>
+                    </span>
+                  )}
+
+                  {((filters.materials && filters.materials.length > 0) || (filters.material && filters.material !== 'all')) && (
+                    <span className="badge badge-draft" style={{ gap: '4px', padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}>
+                      {filters.materials && filters.materials.length > 0
+                        ? filters.materials.map((m) => getMaterialOption(m).shortName).join(', ')
+                        : getMaterialOption(filters.material || '').shortName}
+                      <button type="button" onClick={() => handleFilterChange({ material: 'all', materials: [] })}>
                         <X size={12} />
                       </button>
                     </span>
