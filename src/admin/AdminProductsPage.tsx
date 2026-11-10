@@ -18,7 +18,6 @@ import {
   Image as ImageIcon,
   ZoomIn,
   ZoomOut,
-  Maximize2,
   X,
   ChevronLeft,
   ChevronRight,
@@ -48,14 +47,14 @@ export const AdminProductsPage: React.FC = () => {
     localStorage.setItem('admin_prod_view', mode);
   };
 
-  // Column Slider (1 to 5 columns on desktop, 1 to 3 on mobile/tablet)
+  // Column Slider (2 to 5 columns)
   const [adminCols, setAdminCols] = useState<number>(() => {
     const saved = localStorage.getItem('admin_column_count');
-    return saved ? Math.max(1, Math.min(5, parseInt(saved, 10))) : 4;
+    return saved ? Math.max(2, Math.min(5, parseInt(saved, 10))) : 4;
   });
 
   const handleAdminColsChange = (cols: number) => {
-    const clamped = Math.max(1, Math.min(5, cols));
+    const clamped = Math.max(2, Math.min(5, cols));
     setAdminCols(clamped);
     localStorage.setItem('admin_column_count', clamped.toString());
   };
@@ -389,40 +388,26 @@ export const AdminProductsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Zoom / Chia Lưới Controller (khi xem dạng ảnh hoặc lưới thẻ) */}
+      {/* Zoom / Chia Lưới Controller (khi xem dạng ảnh hoặc lưới thẻ) - Thanh kéo 2-5 cột không hiển thị số */}
       {(viewMode === 'gallery' || viewMode === 'grid') && (
         <div
           style={{
             backgroundColor: '#ffffff',
             border: '1px solid #ebdccb',
             borderRadius: '8px',
-            padding: '0.4rem 0.75rem',
+            padding: '0.35rem 0.65rem',
             marginBottom: '1.25rem',
-            display: 'flex',
+            display: 'inline-flex',
             alignItems: 'center',
-            gap: '0.5rem',
-            flexWrap: 'wrap',
+            gap: '0.45rem',
           }}
+          title="Điều chỉnh số cột hiển thị (2 - 5 cột)"
         >
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.35rem',
-              fontSize: '0.8rem',
-              fontWeight: 600,
-              color: '#685e54',
-            }}
-          >
-            <Maximize2 size={13} style={{ color: '#9c6644' }} />
-            <span>Cột hiển thị:</span>
-          </div>
-
           {/* Zoom Out Button */}
           <button
             type="button"
             onClick={() => handleAdminColsChange(adminCols - 1)}
-            disabled={adminCols <= 1}
+            disabled={adminCols <= 2}
             className="btn btn-outline btn-sm"
             style={{ padding: '0.2rem 0.45rem', height: '28px' }}
             title="Giảm số cột (Ảnh to hơn)"
@@ -433,18 +418,17 @@ export const AdminProductsPage: React.FC = () => {
           {/* Range Slider */}
           <input
             type="range"
-            min={1}
+            min={2}
             max={5}
             step={1}
             value={adminCols}
             onChange={(e) => handleAdminColsChange(Number(e.target.value))}
             className="zoom-slider"
             style={{
-              flex: '1 1 80px',
-              maxWidth: '140px',
+              width: '110px',
               verticalAlign: 'middle',
             }}
-            title={`Số cột: ${adminCols}`}
+            title="Điều chỉnh số cột (2 - 5)"
           />
 
           {/* Zoom In Button */}
@@ -458,34 +442,6 @@ export const AdminProductsPage: React.FC = () => {
           >
             <ZoomIn size={13} />
           </button>
-
-          <span
-            style={{
-              fontSize: '0.75rem',
-              fontWeight: 600,
-              color: '#9c6644',
-              backgroundColor: '#faf8f5',
-              padding: '0.15rem 0.5rem',
-              borderRadius: '12px',
-              border: '1px solid #ebd9c2',
-              marginLeft: 'auto',
-            }}
-          >
-            <span className="mobile-only">
-              {adminCols === 1
-                ? '1 cột (Lướt xem)'
-                : adminCols >= 3
-                ? '3 cột (Nhỏ)'
-                : '2 cột'}
-            </span>
-            <span className="desktop-only">
-              {adminCols === 1
-                ? '1 cột (To)'
-                : adminCols === 5
-                ? '5 cột (Nhỏ)'
-                : `${adminCols} cột`}
-            </span>
-          </span>
         </div>
       )}
 
@@ -516,9 +472,9 @@ export const AdminProductsPage: React.FC = () => {
         <div
           className="admin-gallery-grid"
           style={{
-            ['--desktop-cols' as string]: Math.min(5, Math.max(1, adminCols)),
-            ['--tablet-cols' as string]: Math.min(3, Math.max(1, adminCols)),
-            ['--mobile-cols' as string]: Math.min(3, Math.max(1, adminCols)),
+            ['--desktop-cols' as string]: Math.min(5, Math.max(2, adminCols)),
+            ['--tablet-cols' as string]: Math.min(3, Math.max(2, adminCols)),
+            ['--mobile-cols' as string]: Math.min(3, Math.max(2, adminCols)),
           }}
         >
           {filteredProducts.map((p) => {
@@ -717,11 +673,9 @@ export const AdminProductsPage: React.FC = () => {
                       fontSize: adminCols >= 4 ? '0.8rem' : '0.875rem',
                       color: '#2c2825',
                       lineHeight: 1.35,
-                      display: '-webkit-box',
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: 'vertical',
                       overflow: 'hidden',
-                      minHeight: '2.7em',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
                     }}
                   >
                     {p.name}
@@ -771,9 +725,9 @@ export const AdminProductsPage: React.FC = () => {
         <div
           className="admin-gallery-grid"
           style={{
-            ['--desktop-cols' as string]: Math.min(5, Math.max(1, adminCols)),
-            ['--tablet-cols' as string]: Math.min(3, Math.max(1, adminCols)),
-            ['--mobile-cols' as string]: Math.min(3, Math.max(1, adminCols)),
+            ['--desktop-cols' as string]: Math.min(5, Math.max(2, adminCols)),
+            ['--tablet-cols' as string]: Math.min(3, Math.max(2, adminCols)),
+            ['--mobile-cols' as string]: Math.min(3, Math.max(2, adminCols)),
           }}
         >
           {filteredProducts.map((p) => {
@@ -907,11 +861,9 @@ export const AdminProductsPage: React.FC = () => {
                       color: '#2c2825',
                       lineHeight: 1.35,
                       marginBottom: '0.5rem',
-                      display: '-webkit-box',
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: 'vertical',
                       overflow: 'hidden',
-                      minHeight: '2.55rem',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
                     }}
                     title={p.name}
                   >

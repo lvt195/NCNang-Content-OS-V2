@@ -24,6 +24,9 @@ import {
   CheckSquare,
   Package,
   Layers,
+  ZoomIn,
+  ZoomOut,
+  ChevronDown,
 } from 'lucide-react';
 import { mediaService, StorageItem, DuplicateGroup } from '../services/mediaService';
 import { productService } from '../services/productService';
@@ -163,14 +166,63 @@ export const AdminMediaLibraryPage: React.FC = () => {
   const [dragOverCategory, setDragOverCategory] = useState<string | null>(null);
   const [isBatchMoving, setIsBatchMoving] = useState<boolean>(false);
   const [isSelectMode, setIsSelectMode] = useState<boolean>(false);
-  const [gridSize, setGridSize] = useState<'normal' | 'large'>(() => {
-    return (localStorage.getItem('media_grid_size') as 'normal' | 'large') || 'large';
+  // Media Grid Column Slider (2 to 5 columns - No column number text)
+  const [mediaCols, setMediaCols] = useState<number>(() => {
+    const saved = localStorage.getItem('media_cols');
+    return saved ? Math.max(2, Math.min(5, parseInt(saved, 10))) : 4;
   });
 
-  const handleToggleGridSize = () => {
-    const next = gridSize === 'large' ? 'normal' : 'large';
-    setGridSize(next);
-    localStorage.setItem('media_grid_size', next);
+  const handleMediaColsChange = (cols: number) => {
+    const clamped = Math.max(2, Math.min(5, cols));
+    setMediaCols(clamped);
+    localStorage.setItem('media_cols', clamped.toString());
+  };
+
+  // Group by Product Mode ('by_product')
+  const [groupByProduct, setGroupByProduct] = useState<boolean>(() => {
+    const saved = localStorage.getItem('media_group_by_product');
+    return saved !== null ? saved === 'true' : true; // Mặc định chia theo sản phẩm
+  });
+
+  const handleToggleGroupByProduct = (value?: boolean) => {
+    const next = typeof value === 'boolean' ? value : !groupByProduct;
+    setGroupByProduct(next);
+    localStorage.setItem('media_group_by_product', String(next));
+  };
+
+  // Collapsed product section IDs
+  const [collapsedGroupIds, setCollapsedGroupIds] = useState<Set<string>>(new Set());
+
+  const toggleCollapseGroup = (prodId: string) => {
+    setCollapsedGroupIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(prodId)) {
+        next.delete(prodId);
+      } else {
+        next.add(prodId);
+      }
+      return next;
+    });
+  };
+
+  const handleExpandAllGroups = () => {
+    setCollapsedGroupIds(new Set());
+  };
+
+  const handleCollapseAllGroups = (allIds: string[]) => {
+    setCollapsedGroupIds(new Set(allIds));
+  };
+
+  const handleSelectProductPhotos = (productFiles: StorageItem[]) => {
+    const nextSet = new Set(selectedPaths);
+    const filePaths = productFiles.filter((i) => !i.isFolder).map((i) => i.fullPath);
+    const allSelected = filePaths.length > 0 && filePaths.every((p) => nextSet.has(p));
+    if (allSelected) {
+      filePaths.forEach((p) => nextSet.delete(p));
+    } else {
+      filePaths.forEach((p) => nextSet.add(p));
+    }
+    setSelectedPaths(nextSet);
   };
 
   // Drag Action Mode: 'move' (Chuyển hẳn) | 'copy' (Thêm/Sao chép vào danh mục)
@@ -767,11 +819,114 @@ export const AdminMediaLibraryPage: React.FC = () => {
 
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase().trim();
-      list = list.filter((item) => item.name.toLowerCase().includes(query));
+      const matchedProdIds = new Set(
+        products
+          .filter((p) => p.name.toLowerCase().includes(query) || p.id.toLowerCase().includes(query))
+          .map((p) => p.id.toUpperCase())
+      );
+
+      list = list.filter((item) => {
+        if (item.name.toLowerCase().includes(query)) return true;
+        if (item.fullPath.toLowerCase().includes(query)) return true;
+        for (const pid of matchedProdIds) {
+          if (item.fullPath.toUpperCase().includes(pid) || item.name.toUpperCase().includes(pid)) return true;
+        }
+        return false;
+      });
     }
 
     return list;
   }, [categoryFilter, productFilter, viewScope, allFiles, items, searchQuery, products, categories]);
+
+  // Group photos by product for "Chia theo sản phẩm" view
+  const productGroupsData = useMemo(() => {
+    if (viewScope === 'current_folder') {
+      return { groups: [], unassigned: [] };
+    }
+
+    const files = displayedItems.filter((i) => !i.isFolder);
+    const assignedPaths = new Set<string>();
+    const groups: { product: Product; items: StorageItem[] }[] = [];
+
+    for (const prod of products) {
+      const prodUrls = new Set<string>();
+      if (prod.coverImage) prodUrls.add(prod.coverImage.split('?')[0].split('#')[0]);
+      prod.images?.forEach((url) => prodUrls.add(url.split('?')[0].split('#')[0]));
+      prod.variants?.forEach((v) => {
+        if (v.image) prodUrls.add(v.image.split('?')[0].split('#')[0]);
+      });
+
+      const prodIdUpper = prod.id.toUpperCase();
+      const prodSlugLower = (prod.slug || '').toLowerCase();
+
+      const matched = files.filter((item) => {
+        if (item.publicUrl) {
+          const cleanItemUrl = item.publicUrl.split('?')[0].split('#')[0];
+          if (prodUrls.has(cleanItemUrl)) return true;
+        }
+        const pathUpper = item.fullPath.toUpperCase();
+        if (
+          pathUpper.includes(`/${prodIdUpper}/`) ||
+          pathUpper.startsWith(`${prodIdUpper}/`) ||
+          pathUpper.includes(prodIdUpper)
+        ) {
+          return true;
+        }
+        if (prodSlugLower && item.fullPath.toLowerCase().includes(prodSlugLower)) {
+          return true;
+        }
+        if (item.name.toUpperCase().includes(prodIdUpper)) {
+          return true;
+        }
+
+        const folderName = item.fullPath.includes('/') ? item.fullPath.split('/')[0].toLowerCase() : '';
+        if (folderName === 'combo165' && prod.id.startsWith('SET165')) return true;
+        if (folderName === 'set4-chan-380k' && prod.id.startsWith('SET380')) return true;
+        if (folderName === 'set-thunlanh-350k' && prod.id === 'SET350') return true;
+        if (folderName === 'vo-chan-ni-tho-300k' && prod.id === 'LE_CHAN_NI_THO_300K') return true;
+        if (folderName === 'chan-he-thun-lanh-300k' && prod.id === 'LE_CHAN_THUN_LANH_300K') return true;
+        if (folderName === 'set4-phi-lua-610k' && prod.id === 'SET4_PHI_LUA_610K') return true;
+        if (folderName === 'set4-ni-cham-bi-700k' && prod.id === 'SET4_NI_CHAM_BI_700K') return true;
+        if (folderName === 'set4-bong-xop-400k' && prod.id === 'SET4_BONG_XOP_400K') return true;
+        if (folderName === 'set4-cotton-370k' && prod.id.startsWith('SET370')) return true;
+        if (folderName === 'set-bingbong-240k' && prod.id === 'SET4_BINGBONG_240K') return true;
+        if (folderName === 'set-xinkk-220k' && prod.id === 'SET_XINKK_220K') return true;
+        if (folderName === 'set3-ni-280k' && prod.id === 'SET280') return true;
+        if (folderName === 'set4-dui-trang-370k' && prod.id === 'SET4_DUI_TRANG_370K') return true;
+        if (folderName === 'set4-dui-tron-350k' && prod.id === 'SET4_DUI_TRON_350K') return true;
+        if (folderName === 'set4-dui-ren-450k' && prod.id === 'SET4_DUI_REN_450K') return true;
+        if (folderName === 'set4-ni-nhung-399k' && (prod.id === 'SET4_DUI_XOP_399K' || prod.id === 'SET4_NI_NHUNG_399K')) return true;
+        if (folderName === 'set3-ga-bingbong-350k' && prod.id === 'SET3_BINGBONG_350K') return true;
+        if (folderName === 'chan-thun-bingbong-300k' && prod.id === 'LE_CHAN_BINGBONG_300K') return true;
+        if (folderName === 'set5-ni-nhung-1599k' && prod.id === 'SET5_NI_NHUNG_1599K') return true;
+        if (folderName === 'set4-ni-sua-cuu-600k' && prod.id === 'SET4_NI_SUA_CUU_600K') return true;
+        if (folderName === 'set4-long-cuu-500k' && prod.id === 'SET4_LONG_CUU_500K') return true;
+        if (folderName === 'chan-king-size-600k' && prod.id === 'LE_CHAN_KING_SIZE_600K') return true;
+        if (folderName === 'chan-dong-xuat-han' && prod.id === 'LE_CHAN_DONG_XUAT_HAN') return true;
+        if (folderName === 'chan-san-ho-389k' && prod.id === 'LE_CHAN_SAN_HO_389K') return true;
+        if (folderName === 'chan-4can-530k' && prod.id === 'LE_CHAN_NHUNG_4KG_530K') return true;
+        if (folderName === 'chan-chan-bong-449k' && prod.id === 'LE_CHAN_CHAN_BONG_449K') return true;
+        if (folderName === 'set4-ni-kitty-619k' && prod.id === 'SET4_NI_SUA_THEU_619K') return true;
+        if (folderName === 'set4-ni-vien-650k' && prod.id === 'SET4_NI_CUU_VIEN_650K') return true;
+        if (folderName === 'set4-ni-tuyen-chon-800k' && prod.id === 'SET4_NI_CUU_TUYEN_CHON_800K') return true;
+        if (folderName === 'set3-ni-299k' && prod.id === 'SET3_NI_299K') return true;
+
+        return false;
+      });
+
+      if (matched.length > 0) {
+        matched.forEach((f) => assignedPaths.add(f.fullPath));
+        groups.push({
+          product: prod,
+          items: matched,
+        });
+      }
+    }
+
+    const unassigned = files.filter((f) => !assignedPaths.has(f.fullPath));
+
+    return { groups, unassigned };
+  }, [displayedItems, products, viewScope]);
 
   const categoryCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -807,6 +962,290 @@ export const AdminMediaLibraryPage: React.FC = () => {
     } catch (err) {
       console.warn('Could not copy url:', err);
     }
+  };
+
+  const renderPhotoCard = (item: StorageItem, idx: number) => {
+    const folderPrefix = item.fullPath.includes('/') ? item.fullPath.split('/')[0] : '';
+    const catObj = categories.find((c) => c.id === folderPrefix);
+    const isSelected = selectedPaths.has(item.fullPath);
+
+    return (
+      <div
+        key={item.fullPath}
+        draggable
+        onDragStart={(e) => {
+          const toDrag =
+            selectedPaths.has(item.fullPath) && selectedPaths.size > 0
+              ? Array.from(selectedPaths)
+              : [item.fullPath];
+          setDraggedPaths(toDrag);
+          e.dataTransfer.setData('text/plain', JSON.stringify(toDrag));
+
+          const ghost = createDragGhost(item.publicUrl, toDrag.length, item.name);
+          e.dataTransfer.setDragImage(ghost, 15, 17);
+          setTimeout(() => {
+            if (ghost && ghost.parentNode) ghost.parentNode.removeChild(ghost);
+          }, 0);
+        }}
+        onDragEnd={() => {
+          setDraggedPaths([]);
+          setDragOverCategory(null);
+        }}
+        onClick={(e) => {
+          if (isSelectMode) {
+            handleItemSelect(item, idx, e);
+          }
+        }}
+        style={{
+          backgroundColor: '#ffffff',
+          border: isSelected
+            ? '2.5px solid #766352'
+            : isSelectMode
+            ? '1.5px dashed #c4b5a2'
+            : '1px solid #e8e1d5',
+          borderRadius: '8px',
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+          boxShadow: isSelected
+            ? '0 0 0 3px rgba(118, 99, 82, 0.25)'
+            : '0 1px 3px rgba(0,0,0,0.04)',
+          position: 'relative',
+          cursor: isSelectMode ? 'pointer' : 'grab',
+          transition: 'all 0.15s ease',
+          transform: isSelected ? 'scale(0.98)' : 'scale(1)',
+        }}
+      >
+        {/* Selection Checkbox */}
+        <div
+          onClick={(e) => {
+            e.stopPropagation();
+            handleItemSelect(item, idx, e);
+          }}
+          style={{
+            position: 'absolute',
+            top: '6px',
+            left: '6px',
+            zIndex: 3,
+            backgroundColor: isSelected
+              ? '#766352'
+              : isSelectMode
+              ? 'rgba(255,255,255,0.95)'
+              : 'rgba(255,255,255,0.85)',
+            color: isSelected ? '#ffffff' : '#685e54',
+            borderRadius: '5px',
+            width: '24px',
+            height: '24px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            border: isSelected ? '1px solid #766352' : '1px solid #bdafa0',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.15)',
+            transition: 'all 0.15s ease',
+          }}
+          title={isSelectMode ? 'Click để chọn/bỏ chọn' : 'Chọn ảnh'}
+        >
+          {isSelected ? (
+            <Check size={16} strokeWidth={3} />
+          ) : isSelectMode ? (
+            <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#dcd3c5' }} />
+          ) : null}
+        </div>
+
+        {/* Thumbnail */}
+        <div
+          style={{
+            position: 'relative',
+            width: '100%',
+            paddingTop: '85%',
+            backgroundColor: '#f3eee6',
+            overflow: 'hidden',
+            cursor: 'pointer',
+          }}
+          onClick={(e) => {
+            if (isSelectMode) {
+              e.stopPropagation();
+              handleItemSelect(item, idx, e);
+            } else if (e.shiftKey) {
+              handleItemSelect(item, idx, e);
+            } else {
+              setPreviewItem(item);
+            }
+          }}
+        >
+          <img
+            src={item.publicUrl}
+            alt={item.name}
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+            }}
+            loading="lazy"
+          />
+
+          {catObj && (
+            <span
+              style={{
+                position: 'absolute',
+                top: '6px',
+                right: '6px',
+                backgroundColor: 'rgba(255,255,255,0.92)',
+                padding: '0.15rem 0.45rem',
+                borderRadius: '12px',
+                fontSize: '0.65rem',
+                fontWeight: 600,
+                color: '#685e54',
+              }}
+            >
+              {catObj.name}
+            </span>
+          )}
+
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              backgroundColor: 'rgba(0,0,0,0.25)',
+              opacity: 0,
+              transition: 'opacity 0.2s ease',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#ffffff',
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
+            onMouseLeave={(e) => (e.currentTarget.style.opacity = '0')}
+          >
+            <Eye size={22} />
+          </div>
+        </div>
+
+        {/* Body details with Ellipsis */}
+        <div style={{ padding: '0.55rem 0.7rem', flex: 1, display: 'flex', flexDirection: 'column' }}>
+          <span
+            style={{
+              fontSize: '0.775rem',
+              fontWeight: 500,
+              color: '#2c2825',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+            title={item.name}
+          >
+            {item.name}
+          </span>
+
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '3px' }}>
+            <span style={{ fontSize: '0.7rem', color: '#9e9387' }}>
+              {formatFileSize(item.size)}
+            </span>
+            {folderPrefix && (
+              <span style={{ fontSize: '0.675rem', color: '#766352', fontFamily: 'monospace' }}>
+                /{folderPrefix}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Actions bar */}
+        <div
+          style={{
+            borderTop: '1px solid #f0eae1',
+            padding: '0.35rem 0.55rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            backgroundColor: '#faf8f5',
+          }}
+        >
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleCopyUrl(item.publicUrl || '');
+            }}
+            className="btn btn-outline btn-sm"
+            style={{
+              padding: '0.2rem 0.45rem',
+              fontSize: '0.7rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.25rem',
+            }}
+            title="Sao chép link ảnh"
+          >
+            {copiedUrl === item.publicUrl ? <Check size={12} color="#1b5e20" /> : <Copy size={12} />}
+            <span>{copiedUrl === item.publicUrl ? 'Đã chép' : 'Copy'}</span>
+          </button>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setMultiCategoryTargetPaths([item.fullPath]);
+                setSelectedTargetCategoryIds(new Set());
+                setAssignMode('copy');
+                setIsMultiCategoryModalOpen(true);
+              }}
+              style={{
+                border: 'none',
+                background: 'none',
+                cursor: 'pointer',
+                color: '#b78103',
+                padding: '3px',
+              }}
+              title="Thêm ảnh này vào nhiều danh mục..."
+            >
+              <FolderPlus size={13} />
+            </button>
+
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setItemToMove(item);
+                setTargetCategory(folderPrefix || '');
+              }}
+              style={{
+                border: 'none',
+                background: 'none',
+                cursor: 'pointer',
+                color: '#766352',
+                padding: '3px',
+              }}
+              title="Đổi danh mục / Di chuyển ảnh"
+            >
+              <MoveRight size={13} />
+            </button>
+
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setItemToDelete(item);
+              }}
+              style={{
+                border: 'none',
+                background: 'none',
+                cursor: 'pointer',
+                color: '#c62828',
+                padding: '3px',
+              }}
+              title="Xóa ảnh khỏi kho"
+            >
+              <Trash2 size={13} />
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -988,8 +1427,21 @@ export const AdminMediaLibraryPage: React.FC = () => {
           onClick={() => {
             setCategoryFilter('all');
             setViewScope('all_photos');
+            handleToggleGroupByProduct(true);
           }}
-          className={`media-mobile-cat-pill ${categoryFilter === 'all' && viewScope === 'all_photos' ? 'active' : ''}`}
+          className={`media-mobile-cat-pill ${groupByProduct && viewScope === 'all_photos' ? 'active' : ''}`}
+        >
+          <span>📦 Theo SP</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setCategoryFilter('all');
+            setViewScope('all_photos');
+            handleToggleGroupByProduct(false);
+          }}
+          className={`media-mobile-cat-pill ${!groupByProduct && categoryFilter === 'all' && viewScope === 'all_photos' ? 'active' : ''}`}
         >
           <span>Tất cả ({allFiles.length})</span>
         </button>
@@ -1091,21 +1543,49 @@ export const AdminMediaLibraryPage: React.FC = () => {
 
                 {/* Collapsed Target List */}
                 <div style={{ padding: '0.4rem 0.2rem', display: 'flex', flexDirection: 'column', gap: '5px', width: '100%' }}>
+                  {/* By Product */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCategoryFilter('all');
+                      setViewScope('all_photos');
+                      handleToggleGroupByProduct(true);
+                    }}
+                    title="Chia theo Sản phẩm"
+                    style={{
+                      width: '100%',
+                      padding: '0.45rem 0.15rem',
+                      borderRadius: '6px',
+                      border: groupByProduct && viewScope === 'all_photos' ? '1px solid #766352' : '1px solid transparent',
+                      backgroundColor: groupByProduct && viewScope === 'all_photos' ? '#766352' : 'transparent',
+                      color: groupByProduct && viewScope === 'all_photos' ? '#ffffff' : '#2c2825',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: '2px',
+                    }}
+                  >
+                    <Package size={17} color={groupByProduct && viewScope === 'all_photos' ? '#ffffff' : '#766352'} />
+                    <span style={{ fontSize: '0.6rem', fontWeight: 600 }}>Theo SP</span>
+                  </button>
+
                   {/* All Photos */}
                   <button
                     type="button"
                     onClick={() => {
                       setCategoryFilter('all');
                       setViewScope('all_photos');
+                      handleToggleGroupByProduct(false);
                     }}
                     title={`Tất cả ảnh (${allFiles.length})`}
                     style={{
                       width: '100%',
                       padding: '0.45rem 0.15rem',
                       borderRadius: '6px',
-                      border: categoryFilter === 'all' && viewScope === 'all_photos' ? '1px solid #766352' : '1px solid transparent',
-                      backgroundColor: categoryFilter === 'all' && viewScope === 'all_photos' ? '#766352' : 'transparent',
-                      color: categoryFilter === 'all' && viewScope === 'all_photos' ? '#ffffff' : '#2c2825',
+                      border: !groupByProduct && categoryFilter === 'all' && viewScope === 'all_photos' ? '1px solid #766352' : '1px solid transparent',
+                      backgroundColor: !groupByProduct && categoryFilter === 'all' && viewScope === 'all_photos' ? '#766352' : 'transparent',
+                      color: !groupByProduct && categoryFilter === 'all' && viewScope === 'all_photos' ? '#ffffff' : '#2c2825',
                       cursor: 'pointer',
                       display: 'flex',
                       flexDirection: 'column',
@@ -1114,7 +1594,7 @@ export const AdminMediaLibraryPage: React.FC = () => {
                       position: 'relative',
                     }}
                   >
-                    <FileImage size={17} color={categoryFilter === 'all' && viewScope === 'all_photos' ? '#ffffff' : '#766352'} />
+                    <FileImage size={17} color={!groupByProduct && categoryFilter === 'all' && viewScope === 'all_photos' ? '#ffffff' : '#766352'} />
                     <span style={{ fontSize: '0.6rem', fontWeight: 600 }}>Tất cả</span>
                     <span
                       style={{
@@ -1124,8 +1604,8 @@ export const AdminMediaLibraryPage: React.FC = () => {
                         fontSize: '0.55rem',
                         padding: '0 3px',
                         borderRadius: '6px',
-                        backgroundColor: categoryFilter === 'all' && viewScope === 'all_photos' ? 'rgba(255,255,255,0.3)' : '#f0eae1',
-                        color: categoryFilter === 'all' && viewScope === 'all_photos' ? '#ffffff' : '#685e54',
+                        backgroundColor: !groupByProduct && categoryFilter === 'all' && viewScope === 'all_photos' ? 'rgba(255,255,255,0.3)' : '#f0eae1',
+                        color: !groupByProduct && categoryFilter === 'all' && viewScope === 'all_photos' ? '#ffffff' : '#685e54',
                         fontWeight: 700,
                       }}
                     >
@@ -1460,12 +1940,13 @@ export const AdminMediaLibraryPage: React.FC = () => {
 
                 {/* Target List */}
                 <div style={{ padding: '0.5rem', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  {/* All Photos */}
+                  {/* By Product */}
                   <button
                     type="button"
                     onClick={() => {
                       setCategoryFilter('all');
                       setViewScope('all_photos');
+                      handleToggleGroupByProduct(true);
                     }}
                     style={{
                       width: '100%',
@@ -1474,9 +1955,9 @@ export const AdminMediaLibraryPage: React.FC = () => {
                       justifyContent: 'space-between',
                       padding: '0.55rem 0.75rem',
                       borderRadius: '6px',
-                      border: categoryFilter === 'all' && viewScope === 'all_photos' ? '1px solid #766352' : '1px solid transparent',
-                      backgroundColor: categoryFilter === 'all' && viewScope === 'all_photos' ? '#766352' : 'transparent',
-                      color: categoryFilter === 'all' && viewScope === 'all_photos' ? '#ffffff' : '#2c2825',
+                      border: groupByProduct && viewScope === 'all_photos' ? '1px solid #766352' : '1px solid transparent',
+                      backgroundColor: groupByProduct && viewScope === 'all_photos' ? '#766352' : 'transparent',
+                      color: groupByProduct && viewScope === 'all_photos' ? '#ffffff' : '#2c2825',
                       fontSize: '0.825rem',
                       fontWeight: 600,
                       cursor: 'pointer',
@@ -1485,7 +1966,38 @@ export const AdminMediaLibraryPage: React.FC = () => {
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <FileImage size={16} color={categoryFilter === 'all' && viewScope === 'all_photos' ? '#ffffff' : '#766352'} />
+                      <Package size={16} color={groupByProduct && viewScope === 'all_photos' ? '#ffffff' : '#766352'} />
+                      <span>Chia theo Sản phẩm</span>
+                    </div>
+                  </button>
+
+                  {/* All Photos */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCategoryFilter('all');
+                      setViewScope('all_photos');
+                      handleToggleGroupByProduct(false);
+                    }}
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '0.55rem 0.75rem',
+                      borderRadius: '6px',
+                      border: !groupByProduct && categoryFilter === 'all' && viewScope === 'all_photos' ? '1px solid #766352' : '1px solid transparent',
+                      backgroundColor: !groupByProduct && categoryFilter === 'all' && viewScope === 'all_photos' ? '#766352' : 'transparent',
+                      color: !groupByProduct && categoryFilter === 'all' && viewScope === 'all_photos' ? '#ffffff' : '#2c2825',
+                      fontSize: '0.825rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <FileImage size={16} color={!groupByProduct && categoryFilter === 'all' && viewScope === 'all_photos' ? '#ffffff' : '#766352'} />
                       <span>Tất cả ảnh</span>
                     </div>
                     <span
@@ -1493,8 +2005,8 @@ export const AdminMediaLibraryPage: React.FC = () => {
                         fontSize: '0.725rem',
                         padding: '1px 6px',
                         borderRadius: '10px',
-                        backgroundColor: categoryFilter === 'all' && viewScope === 'all_photos' ? 'rgba(255,255,255,0.25)' : '#f0eae1',
-                        color: categoryFilter === 'all' && viewScope === 'all_photos' ? '#ffffff' : '#685e54',
+                        backgroundColor: !groupByProduct && categoryFilter === 'all' && viewScope === 'all_photos' ? 'rgba(255,255,255,0.25)' : '#f0eae1',
+                        color: !groupByProduct && categoryFilter === 'all' && viewScope === 'all_photos' ? '#ffffff' : '#685e54',
                       }}
                     >
                       {allFiles.length}
@@ -1926,20 +2438,25 @@ export const AdminMediaLibraryPage: React.FC = () => {
                 <div style={{ fontSize: '0.85rem', color: '#685e54', fontWeight: 500 }}>
                   Đang xem:{' '}
                   <strong style={{ color: '#2c2825' }}>
-                    {categoryFilter === 'all'
+                    {groupByProduct
+                      ? 'Chia theo Sản phẩm'
+                      : categoryFilter === 'all'
                       ? 'Tất cả ảnh'
                       : categoryFilter === 'uncategorized'
                       ? 'Chưa phân loại'
                       : categories.find((c) => c.id === categoryFilter)?.name || categoryFilter}
                   </strong>{' '}
-                  <span style={{ color: '#9e9387' }}>({displayedItems.length} ảnh)</span>
+                  <span style={{ color: '#9e9387' }}>
+                    ({displayedItems.length} ảnh
+                    {groupByProduct && productGroupsData.groups.length > 0 ? ` • ${productGroupsData.groups.length} SP` : ''})
+                  </span>
                 </div>
               )}
             </div>
 
-            {/* Search & Refresh */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginLeft: 'auto' }}>
-              <div style={{ position: 'relative', width: '220px' }}>
+            {/* Search, Refresh, View Switch, Column Slider */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginLeft: 'auto', flexWrap: 'wrap' }}>
+              <div style={{ position: 'relative', width: '200px' }}>
                 <Search
                   size={14}
                   style={{
@@ -1952,7 +2469,7 @@ export const AdminMediaLibraryPage: React.FC = () => {
                 />
                 <input
                   type="text"
-                  placeholder="Tìm file theo tên..."
+                  placeholder="Tìm theo tên file / mã SP..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="form-input"
@@ -1973,25 +2490,115 @@ export const AdminMediaLibraryPage: React.FC = () => {
                 <RefreshCw size={14} />
               </button>
 
-              <button
-                type="button"
-                onClick={handleToggleGridSize}
-                className="btn btn-outline btn-sm"
+              {/* Toggle Group by Product / Flat Grid */}
+              {viewScope !== 'current_folder' && (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    backgroundColor: '#f3eee6',
+                    borderRadius: '6px',
+                    padding: '2px',
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => handleToggleGroupByProduct(true)}
+                    style={{
+                      padding: '0.25rem 0.55rem',
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      border: 'none',
+                      borderRadius: '5px',
+                      cursor: 'pointer',
+                      backgroundColor: groupByProduct ? '#766352' : 'transparent',
+                      color: groupByProduct ? '#ffffff' : '#5c4d40',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      transition: 'all 0.15s ease',
+                    }}
+                    title="Chia ảnh theo từng sản phẩm"
+                  >
+                    <Package size={13} />
+                    <span>Theo SP</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleToggleGroupByProduct(false)}
+                    style={{
+                      padding: '0.25rem 0.55rem',
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      border: 'none',
+                      borderRadius: '5px',
+                      cursor: 'pointer',
+                      backgroundColor: !groupByProduct ? '#766352' : 'transparent',
+                      color: !groupByProduct ? '#ffffff' : '#5c4d40',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      transition: 'all 0.15s ease',
+                    }}
+                    title="Xem toàn bộ ảnh dạng lưới phẳng"
+                  >
+                    <FileImage size={13} />
+                    <span>Lưới phẳng</span>
+                  </button>
+                </div>
+              )}
+
+              {/* Column Slider (2 to 5 columns - No column number text) */}
+              <div
                 style={{
-                  padding: '0.35rem 0.65rem',
-                  fontSize: '0.75rem',
-                  display: 'flex',
+                  display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '4px',
-                  backgroundColor: gridSize === 'large' ? '#faf8f5' : '#ffffff',
-                  borderColor: gridSize === 'large' ? '#766352' : '#e8e1d5',
-                  color: '#2c2825',
-                  fontWeight: 600,
+                  gap: '0.35rem',
+                  backgroundColor: '#ffffff',
+                  border: '1px solid #ebdccb',
+                  padding: '0.2rem 0.45rem',
+                  borderRadius: '6px',
                 }}
-                title={gridSize === 'large' ? 'Đang bật Lưới Lớn. Bấm để thu về Lưới Vừa' : 'Đang bật Lưới Vừa. Bấm để phóng to Lưới Lớn'}
+                title="Điều chỉnh số cột hiển thị (2 - 5 cột)"
               >
-                <span>{gridSize === 'large' ? '🖼️ Lưới Lớn' : '🔲 Lưới Vừa'}</span>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => handleMediaColsChange(mediaCols - 1)}
+                  disabled={mediaCols <= 2}
+                  className="btn btn-outline btn-sm"
+                  style={{ padding: '0.15rem 0.35rem', height: '24px' }}
+                  title="Giảm số cột (Ảnh to hơn)"
+                >
+                  <ZoomOut size={12} />
+                </button>
+
+                <input
+                  type="range"
+                  min={2}
+                  max={5}
+                  step={1}
+                  value={mediaCols}
+                  onChange={(e) => handleMediaColsChange(Number(e.target.value))}
+                  className="zoom-slider"
+                  style={{
+                    width: '75px',
+                    verticalAlign: 'middle',
+                  }}
+                  title="Điều chỉnh số cột (2 - 5)"
+                />
+
+                <button
+                  type="button"
+                  onClick={() => handleMediaColsChange(mediaCols + 1)}
+                  disabled={mediaCols >= 5}
+                  className="btn btn-outline btn-sm"
+                  style={{ padding: '0.15rem 0.35rem', height: '24px' }}
+                  title="Tăng số cột (Nhiều ảnh hơn)"
+                >
+                  <ZoomIn size={12} />
+                </button>
+              </div>
             </div>
           </div>
 
@@ -2117,15 +2724,365 @@ export const AdminMediaLibraryPage: React.FC = () => {
                   Kéo thả file ảnh vào đây hoặc bấm nút "Tải ảnh lên" phía trên để lưu ảnh lên Supabase.
                 </p>
               </div>
+            ) : groupByProduct && viewScope !== 'current_folder' ? (
+              /* Group by Product View */
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                {/* Groups Summary / Controls Bar */}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '0.45rem 0.75rem',
+                    backgroundColor: '#faf8f5',
+                    borderRadius: '8px',
+                    border: '1px solid #ebd9c2',
+                    fontSize: '0.8rem',
+                    color: '#766352',
+                    flexWrap: 'wrap',
+                    gap: '0.5rem',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600 }}>
+                    <Package size={15} color="#9c6644" />
+                    <span>
+                      {productGroupsData.groups.length} sản phẩm có ảnh
+                      {productGroupsData.unassigned.length > 0 ? ` • ${productGroupsData.unassigned.length} ảnh chung` : ''}
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <button
+                      type="button"
+                      onClick={handleExpandAllGroups}
+                      className="btn btn-outline btn-sm"
+                      style={{ fontSize: '0.725rem', padding: '0.2rem 0.5rem', height: '26px', backgroundColor: '#ffffff' }}
+                      title="Mở rộng tất cả nhóm sản phẩm"
+                    >
+                      <ChevronDown size={13} style={{ marginRight: '2px' }} />
+                      Mở rộng hết
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleCollapseAllGroups([
+                          ...productGroupsData.groups.map((g) => g.product.id),
+                          '__unassigned__',
+                        ])
+                      }
+                      className="btn btn-outline btn-sm"
+                      style={{ fontSize: '0.725rem', padding: '0.2rem 0.5rem', height: '26px', backgroundColor: '#ffffff' }}
+                      title="Thu gọn tất cả nhóm sản phẩm"
+                    >
+                      <ChevronRight size={13} style={{ marginRight: '2px' }} />
+                      Thu gọn hết
+                    </button>
+                  </div>
+                </div>
+
+                {/* Product Groups List */}
+                {productGroupsData.groups.map((group) => {
+                  const p = group.product;
+                  const isCollapsed = collapsedGroupIds.has(p.id);
+                  const pCatName = categories.find((c) => c.id === p.category)?.name || p.category;
+                  const isAllSelected =
+                    group.items.length > 0 && group.items.every((it) => selectedPaths.has(it.fullPath));
+
+                  return (
+                    <div
+                      key={p.id}
+                      style={{
+                        backgroundColor: '#ffffff',
+                        border: '1px solid #e8e1d5',
+                        borderRadius: '10px',
+                        overflow: 'hidden',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+                      }}
+                    >
+                      {/* Product Header */}
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '0.55rem 0.85rem',
+                          backgroundColor: '#fcfaf7',
+                          borderBottom: isCollapsed ? 'none' : '1px solid #efe8dd',
+                          cursor: 'pointer',
+                          gap: '0.5rem',
+                        }}
+                        onClick={() => toggleCollapseGroup(p.id)}
+                      >
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.65rem',
+                            minWidth: 0,
+                            flex: 1,
+                          }}
+                        >
+                          {/* Thumbnail */}
+                          {p.coverImage ? (
+                            <img
+                              src={p.coverImage}
+                              alt={p.name}
+                              style={{
+                                width: '32px',
+                                height: '32px',
+                                borderRadius: '6px',
+                                objectFit: 'cover',
+                                flexShrink: 0,
+                                border: '1px solid #e0d6c8',
+                              }}
+                              loading="lazy"
+                            />
+                          ) : (
+                            <div
+                              style={{
+                                width: '32px',
+                                height: '32px',
+                                borderRadius: '6px',
+                                backgroundColor: '#efe8dd',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexShrink: 0,
+                              }}
+                            >
+                              <Package size={16} color="#766352" />
+                            </div>
+                          )}
+
+                          {/* Product ID Badge */}
+                          <span
+                            style={{
+                              fontFamily: 'monospace',
+                              fontSize: '0.725rem',
+                              fontWeight: 700,
+                              backgroundColor: '#efe8dd',
+                              color: '#5c4d40',
+                              padding: '2px 6px',
+                              borderRadius: '4px',
+                              flexShrink: 0,
+                            }}
+                          >
+                            {p.id}
+                          </span>
+
+                          {/* Product Name with Ellipsis */}
+                          <span
+                            title={p.name}
+                            style={{
+                              fontSize: '0.85rem',
+                              fontWeight: 600,
+                              color: '#2c2825',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                              flex: 1,
+                            }}
+                          >
+                            {p.name}
+                          </span>
+
+                          {/* Category Badge */}
+                          {pCatName && (
+                            <span
+                              style={{
+                                fontSize: '0.675rem',
+                                backgroundColor: '#f3eee6',
+                                color: '#766352',
+                                padding: '2px 6px',
+                                borderRadius: '4px',
+                                flexShrink: 0,
+                              }}
+                              className="desktop-only"
+                            >
+                              {pCatName}
+                            </span>
+                          )}
+
+                          {/* Photo Count */}
+                          <span
+                            style={{
+                              fontSize: '0.7rem',
+                              fontWeight: 700,
+                              backgroundColor: '#766352',
+                              color: '#ffffff',
+                              padding: '2px 8px',
+                              borderRadius: '12px',
+                              flexShrink: 0,
+                            }}
+                          >
+                            {group.items.length} ảnh
+                          </span>
+                        </div>
+
+                        {/* Action buttons */}
+                        <div
+                          style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => handleSelectProductPhotos(group.items)}
+                            className="btn btn-outline btn-sm"
+                            style={{
+                              fontSize: '0.7rem',
+                              padding: '0.2rem 0.5rem',
+                              height: '26px',
+                              backgroundColor: isAllSelected ? '#f8f4ec' : '#ffffff',
+                              borderColor: isAllSelected ? '#766352' : '#ebd9c2',
+                            }}
+                            title={isAllSelected ? 'Bỏ chọn toàn bộ ảnh sản phẩm này' : 'Chọn toàn bộ ảnh sản phẩm này'}
+                          >
+                            <CheckSquare size={12} style={{ marginRight: '3px' }} />
+                            <span>{isAllSelected ? 'Bỏ chọn' : 'Chọn hết'}</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => toggleCollapseGroup(p.id)}
+                            className="btn btn-outline btn-sm"
+                            style={{ padding: '0.2rem 0.4rem', height: '26px' }}
+                            title={isCollapsed ? 'Mở rộng' : 'Thu gọn'}
+                          >
+                            {isCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Photo Grid */}
+                      {!isCollapsed && (
+                        <div style={{ padding: '0.75rem' }}>
+                          <div
+                            className="media-photo-grid"
+                            style={{
+                              ['--desktop-media-cols' as string]: mediaCols,
+                              ['--tablet-media-cols' as string]: Math.min(3, mediaCols),
+                              ['--mobile-media-cols' as string]: Math.min(2, mediaCols),
+                              gridTemplateColumns: `repeat(${mediaCols}, minmax(0, 1fr))`,
+                              gap: '0.75rem',
+                            }}
+                          >
+                            {group.items.map((item, idx) => renderPhotoCard(item, idx))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {/* Unassigned Photos Section */}
+                {productGroupsData.unassigned.length > 0 && (
+                  <div
+                    style={{
+                      backgroundColor: '#ffffff',
+                      border: '1px solid #e8e1d5',
+                      borderRadius: '10px',
+                      overflow: 'hidden',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '0.55rem 0.85rem',
+                        backgroundColor: '#f6f3ee',
+                        borderBottom: collapsedGroupIds.has('__unassigned__') ? 'none' : '1px solid #efe8dd',
+                        cursor: 'pointer',
+                        gap: '0.5rem',
+                      }}
+                      onClick={() => toggleCollapseGroup('__unassigned__')}
+                    >
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.65rem',
+                          minWidth: 0,
+                          flex: 1,
+                        }}
+                      >
+                        <Layers size={18} color="#766352" />
+                        <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#2c2825' }}>
+                          Ảnh chung / Chưa gán sản phẩm
+                        </span>
+                        <span
+                          style={{
+                            fontSize: '0.7rem',
+                            fontWeight: 700,
+                            backgroundColor: '#9e9387',
+                            color: '#ffffff',
+                            padding: '2px 8px',
+                            borderRadius: '12px',
+                          }}
+                        >
+                          {productGroupsData.unassigned.length} ảnh
+                        </span>
+                      </div>
+
+                      <div
+                        style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => handleSelectProductPhotos(productGroupsData.unassigned)}
+                          className="btn btn-outline btn-sm"
+                          style={{ fontSize: '0.7rem', padding: '0.2rem 0.5rem', height: '26px' }}
+                        >
+                          <CheckSquare size={12} style={{ marginRight: '3px' }} />
+                          <span>Chọn hết</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => toggleCollapseGroup('__unassigned__')}
+                          className="btn btn-outline btn-sm"
+                          style={{ padding: '0.2rem 0.4rem', height: '26px' }}
+                        >
+                          {collapsedGroupIds.has('__unassigned__') ? (
+                            <ChevronRight size={14} />
+                          ) : (
+                            <ChevronDown size={14} />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    {!collapsedGroupIds.has('__unassigned__') && (
+                      <div style={{ padding: '0.75rem' }}>
+                        <div
+                          className="media-photo-grid"
+                          style={{
+                            ['--desktop-media-cols' as string]: mediaCols,
+                            ['--tablet-media-cols' as string]: Math.min(3, mediaCols),
+                            ['--mobile-media-cols' as string]: Math.min(2, mediaCols),
+                            gridTemplateColumns: `repeat(${mediaCols}, minmax(0, 1fr))`,
+                            gap: '0.75rem',
+                          }}
+                        >
+                          {productGroupsData.unassigned.map((item, idx) => renderPhotoCard(item, idx))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             ) : (
+              /* Flat or Folder Grid View */
               <div
                 className="media-photo-grid"
                 style={{
-                  display: 'grid',
-                  gridTemplateColumns: gridSize === 'large'
-                    ? 'repeat(auto-fill, minmax(230px, 1fr))'
-                    : 'repeat(auto-fill, minmax(170px, 1fr))',
-                  gap: gridSize === 'large' ? '1.15rem' : '0.85rem',
+                  ['--desktop-media-cols' as string]: mediaCols,
+                  ['--tablet-media-cols' as string]: Math.min(3, mediaCols),
+                  ['--mobile-media-cols' as string]: Math.min(2, mediaCols),
+                  gridTemplateColumns: `repeat(${mediaCols}, minmax(0, 1fr))`,
+                  gap: '0.75rem',
                 }}
               >
                 {displayedItems.map((item, idx) => {
@@ -2222,286 +3179,7 @@ export const AdminMediaLibraryPage: React.FC = () => {
                     );
                   }
 
-                  // Category name badge if item has folder prefix
-                  const folderPrefix = item.fullPath.includes('/') ? item.fullPath.split('/')[0] : '';
-                  const catObj = categories.find((c) => c.id === folderPrefix);
-                  const isSelected = selectedPaths.has(item.fullPath);
-
-                  // Image item card
-                  return (
-                    <div
-                      key={item.fullPath}
-                      draggable
-                      onDragStart={(e) => {
-                        const toDrag = selectedPaths.has(item.fullPath) && selectedPaths.size > 0
-                          ? Array.from(selectedPaths)
-                          : [item.fullPath];
-                        setDraggedPaths(toDrag);
-                        e.dataTransfer.setData('text/plain', JSON.stringify(toDrag));
-
-                        const ghost = createDragGhost(item.publicUrl, toDrag.length, item.name);
-                        e.dataTransfer.setDragImage(ghost, 15, 17);
-                        setTimeout(() => {
-                          if (ghost && ghost.parentNode) ghost.parentNode.removeChild(ghost);
-                        }, 0);
-                      }}
-                      onDragEnd={() => {
-                        setDraggedPaths([]);
-                        setDragOverCategory(null);
-                      }}
-                      onClick={(e) => {
-                        if (isSelectMode) {
-                          handleItemSelect(item, idx, e);
-                        }
-                      }}
-                      style={{
-                        backgroundColor: '#ffffff',
-                        border: isSelected
-                          ? '2.5px solid #766352'
-                          : isSelectMode
-                          ? '1.5px dashed #c4b5a2'
-                          : '1px solid #e8e1d5',
-                        borderRadius: '8px',
-                        overflow: 'hidden',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        boxShadow: isSelected
-                          ? '0 0 0 3px rgba(118, 99, 82, 0.25)'
-                          : '0 1px 3px rgba(0,0,0,0.04)',
-                        position: 'relative',
-                        cursor: isSelectMode ? 'pointer' : 'grab',
-                        transition: 'all 0.15s ease',
-                        transform: isSelected ? 'scale(0.98)' : 'scale(1)',
-                      }}
-                    >
-                      {/* Selection Checkbox */}
-                      <div
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleItemSelect(item, idx, e);
-                        }}
-                        style={{
-                          position: 'absolute',
-                          top: '6px',
-                          left: '6px',
-                          zIndex: 3,
-                          backgroundColor: isSelected
-                            ? '#766352'
-                            : isSelectMode
-                            ? 'rgba(255,255,255,0.95)'
-                            : 'rgba(255,255,255,0.85)',
-                          color: isSelected ? '#ffffff' : '#685e54',
-                          borderRadius: '5px',
-                          width: '24px',
-                          height: '24px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          cursor: 'pointer',
-                          border: isSelected ? '1px solid #766352' : '1px solid #bdafa0',
-                          boxShadow: '0 2px 4px rgba(0,0,0,0.15)',
-                          transition: 'all 0.15s ease',
-                        }}
-                        title={isSelectMode ? 'Click để chọn/bỏ chọn' : 'Chọn ảnh (Giữ Shift để chọn khoảng, hoặc kéo vào danh mục bên trái)'}
-                      >
-                        {isSelected ? <Check size={16} strokeWidth={3} /> : isSelectMode ? <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#dcd3c5' }} /> : null}
-                      </div>
-
-                      {/* Thumbnail */}
-                      <div
-                        style={{
-                          position: 'relative',
-                          width: '100%',
-                          paddingTop: '85%',
-                          backgroundColor: '#f3eee6',
-                          overflow: 'hidden',
-                          cursor: isSelectMode ? 'pointer' : 'pointer',
-                        }}
-                        onClick={(e) => {
-                          if (isSelectMode) {
-                            e.stopPropagation();
-                            handleItemSelect(item, idx, e);
-                          } else if (e.shiftKey) {
-                            handleItemSelect(item, idx, e);
-                          } else {
-                            setPreviewItem(item);
-                          }
-                        }}
-                      >
-                        <img
-                          src={item.publicUrl}
-                          alt={item.name}
-                          style={{
-                            position: 'absolute',
-                            top: 0,
-                            left: 0,
-                            width: '100%',
-                            height: '100%',
-                            objectFit: 'cover',
-                          }}
-                          loading="lazy"
-                        />
-
-                        {/* Category pill on image */}
-                        {catObj && (
-                          <span
-                            style={{
-                              position: 'absolute',
-                              top: '6px',
-                              right: '6px',
-                              backgroundColor: 'rgba(255,255,255,0.92)',
-                              padding: '0.15rem 0.45rem',
-                              borderRadius: '12px',
-                              fontSize: '0.65rem',
-                              fontWeight: 600,
-                              color: '#685e54',
-                            }}
-                          >
-                            {catObj.name}
-                          </span>
-                        )}
-
-                        {/* Preview overlay icon */}
-                        <div
-                          style={{
-                            position: 'absolute',
-                            inset: 0,
-                            backgroundColor: 'rgba(0,0,0,0.25)',
-                            opacity: 0,
-                            transition: 'opacity 0.2s ease',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            color: '#ffffff',
-                          }}
-                          onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
-                          onMouseLeave={(e) => (e.currentTarget.style.opacity = '0')}
-                        >
-                          <Eye size={22} />
-                        </div>
-                      </div>
-
-                      {/* Body details */}
-                      <div style={{ padding: '0.55rem 0.7rem', flex: 1, display: 'flex', flexDirection: 'column' }}>
-                        <span
-                          style={{
-                            fontSize: '0.775rem',
-                            fontWeight: 500,
-                            color: '#2c2825',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                          }}
-                          title={item.name}
-                        >
-                          {item.name}
-                        </span>
-
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '3px' }}>
-                          <span style={{ fontSize: '0.7rem', color: '#9e9387' }}>
-                            {formatFileSize(item.size)}
-                          </span>
-                          {folderPrefix && (
-                            <span style={{ fontSize: '0.675rem', color: '#766352', fontFamily: 'monospace' }}>
-                              /{folderPrefix}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Actions bar */}
-                      <div
-                        style={{
-                          borderTop: '1px solid #f0eae1',
-                          padding: '0.35rem 0.55rem',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          backgroundColor: '#faf8f5',
-                        }}
-                      >
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleCopyUrl(item.publicUrl || '');
-                          }}
-                          className="btn btn-outline btn-sm"
-                          style={{
-                            padding: '0.2rem 0.45rem',
-                            fontSize: '0.7rem',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.25rem',
-                          }}
-                          title="Sao chép link ảnh"
-                        >
-                          {copiedUrl === item.publicUrl ? <Check size={12} color="#1b5e20" /> : <Copy size={12} />}
-                          <span>{copiedUrl === item.publicUrl ? 'Đã chép' : 'Copy'}</span>
-                        </button>
-
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setMultiCategoryTargetPaths([item.fullPath]);
-                              setSelectedTargetCategoryIds(new Set());
-                              setAssignMode('copy');
-                              setIsMultiCategoryModalOpen(true);
-                            }}
-                            style={{
-                              border: 'none',
-                              background: 'none',
-                              cursor: 'pointer',
-                              color: '#b78103',
-                              padding: '3px',
-                            }}
-                            title="Thêm ảnh này vào nhiều danh mục..."
-                          >
-                            <FolderPlus size={13} />
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setItemToMove(item);
-                              setTargetCategory(folderPrefix || '');
-                            }}
-                            style={{
-                              border: 'none',
-                              background: 'none',
-                              cursor: 'pointer',
-                              color: '#766352',
-                              padding: '3px',
-                            }}
-                            title="Đổi danh mục / Di chuyển ảnh"
-                          >
-                            <MoveRight size={13} />
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setItemToDelete(item);
-                            }}
-                            style={{
-                              border: 'none',
-                              background: 'none',
-                              cursor: 'pointer',
-                              color: '#c62828',
-                              padding: '3px',
-                            }}
-                            title="Xóa ảnh khỏi kho"
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  );
+                  return renderPhotoCard(item, idx);
                 })}
               </div>
             )}

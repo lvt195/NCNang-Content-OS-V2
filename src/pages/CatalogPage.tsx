@@ -13,7 +13,6 @@ import {
   ChevronUp,
   ZoomIn,
   ZoomOut,
-  Maximize2,
   Check,
 } from 'lucide-react';
 import { Product, Category, FilterState, SortOption } from '../types/product';
@@ -39,10 +38,10 @@ export const CatalogPage: React.FC = () => {
   const [quickViewImgIdx, setQuickViewImgIdx] = useState<number>(0);
   const touchStartXRef = useRef<number | null>(null);
 
-  // User Draggable Column Slider (1 to 5 columns on desktop, 1 to 3 on mobile/tablet)
+  // User Draggable Column Slider (2 to 5 columns)
   const [catalogCols, setCatalogCols] = useState<number>(() => {
     const saved = localStorage.getItem('catalog_column_count');
-    return saved ? Math.max(1, Math.min(5, parseInt(saved, 10))) : 4;
+    return saved ? Math.max(2, Math.min(5, parseInt(saved, 10))) : 4;
   });
 
   const [isSortOpen, setIsSortOpen] = useState(false);
@@ -84,7 +83,7 @@ export const CatalogPage: React.FC = () => {
   ];
 
   const handleCatalogColsChange = (cols: number) => {
-    const clamped = Math.max(1, Math.min(5, cols));
+    const clamped = Math.max(2, Math.min(5, cols));
     setCatalogCols(clamped);
     localStorage.setItem('catalog_column_count', clamped.toString());
   };
@@ -385,17 +384,12 @@ export const CatalogPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Draggable Column Slider Bar */}
-            <div className="catalog-zoom-bar">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.78rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-                <Maximize2 size={13} style={{ color: 'var(--accent-brown)' }} />
-                <span className="hidden-mobile">Cột hiển thị:</span>
-              </div>
-
+            {/* Draggable Column Slider Bar (2 to 5 columns) */}
+            <div className="catalog-zoom-bar" title="Điều chỉnh số cột (2 - 5)">
               <button
                 type="button"
                 onClick={() => handleCatalogColsChange(catalogCols - 1)}
-                disabled={catalogCols <= 1}
+                disabled={catalogCols <= 2}
                 className="zoom-btn"
                 title="Giảm số cột (Ảnh to hơn)"
                 aria-label="Giảm số cột"
@@ -405,7 +399,7 @@ export const CatalogPage: React.FC = () => {
 
               <input
                 type="range"
-                min={1}
+                min={2}
                 max={5}
                 step={1}
                 value={catalogCols}
@@ -417,7 +411,7 @@ export const CatalogPage: React.FC = () => {
                   maxWidth: '120px',
                   verticalAlign: 'middle',
                 }}
-                title={`Số cột: ${catalogCols}`}
+                title="Điều chỉnh số cột (2 - 5)"
                 aria-label="Thanh kéo số cột hiển thị"
               />
 
@@ -431,23 +425,6 @@ export const CatalogPage: React.FC = () => {
               >
                 <ZoomIn size={13} />
               </button>
-
-              <span className="zoom-mode-badge">
-                <span className="mobile-only">
-                  {catalogCols === 1
-                    ? '1 cột (Lướt xem)'
-                    : catalogCols >= 3
-                    ? '3 cột (Nhỏ)'
-                    : '2 cột'}
-                </span>
-                <span className="desktop-only">
-                  {catalogCols === 1
-                    ? '1 cột (Lớn)'
-                    : catalogCols === 5
-                    ? '5 cột (Nhỏ)'
-                    : `${catalogCols} cột`}
-                </span>
-              </span>
             </div>
           </div>
 
@@ -551,9 +528,9 @@ export const CatalogPage: React.FC = () => {
                 <div
                   className="catalog-products-grid"
                   style={{
-                    ['--desktop-cols' as string]: Math.min(5, Math.max(1, catalogCols)),
-                    ['--tablet-cols' as string]: Math.min(3, Math.max(1, catalogCols)),
-                    ['--mobile-cols' as string]: Math.min(3, Math.max(1, catalogCols)),
+                    ['--desktop-cols' as string]: Math.min(5, Math.max(2, catalogCols)),
+                    ['--tablet-cols' as string]: Math.min(3, Math.max(2, catalogCols)),
+                    ['--mobile-cols' as string]: Math.min(3, Math.max(2, catalogCols)),
                   }}
                 >
                   {filteredProducts.map((product) => (
