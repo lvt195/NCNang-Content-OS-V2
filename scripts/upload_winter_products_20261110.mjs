@@ -382,30 +382,30 @@ async function main() {
   console.log(`✓ [6/7] Đã lưu ${prodTuyenChon.id} (15 ảnh chung đầu, 15 mẫu)`);
 
   // =========================================================================
-  // 7. SET3_NI_299K (18 images: 9 ảnh chung, 9 mẫu)
+  // 7. SET3_NI_299K (18 images: 8 ảnh chung, 10 mẫu)
   // =========================================================================
   const dirSet3Ni = path.resolve(rootDir, 'image', 'Set 3 món ga + 2 vỏ gối', 'Set 3 món nỉ 299k');
   await uploadFolder(dirSet3Ni, 'set3-ni-299k');
   const baseSet3Ni = 'https://sbtngmjupjsbvxckeshe.supabase.co/storage/v1/object/public/product-images/set3-ni-299k/';
 
   const varsSet3Ni = [
-    { label: 'Mẫu 01 - Trắng xám họa tiết tim đỏ', image: baseSet3Ni + '15.jpg', colorId: 'xam' },
-    { label: 'Mẫu 02 - Đen tuyền chấm bi trắng', image: baseSet3Ni + '13.jpg', colorId: 'trang' },
-    { label: 'Mẫu 03 - Nâu hoa nhí vintage cổ điển', image: baseSet3Ni + '14.jpg', colorId: 'nau' },
-    { label: 'Mẫu 04 - Trắng xám ziczac hình học hiện đại', image: baseSet3Ni + '16.jpg', colorId: 'xam' },
-    { label: 'Mẫu 05 - Đỏ caro Noel ấm cúng', image: baseSet3Ni + '06.jpg', colorId: 'do' },
-    { label: 'Mẫu 06 - Xám ghi hình thú gấu cún', image: baseSet3Ni + '07.jpg', colorId: 'xam' },
-    { label: 'Mẫu 07 - Đen huyền bí nhân vật hoạt hình', image: baseSet3Ni + '08.jpg', colorId: 'trang' },
-    { label: 'Mẫu 08 - Kem hoa hồng vintage lãng mạn', image: baseSet3Ni + '12.jpg', colorId: 'be' },
-    { label: 'Mẫu 09 - Sọc nâu vàng bánh mì gấu teddy', image: baseSet3Ni + '18.jpg', colorId: 'nau' },
+    { label: 'Mẫu 01 - Trắng xám họa tiết tim đỏ', image: baseSet3Ni + '02.jpg', colorId: 'xam' },
+    { label: 'Mẫu 02 - Trắng xám họa tiết tim đen', image: baseSet3Ni + '15.jpg', colorId: 'xam' },
+    { label: 'Mẫu 03 - Đen tuyền chấm bi trắng', image: baseSet3Ni + '13.jpg', colorId: 'den' },
+    { label: 'Mẫu 04 - Nâu hoa nhí vintage cổ điển', image: baseSet3Ni + '14.jpg', colorId: 'nau' },
+    { label: 'Mẫu 05 - Trắng xám ziczac hình học hiện đại', image: baseSet3Ni + '16.jpg', colorId: 'xam' },
+    { label: 'Mẫu 06 - Đỏ caro Noel ấm cúng', image: baseSet3Ni + '06.jpg', colorId: 'do' },
+    { label: 'Mẫu 07 - Xám ghi hình thú gấu cún', image: baseSet3Ni + '07.jpg', colorId: 'xam' },
+    { label: 'Mẫu 08 - Đen huyền bí nhân vật hoạt hình', image: baseSet3Ni + '08.jpg', colorId: 'den' },
+    { label: 'Mẫu 09 - Kem hoa hồng vintage lãng mạn', image: baseSet3Ni + '12.jpg', colorId: 'be' },
+    { label: 'Mẫu 10 - Sọc nâu vàng bánh mì gấu teddy', image: baseSet3Ni + '18.jpg', colorId: 'nau' },
   ];
 
   const generalSet3Ni = [
     baseSet3Ni + '11.jpg#color=be', // xếp nhiều bộ trên giường
     baseSet3Ni + '01.jpg#color=be', // sào treo các mẫu
     baseSet3Ni + '10.jpg#color=nau', // tay cầm cận độ dày chun bo đệm
-    baseSet3Ni + '02.jpg#color=xam', // gấp bộ tim đỏ
-    baseSet3Ni + '03.jpg#color=trang', // gấp bộ chấm bi
+    baseSet3Ni + '03.jpg#color=den', // gấp bộ chấm bi
     baseSet3Ni + '04.jpg#color=nau', // gấp bộ nâu hoa nhí
     baseSet3Ni + '05.jpg#color=xam', // gấp bộ ziczac
     baseSet3Ni + '09.jpg#color=be', // gấp bộ hoa hồng
@@ -421,7 +421,7 @@ async function main() {
     price: 299000,
     currency: 'VND',
     type: 'combo',
-    colors: ['xam', 'trang', 'nau', 'do', 'be'],
+    colors: ['xam', 'den', 'trang', 'nau', 'do', 'be'],
     sizes: ['1m2 x 2m', '1m6 x 2m', '1m8 x 2m', '2m x 2m2', 'May theo yêu cầu'],
     combo_items: [
       { name: 'Ga chun nỉ nhung bo đệm', quantity: 1, note: 'Chun bo ôm sát đệm dày tới 25cm' },
@@ -434,7 +434,7 @@ async function main() {
     published: true,
   };
   await supabase.from('products').upsert(prodSet3Ni, { onConflict: 'id' });
-  console.log(`✓ [7/7] Đã lưu ${prodSet3Ni.id} (9 ảnh chung đầu, 9 mẫu)`);
+  console.log(`✓ [7/7] Đã lưu ${prodSet3Ni.id} (8 ảnh chung đầu, 10 mẫu)`);
 
   console.log('\n=========================================');
   console.log('Tất cả 7 sản phẩm mới ngày 10/11 đã được tải lên và lưu vào Supabase thành công 100%!');
