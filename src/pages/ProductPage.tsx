@@ -12,7 +12,7 @@ import {
 import { Product, ProductVariant, Category } from '../types/product';
 import { productService } from '../services/productService';
 import { formatVND } from '../utils/formatCurrency';
-import { cleanProductDescription } from '../utils/filterProducts';
+import { cleanProductDescription, cleanVariantLabel } from '../utils/filterProducts';
 import { getColorOption } from '../data/colors';
 import { SITE_CONFIG } from '../config/site';
 import { analyticsService } from '../services/analyticsService';
@@ -172,7 +172,7 @@ export const ProductPage: React.FC = () => {
     if (!product) return;
     const colorLabel = selectedColor ? getColorOption(selectedColor).label : 'Mặc định';
     const sizeLabel = selectedSize || 'Theo yêu cầu';
-    const variantLabel = selectedVariant ? `\n- Phân loại / Mẫu: ${selectedVariant.label}` : '';
+    const variantLabel = selectedVariant ? `\n- Phân loại / Mẫu: ${cleanVariantLabel(selectedVariant.label)}` : '';
     const text = `Tôi muốn đặt mua: ${product.name} (Mã: ${product.id})${variantLabel}\n- Màu sắc: ${colorLabel}\n- Kích thước: ${sizeLabel}\n- Giá tham khảo: ${formatVND(product.price)}`;
     navigator.clipboard.writeText(text);
     setCopiedOrderInfo(true);
@@ -359,7 +359,7 @@ export const ProductPage: React.FC = () => {
                     <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>
                       Chọn mẫu / Màu sắc ({product.variants.length} mẫu):{' '}
                       <span style={{ color: selectedVariant ? 'var(--accent-brown)' : 'var(--text-muted)', fontWeight: 700 }}>
-                        {selectedVariant?.label || 'Ảnh giới thiệu dòng sản phẩm'}
+                        {selectedVariant ? cleanVariantLabel(selectedVariant.label) : 'Ảnh giới thiệu dòng sản phẩm'}
                       </span>
                     </span>
                     <span style={{ fontSize: '0.775rem', color: 'var(--text-muted)' }}>
@@ -370,8 +370,8 @@ export const ProductPage: React.FC = () => {
                     className="product-variants-grid"
                     style={{
                       display: 'grid',
-                      gap: '0.5rem',
-                      maxHeight: '260px',
+                      gap: '0.55rem',
+                      maxHeight: '320px',
                       overflowY: 'auto',
                       padding: '2px',
                       width: '100%',
@@ -380,6 +380,7 @@ export const ProductPage: React.FC = () => {
                   >
                     {product.variants.map((variant, idx) => {
                       const isSelected = selectedVariant?.label === variant.label || selectedVariant?.image === variant.image;
+                      const labelText = cleanVariantLabel(variant.label);
                       return (
                         <button
                           key={idx}
@@ -388,8 +389,8 @@ export const ProductPage: React.FC = () => {
                           style={{
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '0.45rem',
-                            padding: '0.35rem 0.5rem',
+                            gap: '0.6rem',
+                            padding: '0.45rem 0.65rem',
                             borderRadius: 'var(--radius-sm)',
                             backgroundColor: isSelected ? 'var(--accent-warm-tint)' : 'var(--bg-surface)',
                             border: isSelected
@@ -407,27 +408,32 @@ export const ProductPage: React.FC = () => {
                             src={variant.image}
                             alt=""
                             style={{
-                              width: '32px',
-                              height: '32px',
-                              borderRadius: '4px',
+                              width: '36px',
+                              height: '36px',
+                              borderRadius: '6px',
                               objectFit: 'cover',
                               flexShrink: 0,
                             }}
                           />
                           <span
                             style={{
-                              fontSize: '0.75rem',
-                              fontWeight: isSelected ? 600 : 400,
+                              fontSize: '0.8rem',
+                              fontWeight: isSelected ? 600 : 500,
                               color: isSelected ? 'var(--accent-brown)' : 'var(--text-primary)',
                               overflow: 'hidden',
                               textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap',
+                              display: '-webkit-box',
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: 'vertical',
+                              lineHeight: 1.3,
+                              whiteSpace: 'normal',
+                              wordBreak: 'break-word',
                               flex: 1,
                               minWidth: 0,
                             }}
-                            title={variant.label}
+                            title={labelText}
                           >
-                            {variant.label}
+                            {labelText}
                           </span>
                         </button>
                       );
@@ -661,7 +667,7 @@ export const ProductPage: React.FC = () => {
                   >
                     {copiedOrderInfo
                       ? '✓ Đã sao chép cấu hình đặt hàng!'
-                      : `Sao chép thông tin đặt (${selectedVariant ? selectedVariant.label : (selectedColor ? getColorOption(selectedColor).label : 'Mẫu')} • ${selectedSize || 'Size'})`}
+                      : `Sao chép thông tin đặt (${selectedVariant ? cleanVariantLabel(selectedVariant.label) : (selectedColor ? getColorOption(selectedColor).label : 'Mẫu')} • ${selectedSize || 'Size'})`}
                   </span>
                 </button>
 
@@ -733,13 +739,13 @@ export const ProductPage: React.FC = () => {
       <Footer />
 
       <style>{`
-        /* Variant Selector Grid Responsiveness */
+        /* Variant Selector Grid Responsiveness: Wide buttons so names are clearly legible */
         .product-variants-grid {
           grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
         }
         @media (min-width: 640px) {
           .product-variants-grid {
-            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)) !important;
+            grid-template-columns: repeat(auto-fill, minmax(185px, 1fr)) !important;
           }
         }
 

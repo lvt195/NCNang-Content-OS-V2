@@ -26,6 +26,15 @@ export function cleanProductDescription(desc: string | undefined | null): string
 }
 
 /**
+ * Strip "Mẫu 01 - ", "Mẫu 1: ", "Mẫu 01.", etc. from variant label so only the
+ * clean human-readable color/pattern name is displayed.
+ */
+export function cleanVariantLabel(label: string | undefined | null): string {
+  if (!label) return '';
+  return label.replace(/^Mẫu\s*\d+[\s\-:.]+/i, '').trim() || label;
+}
+
+/**
  * Filter and sort products according to FilterState
  */
 export function filterProducts(products: Product[], filters: FilterState): Product[] {

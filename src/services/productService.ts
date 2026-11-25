@@ -3,6 +3,7 @@ import { Product, Category, ProductCategory } from '../types/product';
 import { INITIAL_PRODUCTS } from '../data/initialProducts';
 import { DEFAULT_CATEGORIES } from '../data/categories';
 import { inferProductMaterial } from '../data/materials';
+import { cleanVariantLabel } from '../utils/filterProducts';
 
 // Map database row to TypeScript Product
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -36,14 +37,20 @@ function mapRowToProduct(row: any): Product {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let variants: any = undefined;
   if (Array.isArray(row.variants) && row.variants.length > 0) {
-    variants = row.variants;
+    variants = row.variants.map((v: any) => ({
+      ...v,
+      label: typeof v.label === 'string' ? cleanVariantLabel(v.label) : v.label,
+    }));
   } else if (typeof row.description === 'string') {
     const varMatch = row.description.match(/<!--vars:(.*?)-->/);
     if (varMatch) {
       try {
         const parsedVars = JSON.parse(varMatch[1]);
         if (Array.isArray(parsedVars)) {
-          variants = parsedVars;
+          variants = parsedVars.map((v: any) => ({
+            ...v,
+            label: typeof v.label === 'string' ? cleanVariantLabel(v.label) : v.label,
+          }));
         }
       } catch (_) {}
     }
